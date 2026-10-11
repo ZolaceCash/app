@@ -7,6 +7,7 @@ import { CONFIRMATIONS_NEEDED, engine, FEE_ZAT, type Network, type Seen } from "
 import { quoteZec } from "@/lib/price"
 import { sealTo, type PublicKey, type Sealed, type Wrapped } from "@/lib/seal"
 import { canSupply, supplierOn, supply } from "@/lib/supplier"
+import { maskAddress, shieldedAddress } from "@/lib/zcash-address"
 
 const { orders, products, stock } = schema
 
@@ -443,6 +444,9 @@ export type OrderView = {
   owedZat: number
   owedWhy: OwedWhy | null
   refunded: boolean
+  // The address given for the refund, shortened: whoever has the order's link can tell whether one
+  // is on file and recognise their own, and cannot read anyone's address off it.
+  refundTo: string | null
   // Paid and deep enough, and the supplier is still making the item.
   making: boolean
   address: string
@@ -476,6 +480,7 @@ export async function readOrder(id: string, now = Date.now()): Promise<OrderView
     owedZat: order.owedZat,
     owedWhy: owedWhy(order),
     refunded: order.refundedAt !== null,
+    refundTo: order.refundAddress ? maskAddress(order.refundAddress) : null,
     making: product?.kind === "supplier" && order.state === "confirmed" && confirmations >= CONFIRMATIONS_NEEDED,
     address: order.address,
     createdAt: order.createdAt,
@@ -486,6 +491,30 @@ export async function readOrder(id: string, now = Date.now()): Promise<OrderView
     wrappedKey: JSON.parse(order.wrappedKey) as Wrapped,
     sealed: order.sealed ? (JSON.parse(order.sealed) as Sealed) : null,
   }
+}
+
+export type AddressResult = { ok: true; refundTo: string } | { ok: false; reason: "no-order" | "nothing-owed" | "bad-address" }
+
+// The buyer says where a refund should go. Taken only for an order that is owed something and has
+// not been refunded, and only if it is a shielded address of the order's own network whose
+// checksum holds: the refund is sent by hand and cannot be called back. A later address replaces
+// an earlier one, until the refund is sent.
+export async function setRefundAddress(id: string, text: string): Promise<AddressResult> {
+  const db = await getDb()
+  const [order] = await db.select().from(orders).where(eq(orders.id, id))
+  if (!order) return { ok: false, reason: "no-order" }
+  // A test order was paid with nothing, so nothing can be sent back for it.
+  if (order.test || order.owedZat <= 0 || order.refundedAt !== null) return { ok: false, reason: "nothing-owed" }
+
+  const address = shieldedAddress(text, order.address.startsWith("utest") ? "testnet" : "mainnet")
+  if (!address) return { ok: false, reason: "bad-address" }
+
+  const kept = await db
+    .update(orders)
+    .set({ refundAddress: address })
+    .where(and(eq(orders.id, id), gt(orders.owedZat, 0), isNull(orders.refundedAt)))
+    .returning({ id: orders.id })
+  return kept.length > 0 ? { ok: true, refundTo: maskAddress(address) } : { ok: false, reason: "nothing-owed" }
 }
 
 export type ShelfItem = { slug: string; name: string; blurb: string; priceCents: number; kind: "test" | "stock" | "supplier"; left: number | null }

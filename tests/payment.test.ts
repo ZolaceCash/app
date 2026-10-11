@@ -545,3 +545,105 @@ test("an order that is owed a refund is kept until the refund is sent, however o
   assert.ok((await place(month)).result.ok)
   assert.equal((await orders.readOrder(id, month + MINUTE))?.state, "owed")
 })
+
+// ---------------------------------------------------------------- where a refund goes
+
+// Two real unified addresses of Zcash's test network (the payment engine's, and a public faucet's).
+const TEST_UA = "utest1eyxyvdjxyc20xyf66rttcsxgmhtt8xewaaylfg5tn5v57h57nsvcmk9jy3qfszxjjg298dwpk0fjwc2e2h576sq7gmshhgyrzc05wcr0"
+const TEST_UA_2 = "utest1pmslle44wr0egglc2ec6dxglu6k3qmca2xkrmpcfr8hl5kqpkt9mwxy5lu00qut7xke3sudxtckm5l0x7f2yk3403peep4hppykhh5jn"
+
+// An address with a checksum that holds, made here the way a wallet makes one: for the prefixes
+// no real example is at hand for. `kind` is 1 for Bech32 and 0x2bc830a3 for Bech32m.
+function addressWith(prefix: string, kind: number, length = 60) {
+  const charset = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
+  const generator = [0x3b6a57b2, 0x26508e6d, 0x1ea119fa, 0x3d4233dd, 0x2a1462b3]
+  const polymod = (values: number[]) => {
+    let check = 1
+    for (const value of values) {
+      const top = check >>> 25
+      check = ((check & 0x1ffffff) << 5) ^ value
+      for (let bit = 0; bit < 5; bit++) if ((top >>> bit) & 1) check ^= generator[bit]
+    }
+    return check >>> 0
+  }
+  const expanded = [...[...prefix].map((c) => c.charCodeAt(0) >>> 5), 0, ...[...prefix].map((c) => c.charCodeAt(0) & 31)]
+  const data = Array.from({ length }, (_, at) => (at * 7 + prefix.length) % 32)
+  const mod = (polymod([...expanded, ...data, 0, 0, 0, 0, 0, 0]) ^ kind) >>> 0
+  const checksum = Array.from({ length: 6 }, (_, at) => (mod >>> (5 * (5 - at))) & 31)
+  return `${prefix}1${[...data, ...checksum].map((value) => charset[value]).join("")}`
+}
+
+test("a refund address is a shielded address of the order's network, with every character right", async () => {
+  const { shieldedAddress, maskAddress } = await import("../lib/zcash-address")
+  assert.equal(shieldedAddress(TEST_UA, "testnet"), TEST_UA)
+  assert.equal(shieldedAddress(`  ${TEST_UA_2}\n`, "testnet"), TEST_UA_2)
+  assert.equal(shieldedAddress(TEST_UA.toUpperCase(), "testnet"), TEST_UA)
+  // The other network's address is not this network's.
+  assert.equal(shieldedAddress(TEST_UA, "mainnet"), null)
+
+  // One character typed wrong, anywhere, and the checksum no longer holds.
+  for (const at of [8, 40, TEST_UA.length - 1]) {
+    const wrong = TEST_UA.slice(0, at) + (TEST_UA[at] === "q" ? "p" : "q") + TEST_UA.slice(at + 1)
+    assert.equal(shieldedAddress(wrong, "testnet"), null, `position ${at}`)
+  }
+  assert.equal(shieldedAddress(TEST_UA.slice(0, -1), "testnet"), null)
+  assert.equal(shieldedAddress("Utest1" + TEST_UA.slice(6), "testnet"), null, "capitals and small letters mixed")
+
+  const unified = addressWith("u", 0x2bc830a3, 120)
+  const sapling = addressWith("zs", 1, 63)
+  assert.equal(shieldedAddress(unified, "mainnet"), unified)
+  assert.equal(shieldedAddress(sapling, "mainnet"), sapling)
+  assert.equal(shieldedAddress(unified, "testnet"), null)
+  // The right prefix with the other kind of checksum is not an address.
+  assert.equal(shieldedAddress(addressWith("u", 1, 120), "mainnet"), null)
+  assert.equal(shieldedAddress(addressWith("zs", 0x2bc830a3, 63), "mainnet"), null)
+  // A transparent address would put the refund in public: not taken. Nor is anything else.
+  assert.equal(shieldedAddress("t1Hsc1LR8yKnbbe3twRp88p6vFfC5t7DLbs", "mainnet"), null)
+  assert.equal(shieldedAddress(addressWith("bc", 1, 40), "mainnet"), null)
+  assert.equal(shieldedAddress("", "mainnet"), null)
+
+  assert.equal(maskAddress(TEST_UA), "utest1ey…05wcr0")
+})
+
+test("the buyer of an order that is owed a refund says where to send it, and the owner sees it", async () => {
+  const now = later()
+  const { id, ref } = await placed(now)
+  const first = addressWith("u", 0x2bc830a3, 120)
+  const second = addressWith("zs", 1, 63)
+
+  // Nothing is owed yet: there is nothing to give an address for.
+  assert.deepEqual(await orders.setRefundAddress(id, first), { ok: false, reason: "nothing-owed" })
+
+  pay(ref, 400_000)
+  await orders.readOrder(id, now + 16 * MINUTE)
+  assert.equal((await orders.readOrder(id, now + 17 * MINUTE))?.refundTo, null)
+
+  // A mistyped address, and one of the test network, are refused: the refund could not be called back.
+  assert.deepEqual(await orders.setRefundAddress(id, first.slice(0, -1) + (first.endsWith("q") ? "p" : "q")), { ok: false, reason: "bad-address" })
+  assert.deepEqual(await orders.setRefundAddress(id, TEST_UA), { ok: false, reason: "bad-address" })
+
+  const kept = await orders.setRefundAddress(id, first)
+  assert.deepEqual(kept, { ok: true, refundTo: `${first.slice(0, 8)}…${first.slice(-6)}` })
+  // The order's page shows it shortened; the whole of it is for the owner alone.
+  const page = await orders.readOrder(id, now + 18 * MINUTE)
+  assert.equal(page?.refundTo, `${first.slice(0, 8)}…${first.slice(-6)}`)
+  assert.ok(!JSON.stringify(page).includes(first))
+  assert.equal((await admin.listRefundsDue(now + 19 * MINUTE)).find((entry) => entry.id === id)?.refundAddress, first)
+
+  // Another address replaces it, until the refund is sent.
+  assert.ok((await orders.setRefundAddress(id, second)).ok)
+  assert.equal((await admin.listRefundsDue(now + 20 * MINUTE)).find((entry) => entry.id === id)?.refundAddress, second)
+  assert.equal(await admin.markRefunded(id, now + 21 * MINUTE), true)
+  assert.deepEqual(await orders.setRefundAddress(id, first), { ok: false, reason: "nothing-owed" })
+
+  assert.deepEqual(await orders.setRefundAddress("no-such-order", first), { ok: false, reason: "no-order" })
+})
+
+test("an overpaid order that was handed over takes an address for its excess too", async () => {
+  const now = later()
+  const { id, ref } = await placed(now)
+  pay(ref, PRICE + 300_000)
+  mine(ref, 3)
+  assert.equal((await orders.readOrder(id, now + 5 * MINUTE))?.owedZat, 300_000)
+  assert.ok((await orders.setRefundAddress(id, addressWith("u", 0x2bc830a3, 120))).ok)
+})

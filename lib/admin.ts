@@ -20,6 +20,8 @@ export type OwnerOrder = {
   // What arrived, and what of it is owed back.
   receivedZat: number
   owedZat: number
+  // Where the buyer asked for it to be sent. Null until they say.
+  refundAddress: string | null
   createdAt: number
   expiresAt: number
   seenAt: number | null
@@ -35,6 +37,7 @@ const orderColumns = {
   zat: orders.zat,
   receivedZat: orders.receivedZat,
   owedZat: orders.owedZat,
+  refundAddress: orders.refundAddress,
   createdAt: orders.createdAt,
   expiresAt: orders.expiresAt,
   seenAt: orders.seenAt,

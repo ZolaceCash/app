@@ -50,6 +50,13 @@
       "when": 1791746597570,
       "tag": "0006_foamy_morlocks",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1791747786913,
+      "tag": "0007_moaning_raider",
+      "breakpoints": true
     }
   ]
 }

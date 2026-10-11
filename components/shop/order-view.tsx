@@ -5,6 +5,7 @@ import { useEffect, useState, useSyncExternalStore } from "react"
 
 import { ZecIcon } from "@/components/site/chain-icons"
 import { Qr } from "@/components/shop/qr"
+import { RefundForm } from "@/components/shop/refund-form"
 import { CopyButton } from "@/components/site/copy-button"
 import { DotLabel, PillLink } from "@/components/site/primitives"
 import { Button } from "@/components/ui/button"
@@ -187,7 +188,7 @@ export function OrderView({ id }: { id: string }) {
                     ? `${order.confirmations} of ${order.confirmationsNeeded} blocks`
                     : done
                       ? "Done"
-                      : current && index === 0
+                      : current && index === 0 && (order.state === "waiting" || order.state === "underpaid")
                         ? `Held for ${clock}`
                         : ""}
                 </span>
@@ -331,8 +332,11 @@ export function OrderView({ id }: { id: string }) {
                       {formatZec(order.receivedZat)} ZEC arrived for a price of {formatZec(order.zat)}.{" "}
                       {order.refunded
                         ? `${formatZec(order.owedZat)} ZEC was sent back by hand, less the network's fee.`
-                        : `${formatZec(order.owedZat)} ZEC is owed back to you. Refunds are made by hand, less the network's fee. Keep this link: it is how the order is found.`}
+                        : `${formatZec(order.owedZat)} ZEC is owed back to you. Refunds are made by hand, less the network's fee, to the address you give below. Keep this link: it is how the order is found.`}
                     </Warning>
+                  ) : null}
+                  {order.owedZat > 0 && !order.refunded && order.network !== "stand-in" ? (
+                    <RefundForm id={order.id} network={order.network} onFile={order.refundTo} />
                   ) : null}
                 </>
               ) : item ? (
@@ -353,9 +357,12 @@ export function OrderView({ id }: { id: string }) {
                 : order.owedWhy === "late"
                   ? "Your payment arrived after the price lock ran out. The item had gone back on the shelf, so nothing was handed over."
                   : "Your payment was confirmed, but there was no item left to hand over."}{" "}
-              Refunds are made by hand, to an address you give, less the network&apos;s fee. Keep this link: it
-              is how the order is found.
+              Refunds are made by hand, less the network&apos;s fee, to the address you give below. Keep this
+              link: it is how the order is found.
             </Warning>
+          ) : null}
+          {order.state === "owed" && order.network !== "stand-in" ? (
+            <RefundForm id={order.id} network={order.network} onFile={order.refundTo} />
           ) : null}
 
           {order.state === "refunded" ? (

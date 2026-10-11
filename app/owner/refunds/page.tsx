@@ -5,6 +5,7 @@ import { refundSent } from "@/app/owner/actions";
 import { ActionForm } from "@/components/owner/action-form";
 import { dollars, OwnerFrame, Panel, when } from "@/components/owner/frame";
 import { ZecIcon } from "@/components/site/chain-icons";
+import { CopyButton } from "@/components/site/copy-button";
 import { listRefundsDue } from "@/lib/admin";
 import { owedWhy, type OwedWhy } from "@/lib/orders";
 import { requireOwner } from "@/lib/owner-session";
@@ -15,7 +16,7 @@ export const metadata: Metadata = { title: "Refunds" };
 const HOW = [
   "An order lands here when money arrived that the shop may not keep: too little, too late, with no item left to hand over, or more than the price.",
   "Check each one in your own wallet before sending anything back. The amount here is what the payment engine saw.",
-  "The buyer gives an address to refund to. A shielded payment names no sender, so it cannot simply be sent back.",
+  "The buyer gives a shielded address on the order's page. A shielded payment names no sender, so it cannot simply be sent back. An order with no address yet stays here until there is one.",
   "You send the refund from your own wallet. The server cannot: it holds no key that can spend.",
   "Taking an order off the queue only records that you did. It moves no money.",
 ];
@@ -61,6 +62,20 @@ export default async function OwnerRefunds() {
                       <ZecIcon className="size-3.5" />
                       {formatZec(order.owedZat)} ZEC
                     </span>
+                  </Row>
+                  <Row name="Send it to">
+                    {order.refundAddress ? (
+                      <span className="flex flex-col items-start gap-2">
+                        <span className="font-mono text-xs break-all">{order.refundAddress}</span>
+                        <CopyButton text={order.refundAddress} variant="secondary" size="xs">
+                          Copy the address
+                        </CopyButton>
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">
+                        The buyer has not given an address yet. They can, on the order&apos;s page.
+                      </span>
+                    )}
                   </Row>
                   <Row name="Why">{WHY[owedWhy(order) ?? "no-item"]}</Row>
                   <Row name="Arrived">

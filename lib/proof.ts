@@ -18,6 +18,7 @@ const NOTES: Record<string, Record<string, string>> = {
     received_zat: "How much the payment engine saw arrive at that address.",
     txid: "The transaction the payment was seen in. It is shielded: its id shows no sender, no receiver and no amount.",
     owed_zat: "What is owed back to you: all of it if nothing was handed over, the excess if you paid too much.",
+    refund_address: "The shielded address you gave for a refund, if something was owed back to you and you gave one.",
     refunded_at: "When the owner said the refund was sent.",
     supply_ref: "For an item a supplier makes: the supplier's number for what was bought for this order.",
     public_key: "The public half of a key pair your browser made. The item is sealed to it.",

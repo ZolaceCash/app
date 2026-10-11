@@ -58,6 +58,9 @@ export const orders = sqliteTable("orders", {
   // What is owed back to the buyer, in zatoshi: all of it when nothing was handed over, the
   // excess when too much was paid.
   owedZat: integer("owed_zat").notNull().default(0),
+  // Where the buyer asked for a refund to be sent: a shielded address they typed in on the order's
+  // page. Only there when something is owed back and the buyer gave one.
+  refundAddress: text("refund_address"),
   // When the owner said the refund was sent.
   refundedAt: integer("refunded_at"),
   // For an item made by a supplier: the supplier's own number for what was bought for this order.
