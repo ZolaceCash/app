@@ -1,0 +1,450 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-heading: var(--font-geist-sans);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+
+  /* The accent as text. */
+  --color-brand: var(--brand);
+
+  /* Solid fills for the deck and the tiles: indigo, violet, deep indigo and neutrals. No tints. */
+  --color-ink: #0b0b10;
+  --color-indigo: #5567ea;
+  --color-violet: #7a45f5;
+  --color-navy: #1f2358;
+  --color-ice: #f4f4f6;
+  --color-graphite: #26262e;
+  /* Only for small "it is on" marks, never as a fill. */
+  --color-signal: #4ade9a;
+}
+
+/*
+  One dark theme: a near-black ground, graphite tiles on it, and Ethereum indigo as the only accent.
+  There is no light mode and no scoped theme classes.
+*/
+:root {
+  color-scheme: dark;
+  --background: #09090b;
+  --foreground: #f4f4f6;
+  --card: #111114;
+  --card-foreground: #f4f4f6;
+  --popover: #131317;
+  --popover-foreground: #f4f4f6;
+  --primary: #5567ea;
+  --primary-foreground: #ffffff;
+  --secondary: #1c1c22;
+  --secondary-foreground: #f4f4f6;
+  --muted: #16161a;
+  --muted-foreground: #9a9aa6;
+  --accent: #181b38;
+  --accent-foreground: #8f9dff;
+  --destructive: #ff6b74;
+  --border: rgb(255 255 255 / 8%);
+  --input: rgb(255 255 255 / 12%);
+  --ring: #7f8eff;
+  --brand: #7b8cff;
+  --chart-1: #5567ea;
+  --chart-2: #7a45f5;
+  --chart-3: #1f2358;
+  --chart-4: #f4f4f6;
+  --chart-5: #26262e;
+  --radius: 0.375rem;
+  --sidebar: #111114;
+  --sidebar-foreground: #f4f4f6;
+  --sidebar-primary: #5567ea;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #181b38;
+  --sidebar-accent-foreground: #8f9dff;
+  --sidebar-border: rgb(255 255 255 / 8%);
+  --sidebar-ring: #7f8eff;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    /* No scrollbar is drawn anywhere; everything still scrolls. */
+    scrollbar-width: none;
+  }
+  *::-webkit-scrollbar {
+    display: none;
+  }
+  html {
+    @apply font-sans;
+    scroll-padding-top: 5rem;
+  }
+  body {
+    @apply bg-background text-foreground;
+    /* A faint dot every 28px, fixed to the window: the ground the tiles sit on. */
+    background-image: radial-gradient(rgb(255 255 255 / 7%) 1px, transparent 1px);
+    background-size: 28px 28px;
+    background-attachment: fixed;
+  }
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+  ::selection {
+    background: color-mix(in oklch, var(--primary) 28%, transparent);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    html {
+      scroll-behavior: smooth;
+    }
+  }
+}
+
+/* Mono capitals: nav, buttons, labels and every piece of metadata. */
+@utility label-mono {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/*
+  Borderless: nothing on the page draws an edge or a rule. A surface is told apart by its fill, one
+  step lighter than what it sits on, and things are separated by space.
+*/
+
+/*
+  The site's shape: a tile with its bottom-right corner cut off (`cut`), and a larger block with
+  the top-left corner cut as well (`cut-2`). Used with `rounded-3xl`, which keeps the other corners
+  soft. A clip also cuts anything drawn outside the box, so a tile that is a link shows its focus
+  ring inside itself (`ring-inset`).
+*/
+@utility cut {
+  --cut: 1.25rem;
+  clip-path: polygon(0 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%);
+}
+
+@utility cut-2 {
+  --cut: 1.75rem;
+  clip-path: polygon(
+    var(--cut) 0,
+    100% 0,
+    100% calc(100% - var(--cut)),
+    calc(100% - var(--cut)) 100%,
+    0 100%,
+    0 var(--cut)
+  );
+}
+
+@layer components {
+  .reveal {
+    opacity: 0;
+    transform: translateY(18px);
+    transition:
+      opacity 0.8s cubic-bezier(0.2, 0.7, 0.2, 1),
+      transform 0.8s cubic-bezier(0.2, 0.7, 0.2, 1);
+    transition-delay: var(--reveal-delay, 0ms);
+  }
+  .reveal[data-shown="true"] {
+    opacity: 1;
+    transform: none;
+  }
+
+  /*
+    The hero deck. A neighbour's distance comes from the stage's height, so the card before shows
+    at the top of the stage and the card after at the bottom. The stage has no box around it: its
+    top and bottom fade out, so the neighbours dissolve into the page instead of being cut off.
+    On a wide screen the stage is the whole hero, which takes the same height (landing/hero.tsx).
+  */
+  .deck {
+    --stage-h: 23rem;
+    --card-w: min(76vw, 31rem);
+    --card-h: calc(var(--card-w) * 0.58);
+    --peek: 5.25rem;
+    /* 0.24: half the height a neighbour shows once it is scaled down and tipped away. */
+    --step: calc(var(--stage-h) / 2 + var(--card-h) * 0.24 - var(--peek));
+    height: var(--stage-h);
+    /* Depth for the roll: each card is tipped by --r as it leaves or arrives. */
+    perspective: 70rem;
+    --fade: min(7.5rem, 18%);
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 var(--fade),
+      #000 calc(100% - var(--fade)),
+      transparent 100%
+    );
+  }
+  @media (min-width: 64rem) {
+    .deck {
+      --stage-h: max(34rem, calc(100svh - 5rem));
+      --card-w: clamp(24.5rem, 32vw, 36rem);
+      /* The taller stage puts the neighbours further from the eye line, so they need more room. */
+      --peek: 9rem;
+    }
+  }
+  .deck-card {
+    width: var(--card-w);
+    height: var(--card-h);
+    transform: translate(-50%, calc(-50% + var(--d) * var(--step) + var(--drag, 0px)))
+      rotateX(var(--r, 0deg)) scale(var(--s));
+    transition:
+      transform 0.95s cubic-bezier(0.3, 0.75, 0.2, 1),
+      opacity 0.5s ease,
+      box-shadow 0.5s ease;
+  }
+  .deck[data-dragging="true"] .deck-card {
+    transition-duration: 0s, 0.5s, 0.5s;
+  }
+
+  /*
+    A bar that fills while something waits to move on by itself: the open card's segment in the
+    hero and the open step in "How it works". The end of the animation is the signal to move on.
+  */
+  /*
+    The open card of the deck plays its text: each word of the claim comes up after the one before
+    it, and the mark in front of the note blinks like a cursor. A card that is not open shows its
+    text at rest.
+  */
+  .deck-card[data-open="true"] .card-word {
+    animation: card-word 0.55s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    animation-delay: calc(var(--i, 0) * 60ms + 140ms);
+  }
+  .deck-card[data-open="true"] .card-mark {
+    animation: card-mark 1.1s steps(1) infinite;
+  }
+
+  .auto-fill {
+    transform-origin: left;
+    animation: auto-fill var(--fill-time, 6s) linear forwards;
+  }
+
+  /*
+    The mobile menu is a short panel with an odd outline: two corners cut off and a shallow notch
+    in the left edge. Everything inside keeps clear of the cuts (components/site/nav.tsx).
+  */
+  .menu-panel {
+    --cut: 3.5rem;
+    --nick: 1.25rem;
+    --notch: 0.75rem;
+    clip-path: polygon(
+      var(--nick) 0,
+      100% 0,
+      100% calc(100% - var(--cut)),
+      calc(100% - var(--cut)) 100%,
+      0 100%,
+      0 64%,
+      var(--notch) calc(64% - var(--notch)),
+      var(--notch) calc(36% + var(--notch)),
+      0 36%,
+      0 var(--nick)
+    );
+  }
+
+  /* Fades up once when the page loads: the hero's headline, copy and controls, one after another. */
+  .enter {
+    animation: enter 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+    animation-delay: var(--enter-delay, 0ms);
+  }
+
+  /* A dot that says "this is live": a ring leaves it every couple of seconds. */
+  .live-dot {
+    position: relative;
+  }
+  .live-dot::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    background: inherit;
+    animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+
+  /*
+    A message in the "who talks to whom" diagram: the bar runs the length of its track, each one a
+    little after the one before (--flow-delay), and `.flow-back` sends it the other way.
+  */
+  .flow-pulse {
+    animation: flow 4.5s cubic-bezier(0.5, 0, 0.3, 1) infinite;
+    animation-delay: var(--flow-delay, 0s);
+    transform: translateX(-100%);
+  }
+  .flow-back {
+    animation-name: flow-back;
+    transform: translateX(100%);
+  }
+
+  /* The ticker: the track holds the list twice and slides left by one copy, forever. */
+  .ticker {
+    mask-image: linear-gradient(to right, transparent, #000 4rem, #000 calc(100% - 4rem), transparent);
+  }
+  .ticker-track {
+    animation: ticker 44s linear infinite;
+  }
+  .ticker:hover .ticker-track {
+    animation-play-state: paused;
+  }
+
+  /*
+    Reduced motion: the page stays alive, but little travels. Fades, fills, counters and text that
+    changes keep running; the ticker, the entrance slide and the pulse of the dot do not. The one
+    exception is the deck's roll, which the owner asked to keep in every mode.
+  */
+  @media (prefers-reduced-motion: reduce) {
+    .reveal {
+      transform: none;
+      transition: opacity 0.6s ease;
+    }
+    .enter {
+      animation-name: enter-fade;
+    }
+    .deck-card[data-open="true"] .card-word {
+      animation-name: enter-fade;
+    }
+    .live-dot::after {
+      animation-name: ping-fade;
+    }
+    .ticker-track {
+      animation: none;
+    }
+    /* The pulses stay where their message ends and blink instead of running. */
+    .flow-pulse,
+    .flow-back {
+      animation-name: flow-blink;
+      transform: translateX(calc(100% - 2.5rem));
+    }
+    .flow-back {
+      transform: translateX(0);
+    }
+  }
+}
+
+@keyframes card-word {
+  from {
+    opacity: 0;
+    transform: translateY(0.45em);
+  }
+}
+
+@keyframes card-mark {
+  50% {
+    opacity: 0.15;
+  }
+}
+
+@keyframes auto-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+@keyframes enter-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes ping {
+  0% {
+    transform: scale(1);
+    opacity: 0.7;
+  }
+  75%,
+  100% {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+
+@keyframes ping-fade {
+  0%,
+  100% {
+    opacity: 0;
+  }
+  50% {
+    opacity: 0.6;
+  }
+}
+
+@keyframes ticker {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes flow {
+  0% {
+    transform: translateX(-2.5rem);
+  }
+  45%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes flow-back {
+  0% {
+    transform: translateX(100%);
+  }
+  45%,
+  100% {
+    transform: translateX(-2.5rem);
+  }
+}
+
+@keyframes flow-blink {
+  0%,
+  100% {
+    opacity: 0.25;
+  }
+  30% {
+    opacity: 1;
+  }
+}

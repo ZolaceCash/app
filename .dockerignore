@@ -1,0 +1,15 @@
+# What the image build does not need, or must not see.
+node_modules
+.next
+.git
+.claude
+data
+deploy
+contracts
+engine
+brand
+tests
+scripts
+*.md
+.env*
+*.tsbuildinfo

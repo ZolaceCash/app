@@ -1,0 +1,71 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index cbe8dc1..01d3a46 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -32,11 +32,11 @@ tokio-tungstenite = { version = "0.26", features = ["native-tls"] }
+ # Zakura Common: performance-optimized forks of librustzcash (1.5x trial decryption,
+ # 21x Sinsemilla). Same APIs, lib names unchanged — `use zcash_primitives::...` and
+ # `use orchard::...` still work.
+-zcash_primitives = { package = "zakura-primitives", version = "1.0.1", default-features = false }
++zcash_primitives = { package = "zakura-primitives", version = "2.2.0", default-features = false }
+ zcash_note_encryption = "0.4.2"
+-orchard = { package = "zakura-orchard", version = "1.0.1", default-features = false, features = ["std"] }
+-zcash_address = "0.13"
+-zcash_protocol = "0.10"
++orchard = { package = "zakura-orchard", version = "2.2.0", default-features = false, features = ["std"] }
++zcash_address = { package = "zakura-address", version = "2.2.0" }
++zcash_protocol = { package = "zakura-protocol", version = "2.2.0" }
+ 
+ # WebAuthn / Passkeys
+ webauthn-rs = { version = "0.5", features = ["danger-allow-state-serialisation"] }
+diff --git a/src/scanner/decrypt.rs b/src/scanner/decrypt.rs
+index 21f3bb8..495e804 100644
+--- a/src/scanner/decrypt.rs
++++ b/src/scanner/decrypt.rs
+@@ -111,6 +111,19 @@ pub fn derive_uivk_from_ufvk(ufvk_str: &str) -> Result<String> {
+     Ok(uivk.encode(&network))
+ }
+ 
++/// Trial patch (Zolace stage 0): read the transaction with the consensus branch it names itself
++/// (bytes 8..12 of a v5+ transaction) instead of assuming NU6.3, so a transaction made after a
++/// later upgrade is not dropped without a word.
++fn branch_of(tx_bytes: &[u8]) -> BranchId {
++    if tx_bytes.len() >= 12 {
++        let id = u32::from_le_bytes([tx_bytes[8], tx_bytes[9], tx_bytes[10], tx_bytes[11]]);
++        if let Ok(branch) = BranchId::try_from(id) {
++            return branch;
++        }
++    }
++    BranchId::Nu6_3
++}
++
+ /// Trial-decrypt all Orchard and Ironwood outputs using pre-computed keys (fast path).
+ pub fn try_decrypt_with_keys(raw_hex: &str, keys: &CachedKeys) -> Result<Vec<DecryptedOutput>> {
+     let tx_bytes = hex::decode(raw_hex)?;
+@@ -119,7 +132,7 @@ pub fn try_decrypt_with_keys(raw_hex: &str, keys: &CachedKeys) -> Result<Vec<Dec
+     }
+ 
+     let mut cursor = Cursor::new(&tx_bytes[..]);
+-    let tx = match Transaction::read(&mut cursor, BranchId::Nu6_3) {
++    let tx = match Transaction::read(&mut cursor, branch_of(&tx_bytes)) {
+         Ok(tx) => tx,
+         Err(_) => return Ok(vec![]),
+     };
+@@ -230,7 +243,7 @@ pub fn try_decrypt_all_outputs_ivk(raw_hex: &str, key_str: &str) -> Result<Vec<D
+     let prepared_ivk = PreparedIncomingViewingKey::new(&ivk);
+ 
+     let mut cursor = Cursor::new(&tx_bytes[..]);
+-    let tx = match Transaction::read(&mut cursor, BranchId::Nu6_3) {
++    let tx = match Transaction::read(&mut cursor, branch_of(&tx_bytes)) {
+         Ok(tx) => tx,
+         Err(_) => return Ok(vec![]),
+     };
+@@ -281,7 +294,7 @@ pub fn try_decrypt_all_outputs(raw_hex: &str, ufvk_str: &str) -> Result<Vec<Decr
+     };
+ 
+     let mut cursor = Cursor::new(&tx_bytes[..]);
+-    let tx = match Transaction::read(&mut cursor, BranchId::Nu6_3) {
++    let tx = match Transaction::read(&mut cursor, branch_of(&tx_bytes)) {
+         Ok(tx) => tx,
+         Err(_) => return Ok(vec![]),
+     };

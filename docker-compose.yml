@@ -1,0 +1,62 @@
+# Zolace on one server: the site, nginx in front of it, and certbot for the certificate.
+# Cloudflare sits in front of nginx (deploy/README.md has the steps and what that costs in privacy).
+#
+#   cp deploy/env.example .env                                  # then fill it in
+#   cp deploy/secrets/cloudflare.ini.example deploy/secrets/cloudflare.ini
+#   sh deploy/init-cert.sh                                      # once, for the first certificate
+#   docker compose up -d --build
+
+name: zolace
+
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    env_file:
+      # Without a .env the start already stops at DOMAIN below, with a message that says why.
+      - path: .env
+        required: false
+    volumes:
+      # The database: one SQLite file. It lives here, on this server, and nowhere else.
+      - zolace-data:/app/data
+    # Reached by nginx only. No port of the app is published on the host.
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  nginx:
+    image: nginx:1.28-alpine
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env (copy deploy/env.example)}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/nginx/zolace.conf.template:/etc/nginx/templates/default.conf.template:ro
+      - letsencrypt:/etc/letsencrypt:ro
+    # nginx reads a renewed certificate only when told to: reload it twice a day.
+    command: ["/bin/sh", "-c", "while :; do sleep 12h & wait $$!; nginx -s reload; done & exec /docker-entrypoint.sh nginx -g 'daemon off;'"]
+
+  certbot:
+    # Proves the domain is ours through Cloudflare's DNS, so no request has to reach this server
+    # for a certificate, and it works with Cloudflare's proxy switched on.
+    image: certbot/dns-cloudflare:latest
+    restart: unless-stopped
+    volumes:
+      - letsencrypt:/etc/letsencrypt
+      - ./deploy/secrets/cloudflare.ini:/run/secrets/cloudflare.ini:ro
+    # Looks twice a day. A certificate is only replaced when it has under 30 days left.
+    entrypoint: ["/bin/sh", "-c", "trap exit TERM; while :; do certbot renew --dns-cloudflare --dns-cloudflare-credentials /run/secrets/cloudflare.ini --quiet; sleep 12h & wait $$!; done"]
+
+volumes:
+  zolace-data:
+  letsencrypt:

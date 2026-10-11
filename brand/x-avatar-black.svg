@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">
+  <!-- The profile picture on the site's near-black ground instead of the accent colour. X crops it
+       to a circle, so the mark keeps to the middle half. -->
+  <rect width="400" height="400" fill="#09090b"/>
+  <g fill="#fff" transform="translate(100 100) scale(8.3333)">
+    <polygon points="8.1,2 22,2 13.25,14.5 10.65,14.5 15.9,7 4.6,7"/>
+    <polygon points="19.4,17 15.9,22 2,22 10.75,9.5 13.35,9.5 8.1,17"/>
+    <polygon points="5.5,2 7,2 3.5,7 2,7"/>
+    <polygon points="20.5,17 22,17 18.5,22 17,22"/>
+  </g>
+</svg>
