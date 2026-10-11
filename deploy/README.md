@@ -92,12 +92,55 @@ publishes no port. `init-cert.sh`, the Cloudflare token and the `.env` file are 
    `https://www.zolace.cash:80` beside it if www should answer (it is sent on to the bare name). Not on `app`:
    `web` is the nginx that strips the visitor's address before a request reaches the site.
 3. **Environment Variables**: every setting of the compose file is listed there. `OWNER_SECRET` has to be
-   filled in before Coolify deploys (32 characters or more: `openssl rand -base64 48`). The rest start with
+   filled in before Coolify deploys. It is 32 characters or more; make one with `openssl rand -base64 48`, or
+   where there is no openssl, `node -e "console.log(require('crypto').randomBytes(48).toString('base64'))"`.
+   The rest start with
    working values; `TOKEN_ADDRESS` and `VAULT_ADDRESS` start empty.
 4. Deploy. Then open the **Terminal** of the `app` container and run `node preflight.mjs`: it checks the
    two ZEC prices, the token's network and the settings, as `deploy/preflight.sh` does elsewhere.
 
 To show or change the contract address later: set `TOKEN_ADDRESS` under Environment Variables and redeploy.
+
+### With the domain at Cloudflare
+
+The site works behind Cloudflare's proxy as it is: the nginx of this compose file counts a flood by the
+visitor's address as Cloudflare reports it, strips that address before the request reaches the site, and
+sends `www` on to the bare name. Pages are answered with `Cache-Control: no-store`, so Cloudflare does not
+keep a copy of an order's page. What has to be set is on Cloudflare's side and on Coolify's proxy:
+
+1. **DNS**: two records pointing at the server, `zolace.cash` and `www`, both **Proxied**.
+2. **SSL/TLS > Overview**: **Full (strict)**. With "Flexible", Cloudflare talks to the server without
+   encryption, and the browser is sent round in circles between HTTP and HTTPS.
+3. **A certificate Cloudflare accepts on the server.** Coolify's proxy asks Let's Encrypt over HTTP by
+   default, and Coolify's documentation says a proxy in front can break that check, at the first issue or
+   at a renewal three months on. Its two ways round it:
+   - A **Cloudflare Origin Certificate** (SSL/TLS > Origin Server > Create Certificate, for `zolace.cash` and
+     `*.zolace.cash`). Put the certificate and its key on the server under `/data/coolify/proxy/certs/`, and
+     in Coolify under Server > Proxy > Dynamic Configuration add a file that names them:
+
+     ```yaml
+     tls:
+       certificates:
+         - certFile: /traefik/certs/zolace.cert
+           keyFile: /traefik/certs/zolace.key
+     ```
+
+     It lasts up to fifteen years and needs no renewal. Only Cloudflare trusts it, which is all that is
+     needed while every visitor comes through Cloudflare.
+   - Or a **DNS challenge** in Coolify's proxy, with a Cloudflare API token that can edit this one zone's
+     DNS (Coolify's documentation, "DNS Challenge").
+4. **SSL/TLS > Edge Certificates**: **Always Use HTTPS** on.
+5. Leave off what rewrites pages on the way: Rocket Loader, and any rule that caches HTML ("Cache
+   Everything"). An order's page must never be served from a cache.
+6. Worth doing: let the server's firewall take port 443 from Cloudflare's published addresses only, so
+   nobody reaches the site around Cloudflare.
+
+What Cloudflare sees is said at the top of this file, under "What Cloudflare costs in privacy". It holds on
+Coolify as well.
+
+Tried here: requests carrying Cloudflare's headers went through this nginx. One visitor was slowed after a
+burst of order requests while another was not, and pages came back with `no-store`. Cloudflare itself, and
+the certificate steps above, were not run: they are written from Coolify's documentation.
 
 Two things Coolify decides and this repository cannot:
 
