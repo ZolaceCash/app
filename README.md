@@ -25,7 +25,7 @@ stores at `/proof`.
 | `tests/` | Tests of the order flow, the sealing of an item, the price rule, the owner's screens and the vault's counting |
 | `contracts/` | The token and the vault its holders claim from, with their tests. Written, not audited, not deployed (`CONTRACT.md`) |
 | `engine/cipherpay/` | A patch and notes from trying a payment engine on Zcash testnet |
-| `Dockerfile`, `docker-compose.yml`, `deploy/` | Running it on one server (`deploy/README.md`) |
+| `Dockerfile`, `docker-compose.yml`, `docker-compose.coolify.yml`, `deploy/` | Running it on one server, on its own or on Coolify (`deploy/README.md`) |
 
 ## Running it
 

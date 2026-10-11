@@ -1,0 +1,62 @@
+# Zolace on Coolify (deploy/README.md, "On Coolify").
+#
+# Coolify's own proxy takes the domain and the certificate, so this file has no certbot and
+# publishes no port. In Coolify: build strategy "Compose", Docker Compose Location
+# /docker-compose.coolify.yml, and the domain on the service `web`, port 80:
+#
+#   https://zolace.cash:80
+#
+# Every ${...} below shows up under Environment Variables in Coolify, with the value after `:-`
+# as its start. Change a value there and redeploy; nothing is written into this file.
+
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    environment:
+      # The database is local: one SQLite file on the volume below, opened by the site itself.
+      # Set DATABASE_URL (and its token) only to use a hosted libSQL database instead.
+      DATABASE_URL: ${DATABASE_URL:-file:/app/data/zolace.db}
+      DATABASE_AUTH_TOKEN: ${DATABASE_AUTH_TOKEN:-}
+      # SECRET. Opens /owner. 32 characters or more. Coolify does not deploy until it is set.
+      OWNER_SECRET: ${OWNER_SECRET:?}
+      # Days an order is kept after it closes.
+      ORDER_RETENTION_DAYS: ${ORDER_RETENTION_DAYS:-7}
+      # The token's contract address (the CA) shown across the site. Empty: the site says there
+      # is no token. Set it, redeploy, and every page that speaks of the token shows it.
+      TOKEN_ADDRESS: ${TOKEN_ADDRESS:-}
+      TOKEN_CHAIN_ID: ${TOKEN_CHAIN_ID:-4663}
+      TOKEN_RPC_URL: ${TOKEN_RPC_URL:-https://rpc.mainnet.chain.robinhood.com}
+      TOKEN_DEPLOY_BLOCK: ${TOKEN_DEPLOY_BLOCK:-0}
+      # The reward for holders. Switched off while VAULT_ADDRESS is empty.
+      VAULT_ADDRESS: ${VAULT_ADDRESS:-}
+      REWARD_ASSET: ${REWARD_ASSET:-eip155:4663/erc20:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec}
+      REWARD_SYMBOL: ${REWARD_SYMBOL:-NVDA}
+      REWARD_DECIMALS: ${REWARD_DECIMALS:-18}
+    volumes:
+      # Where the database file lives. It stays on this server and outlives a redeploy.
+      - zolace-data:/app/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # What visitors reach, through Coolify's proxy. It keeps no access log, strips the visitor's
+  # address before a request goes on to the site, and slows down floods (deploy/coolify/nginx.conf).
+  web:
+    build: ./deploy/coolify
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  zolace-data:

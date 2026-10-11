@@ -80,6 +80,36 @@ itself, not on a laptop: some networks answer for an exchange's or a chain's hos
 own, and a site behind one starts, looks fine and cannot price a single order. If a line fails for that
 reason, the fix is the server's network or its DNS, not the site.
 
+## On Coolify
+
+Coolify brings its own proxy, which takes the domain and the certificate. So on Coolify use
+`docker-compose.coolify.yml`, not `docker-compose.yml`: it has the site and nginx, no certbot, and
+publishes no port. `init-cert.sh`, the Cloudflare token and the `.env` file are not used.
+
+1. New resource from the repository, build strategy **Compose**, Docker Compose Location
+   `/docker-compose.coolify.yml`.
+2. **Domains**: add the domain on the service `web`, with its port: `https://zolace.cash:80`. Not on `app`:
+   `web` is the nginx that strips the visitor's address before a request reaches the site.
+3. **Environment Variables**: every setting of the compose file is listed there. `OWNER_SECRET` has to be
+   filled in before Coolify deploys (32 characters or more: `openssl rand -base64 48`). The rest start with
+   working values; `TOKEN_ADDRESS` and `VAULT_ADDRESS` start empty.
+4. Deploy. Then open the **Terminal** of the `app` container and run `node preflight.mjs`: it checks the
+   two ZEC prices, the token's network and the settings, as `deploy/preflight.sh` does elsewhere.
+
+To show or change the contract address later: set `TOKEN_ADDRESS` under Environment Variables and redeploy.
+
+Two things Coolify decides and this repository cannot:
+
+- Its proxy may keep an access log, with every visitor's address in it. Look at the server's **Proxy**
+  configuration; if it has `accesslog` lines, take them out and restart the proxy. The site's own pages say
+  only that the app and its nginx keep none, and that the host in front may.
+- The database is the volume `zolace-data`. It outlives a redeploy, and it is gone if the resource is
+  deleted with its volumes. Back it up as under "The database".
+
+Tried on 11 Oct 2026 without Coolify itself: this compose file was built and run with a local port in
+place of Coolify's proxy, and every page, a whole test order, the owner's screens and the check above
+passed. The steps in Coolify's own screens were written from its documentation and not run.
+
 ## The database
 
 It is local, and Docker Compose sets it up: `docker-compose.yml` gives the site

@@ -5,6 +5,7 @@ node_modules
 .claude
 data
 deploy
+!deploy/preflight.mjs
 contracts
 engine
 brand

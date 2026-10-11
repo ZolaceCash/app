@@ -20,6 +20,8 @@ ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 COPY --from=build --chown=node:node /app/.next/standalone ./
 COPY --from=build --chown=node:node /app/.next/static ./.next/static
 COPY --from=build --chown=node:node /app/public ./public
+# The check of what this server can reach (deploy/preflight.sh), so it runs wherever the site does.
+COPY --chown=node:node deploy/preflight.mjs ./preflight.mjs
 # The database is one SQLite file under /app/data (lib/db). It is a volume, so it outlives the
 # container; the folder is made here so the volume starts out owned by the user the app runs as.
 RUN mkdir -p /app/data && chown node:node /app/data
