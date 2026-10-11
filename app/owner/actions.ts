@@ -68,10 +68,15 @@ export async function addItem(_previous: FormState, form: FormData): Promise<For
     name: text(form, "name"),
     blurb: text(form, "blurb"),
     priceCents,
+    supplierRef: text(form, "supplierRef"),
   })
   if (!result.ok) return { error: result.error }
   refresh()
-  return { ok: "Added, off the shelf. Upload codes, then put it on the shelf." }
+  return {
+    ok: text(form, "supplierRef")
+      ? "Added, off the shelf. Check what it costs you below, then put it on the shelf."
+      : "Added, off the shelf. Upload codes, then put it on the shelf.",
+  }
 }
 
 export async function saveItem(_previous: FormState, form: FormData): Promise<FormState> {

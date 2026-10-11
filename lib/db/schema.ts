@@ -10,7 +10,10 @@ export const products = sqliteTable("products", {
   blurb: text("blurb").notNull(),
   priceCents: integer("price_cents").notNull(),
   // "test": the item is made up on the spot and no money moves. "stock": a code the owner uploaded.
-  kind: text("kind", { enum: ["test", "stock"] }).notNull(),
+  // "supplier": made by a supplier the moment the order is paid (lib/supplier.ts), never held here.
+  kind: text("kind", { enum: ["test", "stock", "supplier"] }).notNull(),
+  // For a "supplier" item: which of the supplier's packages it is.
+  supplierRef: text("supplier_ref"),
   active: integer("active", { mode: "boolean" }).notNull().default(true),
 })
 
@@ -57,6 +60,8 @@ export const orders = sqliteTable("orders", {
   owedZat: integer("owed_zat").notNull().default(0),
   // When the owner said the refund was sent.
   refundedAt: integer("refunded_at"),
+  // For an item made by a supplier: the supplier's own number for what was bought for this order.
+  supplyRef: text("supply_ref"),
   // The public half of a key pair the buyer's browser made. The item is sealed to it.
   publicKey: text("public_key").notNull(),
   // The private half, locked with the secret part of the link, which the server never receives.

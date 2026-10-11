@@ -206,6 +206,36 @@ one small order yourself first.
 
 More on the engine, and what was and was not run: `engine/cipherpay/README.md`.
 
+## Items made when they are paid for (eSIM)
+
+An item can be bought from a supplier the moment its order is paid, instead of being handed over from codes
+you uploaded. The supplier is eSIM Access; nothing is held in stock, and the eSIM's code is sealed to the
+buyer as soon as the supplier hands it over.
+
+1. Make an account at `console.esimaccess.com`, put a small amount on it, and copy its AccessCode.
+2. Set `ESIMACCESS_CODE` to that AccessCode (a secret) and start again.
+3. In `/owner/products`, add an item and fill in "Supplier's package" with the package's code or slug from
+   the supplier's list, for example `JP_5_30`. The item's card then shows what the package costs you now,
+   what is left of each sale, and your balance there.
+4. Put it on the shelf.
+
+What the shop does with it:
+
+- It is sold only where real payments are taken, while the supplier lists the package, while it costs you no
+  more than its price here, and while your balance there covers it. Otherwise the order is not started.
+- It is bought when the payment is three blocks deep, once, however often the order is looked at.
+- If the supplier refuses, or has not delivered half an hour after the payment was seen, the payment is put
+  on the refund queue. If something was bought by then, cancel it in the supplier's console: an eSIM that
+  was never installed is refunded to your balance there.
+- The supplier is told which package and a hash of the order. It is not told who the buyer is: the shop
+  does not know either.
+
+Money: the buyer pays ZEC into the shop's wallet, and the supplier takes its price out of your balance with
+it. Nothing tops that balance up but you. `node preflight.mjs` shows what is left.
+
+The key can spend the balance and nothing else, so keep the balance small. Run so far against a played
+supplier only (`tests/supplier.test.ts`): no eSIM has been bought through the shop yet.
+
 ## The contract address (CA), and the vault
 
 The site launches without a token: `TOKEN_ADDRESS` is empty, and every page that speaks of the token says

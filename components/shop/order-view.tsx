@@ -4,6 +4,7 @@ import { Check, Gift, Link2, TriangleAlert } from "lucide-react"
 import { useEffect, useState, useSyncExternalStore } from "react"
 
 import { ZecIcon } from "@/components/site/chain-icons"
+import { Qr } from "@/components/shop/qr"
 import { CopyButton } from "@/components/site/copy-button"
 import { DotLabel, PillLink } from "@/components/site/primitives"
 import { Button } from "@/components/ui/button"
@@ -119,7 +120,7 @@ export function OrderView({ id }: { id: string }) {
     waiting: "Waiting for your payment",
     underpaid: "Part of the amount arrived",
     seen: "Payment seen",
-    confirmed: "Confirming your payment",
+    confirmed: order.making ? "Preparing your item" : "Confirming your payment",
     delivered: "Your item",
     expired: "This order expired",
     owed: "A refund is owed to you",
@@ -225,6 +226,18 @@ export function OrderView({ id }: { id: string }) {
                 </Row>
               </dl>
               {order.test ? null : (
+                <div className="mt-6 flex flex-wrap items-center gap-5">
+                  <Qr
+                    text={`zcash:${order.address}?amount=${formatZec(order.state === "underpaid" ? missing : order.zat)}`}
+                    label="The address and the amount, as a QR code for a Zcash wallet"
+                  />
+                  <p className="max-w-[16rem] text-sm leading-snug text-muted-foreground">
+                    Scan it with your Zcash wallet: it fills in the address and the amount. The code is drawn in
+                    your browser.
+                  </p>
+                </div>
+              )}
+              {order.test ? null : (
                 <div className="mt-4 flex flex-wrap gap-2">
                   <CopyButton text={order.address} variant="secondary">
                     Copy the address
@@ -271,8 +284,9 @@ export function OrderView({ id }: { id: string }) {
                 ))}
               </div>
               <p className="mt-6 leading-relaxed text-muted-foreground">
-                The item opens on this page when the last block arrives. You can leave and come
-                back with the link.
+                {order.making
+                  ? "Your payment is confirmed. The item is being made for this order and opens on this page when it is ready, usually within a minute. You can leave and come back with the link."
+                  : "The item opens on this page when the last block arrives. You can leave and come back with the link."}
               </p>
             </>
           ) : null}
@@ -282,7 +296,22 @@ export function OrderView({ id }: { id: string }) {
               <p className="label-mono text-muted-foreground">{order.product}</p>
               {item && "text" in item ? (
                 <>
-                  <p className="mt-4 rounded-xl bg-secondary px-5 py-6 text-center font-mono text-xl tracking-[0.08em] break-all md:text-2xl">
+                  {item.text.startsWith("LPA:") ? (
+                    <div className="mt-4 flex flex-wrap items-center gap-5">
+                      <Qr text={item.text} label="The eSIM's activation code, as a QR code" />
+                      <p className="max-w-[18rem] text-sm leading-snug text-muted-foreground">
+                        An eSIM. On the phone that will use it, open the mobile data settings, choose to add an
+                        eSIM and scan this code. If the phone cannot scan it, type the code below in by hand.
+                        Install it once: it works on one phone.
+                      </p>
+                    </div>
+                  ) : null}
+                  <p
+                    className={cn(
+                      "mt-4 rounded-xl bg-secondary px-5 py-6 text-center font-mono break-all",
+                      item.text.length > 40 ? "text-sm" : "text-xl tracking-[0.08em] md:text-2xl"
+                    )}
+                  >
                     {item.text}
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2">

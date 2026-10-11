@@ -28,6 +28,10 @@ services:
       CIPHERPAY_URL: http://engine:3080
       CIPHERPAY_API_KEY_FILE: /run/engine/api_key
       CIPHERSCAN_API_URL: ${CIPHERSCAN_API_URL:-}
+      # SECRET. The key to the owner's account at the eSIM supplier (eSIM Access). With it, an item
+      # made "when paid" is bought there out of the owner's balance as soon as its order is paid.
+      # Empty: no such item is sold. It can spend that balance and nothing else.
+      ESIMACCESS_CODE: ${ESIMACCESS_CODE:-}
       # The token's contract address (the CA) shown across the site. Empty: the site says there
       # is no token. Set it, redeploy, and every page that speaks of the token shows it.
       TOKEN_ADDRESS: ${TOKEN_ADDRESS:-}

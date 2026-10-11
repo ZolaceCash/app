@@ -19,6 +19,7 @@ const NOTES: Record<string, Record<string, string>> = {
     txid: "The transaction the payment was seen in. It is shielded: its id shows no sender, no receiver and no amount.",
     owed_zat: "What is owed back to you: all of it if nothing was handed over, the excess if you paid too much.",
     refunded_at: "When the owner said the refund was sent.",
+    supply_ref: "For an item a supplier makes: the supplier's number for what was bought for this order.",
     public_key: "The public half of a key pair your browser made. The item is sealed to it.",
     wrapped_key: "The private half, locked with the secret part of your link. Without that secret it cannot be opened, and the server is never sent the secret.",
     sealed: "The item after delivery, as ciphertext only your browser can open.",
@@ -63,7 +64,8 @@ const NOTES: Record<string, Record<string, string>> = {
     name: "The item's name.",
     blurb: "One line about the item.",
     price_cents: "The price in dollars.",
-    kind: "Whether the item is a test item or comes from uploaded stock.",
+    kind: "Whether the item is a test item, comes from uploaded stock, or is made by a supplier when it is paid for.",
+    supplier_ref: "For an item a supplier makes: which of the supplier's packages it is.",
     active: "Whether the item is on the shelf.",
   },
 }

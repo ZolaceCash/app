@@ -66,6 +66,20 @@ if (network !== "mainnet" && network !== "testnet") {
   line(made.status === 200, "the engine knows the site's key", made.failed ?? `http ${made.status}`)
 }
 
+// Items made when paid: whether the supplier answers with the owner's key, and what is left there.
+const accessCode = (process.env.ESIMACCESS_CODE ?? "").trim()
+if (!accessCode) note("the eSIM supplier", "ESIMACCESS_CODE is empty: no item made when paid is sold")
+else {
+  const funds = await ask("https://api.esimaccess.com/api/v1/open/balance/query", { method: "POST", headers: { "RT-AccessCode": accessCode }, body: "" })
+  const balance = Number(funds.body?.obj?.balance)
+  const answered = funds.body?.success === true && Number.isFinite(balance)
+  line(
+    answered,
+    "the eSIM supplier",
+    funds.failed ? `no answer: ${funds.failed}` : answered ? `balance $${(balance / 10000).toFixed(2)}` : `refused: ${funds.body?.errorCode ?? funds.status} ${funds.body?.errorMsg ?? ""}`
+  )
+}
+
 const database = process.env.DATABASE_URL ?? ""
 note("the database", database.startsWith("file:") || !database ? `a file on this server (${database || "the default"})` : "a hosted database: the orders are stored with that provider")
 

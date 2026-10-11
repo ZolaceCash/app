@@ -130,19 +130,32 @@ function checkProduct(input: ProductInput) {
 
 export type Result = { ok: true } | { ok: false; error: string }
 
-// A new item, always of the kind that is handed over from uploaded codes. It starts off the shelf:
-// with no codes yet it could not be ordered anyway.
-export async function createProduct(input: ProductInput & { slug: string }): Promise<Result> {
+// A new item. With `supplierRef` (one of the supplier's packages) it is made by the supplier when
+// an order for it is paid; without, it is handed over from codes the owner uploads. Either way it
+// starts off the shelf, so the owner can look at it before anyone can order it.
+export async function createProduct(input: ProductInput & { slug: string; supplierRef?: string }): Promise<Result> {
   if (input.slug.length > 60 || !SLUG.test(input.slug)) {
     return { ok: false, error: "The link name has to be lower-case letters, digits and single dashes." }
   }
   const wrong = checkProduct(input)
   if (wrong) return { ok: false, error: wrong }
+  const supplierRef = (input.supplierRef ?? "").trim()
+  if (supplierRef && !/^[A-Za-z0-9_.-]{2,40}$/.test(supplierRef)) {
+    return { ok: false, error: "The supplier's package is its code or slug, like JP_5_30." }
+  }
 
   const db = await getDb()
   const made = await db
     .insert(products)
-    .values({ ...input, kind: "stock", active: false })
+    .values({
+      slug: input.slug,
+      name: input.name,
+      blurb: input.blurb,
+      priceCents: input.priceCents,
+      kind: supplierRef ? "supplier" : "stock",
+      supplierRef: supplierRef || null,
+      active: false,
+    })
     .onConflictDoNothing({ target: products.slug })
     .returning({ id: products.id })
   return made.length > 0 ? { ok: true } : { ok: false, error: "Another item already has that link name." }
@@ -180,6 +193,9 @@ export async function addStock(productId: number, text: string): Promise<Result 
   const db = await getDb()
   const [product] = await db.select().from(products).where(eq(products.id, productId))
   if (!product) return { ok: false, error: "There is no such item." }
+  if (product.kind === "supplier") {
+    return { ok: false, error: "This item is made by the supplier when it is paid for. It takes no stock." }
+  }
   if (product.kind !== "stock") {
     return { ok: false, error: "A test item makes up its codes at checkout. It takes no stock." }
   }

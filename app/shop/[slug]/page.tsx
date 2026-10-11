@@ -64,7 +64,7 @@ function Item({ item }: { item: ShelfItem }) {
       <div className="cut-2 rounded-3xl bg-card p-7 md:p-12">
         <DotLabel>
           <span className="text-muted-foreground">The shop /</span>
-          {test ? "Test item" : "From stock"}
+          {test ? "Test item" : item.kind === "supplier" ? "Made to order" : "From stock"}
         </DotLabel>
         <h1 className="mt-5 text-4xl leading-[1.02] font-medium tracking-[-0.04em] text-balance md:text-6xl">
           {item.name}
@@ -82,7 +82,13 @@ function Item({ item }: { item: ShelfItem }) {
         </p>
 
         <p className="label-mono mt-6 inline-flex rounded-md bg-accent px-3 py-2 text-accent-foreground">
-          {test ? "Made up at checkout: it unlocks nothing" : soldOut ? "None left" : `${item.left} left`}
+          {test
+            ? "Made up at checkout: it unlocks nothing"
+            : item.kind === "supplier"
+              ? "Made for you when the order is paid"
+              : soldOut
+                ? "None left"
+                : `${item.left} left`}
         </p>
 
         <div className="mt-8 flex flex-wrap items-start gap-2">

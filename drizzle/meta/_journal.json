@@ -43,6 +43,13 @@
       "when": 1791740753246,
       "tag": "0005_vault_hours",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1791746597570,
+      "tag": "0006_foamy_morlocks",
+      "breakpoints": true
     }
   ]
 }

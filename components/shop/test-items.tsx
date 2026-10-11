@@ -41,7 +41,7 @@ export async function TestItems() {
           <div className="label-mono flex items-center justify-between text-muted-foreground">
             <span>0{index + 1}</span>
             <span className="rounded-md bg-accent px-2.5 py-1.5 text-accent-foreground">
-              {item.kind === "test" ? "Test item" : `${item.left} left`}
+              {item.kind === "test" ? "Test item" : item.kind === "supplier" ? "Made to order" : `${item.left} left`}
             </span>
           </div>
           <h3 className="mt-8 text-2xl font-medium tracking-[-0.035em]">

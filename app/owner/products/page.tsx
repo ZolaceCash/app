@@ -7,6 +7,7 @@ import { dollars, Field, OwnerFrame, Panel } from "@/components/owner/frame";
 import { listProducts, listRefundsDue, MAX_CODES_AT_ONCE } from "@/lib/admin";
 import { requireOwner } from "@/lib/owner-session";
 import { shopMode } from "@/lib/shop-mode";
+import { balanceCents, supplierOn, wholesaleCents } from "@/lib/supplier";
 
 export const metadata: Metadata = { title: "Items" };
 
@@ -14,6 +15,47 @@ export const metadata: Metadata = { title: "Items" };
 // is not signed in is sent to the sign-in page and is shown nothing of it. (A built site answers
 // 200 with the site's frame and redirects in the page; the dev server answers with a 307.)
 export const instant = false;
+
+// What an item made by the supplier costs the owner right now, against what the shop asks for it.
+// Asked of the supplier when this screen is opened: its prices move, and a price here that falls
+// under the cost stops the item from being sold (lib/orders.ts).
+async function Supplied({ product }: { product: { supplierRef: string | null; priceCents: number } }) {
+  const on = supplierOn();
+  const cost = on && product.supplierRef ? await wholesaleCents(product.supplierRef) : null;
+  const left = on ? await balanceCents() : null;
+  const rows: [string, string, boolean][] = [
+    ["Supplier's package", product.supplierRef ?? "none", !product.supplierRef],
+    [
+      "Costs you now",
+      !on ? "ESIMACCESS_CODE is not set" : cost === null ? "not on the supplier's list" : dollars(cost),
+      !on || cost === null,
+    ],
+    [
+      "Left of each sale",
+      cost === null ? "n/a" : dollars(product.priceCents - cost),
+      cost !== null && cost > product.priceCents,
+    ],
+    ["Your balance there", left === null ? "n/a" : dollars(left), left !== null && cost !== null && left < cost],
+  ];
+  return (
+    <>
+      <dl className="mt-6 grid grid-cols-2 gap-1.5 md:grid-cols-4">
+        {rows.map(([name, value, bad]) => (
+          <div key={name} className="rounded-lg bg-secondary px-4 py-3.5">
+            <dt className="label-mono text-muted-foreground">{name}</dt>
+            <dd className={bad ? "mt-3 font-mono text-sm font-medium text-destructive" : "mt-3 font-mono text-sm font-medium"}>
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-3 text-sm leading-snug text-muted-foreground">
+        Bought from the supplier when an order is paid, out of your balance there. It is not sold while it costs
+        you more than its price, while the balance does not cover it, or where only test orders are taken.
+      </p>
+    </>
+  );
+}
 
 export default async function OwnerProducts() {
   await requireOwner();
@@ -29,7 +71,7 @@ export default async function OwnerProducts() {
                 <h2 className="text-2xl font-medium tracking-[-0.035em]">{product.name}</h2>
                 <p className="label-mono flex flex-wrap items-center gap-2 text-muted-foreground">
                   <span className="rounded-md bg-secondary px-2.5 py-1.5">
-                    {product.kind === "test" ? "Test item" : "From stock"}
+                    {product.kind === "test" ? "Test item" : product.kind === "supplier" ? "Made when paid" : "From stock"}
                   </span>
                   <span
                     className={
@@ -54,8 +96,10 @@ export default async function OwnerProducts() {
                 {dollars(product.priceCents)}
               </p>
 
+              {product.kind === "supplier" ? <Supplied product={product} /> : null}
+
               {/* How many codes there are. The codes themselves are never shown here. */}
-              <dl className="mt-6 grid grid-cols-3 gap-1.5">
+              <dl className={product.kind === "supplier" ? "hidden" : "mt-6 grid grid-cols-3 gap-1.5"}>
                 {(
                   [
                     ["On the shelf", product.free],
@@ -146,6 +190,14 @@ export default async function OwnerProducts() {
             />
             <Field label="Price in dollars" name="price" inputMode="decimal" placeholder="12.50" required />
             <Field label="One line about it" name="blurb" maxLength={200} />
+            <Field
+              label="Supplier's package (optional)"
+              name="supplierRef"
+              maxLength={40}
+              spellCheck={false}
+              placeholder="JP_5_30"
+              hint="Leave empty for an item you upload codes for. Filled in, the item is an eSIM bought from eSIM Access when its order is paid: give the package's code or slug from their price list."
+            />
           </ActionForm>
           <p className="mt-6 text-sm leading-relaxed text-muted-foreground">
             A new item is handed over from codes you upload, and starts off the shelf.{" "}

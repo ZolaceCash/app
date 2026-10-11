@@ -6,10 +6,15 @@ import { LOCK_MS } from "@/lib/order-times"
 import { CONFIRMATIONS_NEEDED, engine, FEE_ZAT, type Network, type Seen } from "@/lib/payment"
 import { quoteZec } from "@/lib/price"
 import { sealTo, type PublicKey, type Sealed, type Wrapped } from "@/lib/seal"
+import { canSupply, supplierOn, supply } from "@/lib/supplier"
 
 const { orders, products, stock } = schema
 
 export { LOCK_MS }
+
+// How long a paid order waits for a supplier to make its item before it is given up on and owed
+// back. The supplier says an eSIM takes up to half a minute; this is for the day it does not come.
+export const SUPPLY_WAIT_MS = 30 * 60 * 1000
 
 // PLAN.md says orders are deleted "some days" after they are done and leaves the number open.
 // Seven is a placeholder until the owner fixes it; ORDER_RETENTION_DAYS overrides it.
@@ -61,6 +66,13 @@ export async function createOrder(input: {
   // A made-up item is never sold for real money.
   if (product.kind === "test" && pay.network === "mainnet") return { ok: false, reason: "no-product" }
 
+  // An item a supplier makes is only sold while the supplier can make it: it lists the package,
+  // it costs the owner no more than the price here, and the owner's balance there covers it.
+  if (product.kind === "supplier") {
+    if (pay.network === "stand-in" || !product.supplierRef) return { ok: false, reason: "no-product" }
+    if (!(await canSupply(product.supplierRef, product.priceCents, now))) return { ok: false, reason: "no-stock" }
+  }
+
   // An engine that cannot be trusted to see a payment takes no order: a buyer would pay into silence.
   if (!(await pay.healthy())) return { ok: false, reason: "no-engine" }
 
@@ -73,9 +85,12 @@ export async function createOrder(input: {
   const id = newId()
 
   // Set an item aside for this order: a fresh made-up code for a test product, otherwise one
-  // free code from the stock, claimed only if nobody else took it in the meantime.
-  let stockId: number
-  if (product.kind === "test") {
+  // free code from the stock, claimed only if nobody else took it in the meantime. An item a
+  // supplier makes has nothing to set aside: it is bought when the order is paid.
+  let stockId: number | null
+  if (product.kind === "supplier") {
+    stockId = null
+  } else if (product.kind === "test") {
     const [row] = await db
       .insert(stock)
       .values({ productId: product.id, payload: testCode(), state: "held", orderId: id })
@@ -271,9 +286,67 @@ export async function sweep(now = Date.now(), late = false) {
   return due.length
 }
 
+// An item made by a supplier: bought the moment its order is paid, sealed to the buyer's key as
+// soon as the supplier hands it over, and never written down here in a form the server can read.
+async function deliverSupplied(order: Order, packageCode: string, now: number): Promise<Order> {
+  const db = await getDb()
+  const owed = async () => {
+    const [stuck] = await db
+      .update(orders)
+      .set({ state: "owed", receivedZat: order.receivedZat, owedZat: order.receivedZat })
+      .where(and(eq(orders.id, order.id), inArray(orders.state, [...PAID])))
+      .returning()
+    return stuck ?? (await db.select().from(orders).where(eq(orders.id, order.id)))[0]
+  }
+
+  const got = await supply({ orderId: order.id, packageCode, ref: order.supplyRef })
+  // Refused: nothing was bought, so all of it is owed back.
+  if (got.state === "refused") return owed()
+  // The supplier's number for the purchase is kept as soon as there is one.
+  if ((got.state === "making" || got.state === "ready") && got.ref !== order.supplyRef) {
+    await db.update(orders).set({ supplyRef: got.ref }).where(eq(orders.id, order.id))
+    order = { ...order, supplyRef: got.ref }
+  }
+  if (got.state !== "ready") {
+    // Not there yet, or the supplier did not answer. Wait, but not for ever: after half an hour
+    // the payment is owed back, and what was bought (if anything) is the owner's to cancel there.
+    const since = order.seenAt ?? order.createdAt
+    if (now > since + SUPPLY_WAIT_MS) return owed()
+    if (order.state === "seen") {
+      const [waiting] = await db
+        .update(orders)
+        .set({ state: "confirmed", receivedZat: order.receivedZat })
+        .where(and(eq(orders.id, order.id), eq(orders.state, "seen")))
+        .returning()
+      if (waiting) return waiting
+    }
+    return order
+  }
+
+  const sealed = await sealTo(JSON.parse(order.publicKey) as PublicKey, got.payload)
+  const excess = order.receivedZat - order.zat
+  const done = await db
+    .update(orders)
+    .set({
+      state: "delivered",
+      sealed: JSON.stringify(sealed),
+      deliveredAt: now,
+      closedAt: now,
+      receivedZat: order.receivedZat,
+      owedZat: excess > FEE_ZAT ? excess : 0,
+    })
+    .where(and(eq(orders.id, order.id), inArray(orders.state, [...PAID])))
+    .returning()
+  // Another request delivered it first: return what it stored.
+  return done[0] ?? (await db.select().from(orders).where(eq(orders.id, order.id)))[0]
+}
+
 // Seals the item to the buyer's key, then forgets the readable copy in the same step.
 async function deliver(order: Order, now: number): Promise<Order> {
   const db = await getDb()
+  const [product] = await db.select().from(products).where(eq(products.id, order.productId))
+  if (product?.kind === "supplier" && product.supplierRef) return deliverSupplied(order, product.supplierRef, now)
+
   const [item] = order.stockId
     ? await db.select().from(stock).where(eq(stock.id, order.stockId))
     : []
@@ -370,6 +443,8 @@ export type OrderView = {
   owedZat: number
   owedWhy: OwedWhy | null
   refunded: boolean
+  // Paid and deep enough, and the supplier is still making the item.
+  making: boolean
   address: string
   createdAt: number
   expiresAt: number
@@ -401,6 +476,7 @@ export async function readOrder(id: string, now = Date.now()): Promise<OrderView
     owedZat: order.owedZat,
     owedWhy: owedWhy(order),
     refunded: order.refundedAt !== null,
+    making: product?.kind === "supplier" && order.state === "confirmed" && confirmations >= CONFIRMATIONS_NEEDED,
     address: order.address,
     createdAt: order.createdAt,
     expiresAt: order.expiresAt,
@@ -412,16 +488,19 @@ export async function readOrder(id: string, now = Date.now()): Promise<OrderView
   }
 }
 
-export type ShelfItem = { slug: string; name: string; blurb: string; priceCents: number; kind: "test" | "stock"; left: number | null }
+export type ShelfItem = { slug: string; name: string; blurb: string; priceCents: number; kind: "test" | "stock" | "supplier"; left: number | null }
 
-// What is on sale right now. `left` is null for a test item, which never runs out.
+// What is on sale right now. `left` is null for an item that does not run out: a test item, and
+// one a supplier makes to order. The second is only on sale where real payments are taken and the
+// server has the key to the supplier; whether the supplier can make it is asked at checkout.
 export async function listItems(now = Date.now()): Promise<ShelfItem[]> {
   const db = await getDb()
   await sweep(now)
   // A made-up item is not shown where real money is taken: it could only be refused.
   const real = engine().network === "mainnet"
+  const made = engine().network !== "stand-in" && supplierOn()
   const rows = (await db.select().from(products).where(eq(products.active, true))).filter(
-    (row) => !(real && row.kind === "test")
+    (row) => !(real && row.kind === "test") && !(row.kind === "supplier" && !(made && row.supplierRef))
   )
   const free = await db
     .select({ productId: stock.productId, count: sql<number>`count(*)` })
@@ -435,7 +514,7 @@ export async function listItems(now = Date.now()): Promise<ShelfItem[]> {
     blurb: row.blurb,
     priceCents: row.priceCents,
     kind: row.kind,
-    left: row.kind === "test" ? null : (left.get(row.id) ?? 0),
+    left: row.kind === "stock" ? (left.get(row.id) ?? 0) : null,
   }))
 }
 
