@@ -182,6 +182,30 @@ switched off. Changing it and restarting ends every session:
 docker compose up -d app
 ```
 
+## Real payments
+
+The shop takes test orders until three settings are filled in (`.env`, or Environment Variables on Coolify):
+
+| Setting | What it is |
+| --- | --- |
+| `PAYMENT_NETWORK` | `mainnet` for real ZEC, `testnet` for test coins |
+| `ENGINE_ENCRYPTION_KEY` | Secret. 64 hex characters, made once: `openssl rand -hex 32`. It encrypts the viewing key where the payment engine stores it |
+| `ZCASH_VIEWING_KEY` | Secret. The unified full viewing key of the shop's wallet (`uview1...`). It lets the engine see payments arrive; it cannot spend them. Never the wallet's seed phrase |
+
+Then start again (`docker compose up -d --build`, or Redeploy). The `engine` service starts, `engine-setup`
+gives it the viewing key and ends, and the site begins to ask it for one address per order. Check with
+`sh deploy/preflight.sh` (or `node preflight.mjs` in the `app` container): the lines "payments" and "the
+engine knows the site's key" have to be ok.
+
+The first build of the engine compiles it from source: ten minutes or more, and a few gigabytes of memory.
+A small server may not manage it.
+
+Before `mainnet`: the site's pages still call every order a test order in fixed text, and a made-up item is
+never sold for real money, so the shelf is empty until real items are on it (`/owner/products`). And pay
+one small order yourself first.
+
+More on the engine, and what was and was not run: `engine/cipherpay/README.md`.
+
 ## The contract address (CA), and the vault
 
 The site launches without a token: `TOKEN_ADDRESS` is empty, and every page that speaks of the token says

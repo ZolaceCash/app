@@ -27,8 +27,16 @@ const TIMEOUT_MS = 8000
 const HEALTH_FRESH_MS = 10_000
 let health: { at: number; url: string; ok: boolean } | null = null
 
-// For the tests: the next question about the engine's health is really asked.
-export const forgetHealth = () => void (health = null)
+// What the engine said about an invoice is reused for this long. An open order page asks every
+// two seconds, and several people may watch the same order: the engine is asked once for all.
+const LOOK_FRESH_MS = 3000
+const looked = new Map<string, { at: number; seen: Seen }>()
+
+// For the tests: the next question to the engine is really asked.
+export const forgetHealth = () => {
+  health = null
+  looked.clear()
+}
 
 async function ask(url: string, init?: RequestInit): Promise<{ status: number; body: Record<string, unknown> | null } | null> {
   try {
@@ -85,8 +93,11 @@ export function cipherpay(config: Config): PaymentEngine {
       return { ok: true, ref, address, zat: Math.round(priceZec * 100_000_000) }
     },
 
-    async look(invoice: Invoice): Promise<Seen | null> {
+    async look(invoice: Invoice, now: number): Promise<Seen | null> {
       if (!invoice.ref) return null
+      const recent = looked.get(invoice.ref)
+      if (recent && now >= recent.at && now - recent.at < LOOK_FRESH_MS) return recent.seen
+      if (looked.size > 5000) looked.clear()
       const answer = await ask(`${config.url}/api/invoices/${invoice.ref}/status`)
       const body = answer?.body
       if (!answer || answer.status !== 200 || !body) return null
@@ -106,7 +117,9 @@ export function cipherpay(config: Config): PaymentEngine {
           if (Number.isSafeInteger(depth) && depth > 1) confirmations = depth
         }
       }
-      return { state, receivedZat: Number.isSafeInteger(receivedZat) && receivedZat > 0 ? receivedZat : 0, txid, confirmations }
+      const seen: Seen = { state, receivedZat: Number.isSafeInteger(receivedZat) && receivedZat > 0 ? receivedZat : 0, txid, confirmations }
+      looked.set(invoice.ref, { at: now, seen })
+      return seen
     },
 
     async healthy() {

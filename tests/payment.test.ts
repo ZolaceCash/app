@@ -185,6 +185,47 @@ test("without all three settings the shop takes test orders only", () => {
   assert.equal(payment.engine().network, "mainnet")
 })
 
+test("the key to the engine can come from the file its registration leaves", async () => {
+  const { mkdtempSync, writeFileSync } = await import("node:fs")
+  const file = path.join(mkdtempSync(path.join(tmpdir(), "zolace-key-")), "api_key")
+  delete process.env.CIPHERPAY_API_KEY
+  process.env.CIPHERPAY_API_KEY_FILE = file
+  // Not written yet: the engine has not been given a viewing key, so test orders it is.
+  assert.equal(payment.engine().network, "stand-in")
+
+  // With the line end a shell would leave: it is not part of the key.
+  writeFileSync(file, "cpay_from_file\n")
+  assert.equal(payment.engine().network, "mainnet")
+  await shelve()
+  assert.ok((await place(later())).result.ok)
+  assert.equal(asked.find((call) => call.url.endsWith("/api/invoices"))?.key, "Bearer cpay_from_file")
+  delete process.env.CIPHERPAY_API_KEY_FILE
+})
+
+test("the depth of a payment is asked of the network's own explorer when none is named", async () => {
+  delete process.env.CIPHERSCAN_API_URL
+  const seen: string[] = []
+  const played = globalThis.fetch
+  globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = String(input)
+    if (url.includes("cipherscan.app")) {
+      seen.push(url)
+      return new Response(JSON.stringify({ confirmations: 4 }))
+    }
+    return played(input, init)
+  }) as typeof fetch
+  try {
+    const now = later()
+    const { id, ref } = await placed(now)
+    pay(ref, PRICE, "tx-depth")
+    invoices.get(ref)!.status = "confirmed"
+    assert.equal((await orders.readOrder(id, now + 5 * MINUTE))?.state, "delivered")
+    assert.deepEqual(seen, ["https://api.mainnet.cipherscan.app/api/tx/tx-depth"])
+  } finally {
+    globalThis.fetch = played
+  }
+})
+
 // ---------------------------------------------------------------- the straight road
 
 test("the whole amount, in time: seen, confirmed, then handed over at three blocks", async () => {

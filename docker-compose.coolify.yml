@@ -22,6 +22,12 @@ services:
       OWNER_SECRET: ${OWNER_SECRET:?}
       # Days an order is kept after it closes.
       ORDER_RETENTION_DAYS: ${ORDER_RETENTION_DAYS:-7}
+      # Real payments. The shop takes them only when PAYMENT_NETWORK is "mainnet" (or "testnet") and
+      # the engine below was given a viewing key. Otherwise it takes test orders, as it always has.
+      PAYMENT_NETWORK: ${PAYMENT_NETWORK:-}
+      CIPHERPAY_URL: http://engine:3080
+      CIPHERPAY_API_KEY_FILE: /run/engine/api_key
+      CIPHERSCAN_API_URL: ${CIPHERSCAN_API_URL:-}
       # The token's contract address (the CA) shown across the site. Empty: the site says there
       # is no token. Set it, redeploy, and every page that speaks of the token shows it.
       TOKEN_ADDRESS: ${TOKEN_ADDRESS:-}
@@ -36,6 +42,8 @@ services:
     volumes:
       # Where the database file lives. It stays on this server and outlives a redeploy.
       - zolace-data:/app/data
+      # The key to the payment engine, left there by engine-setup.
+      - engine-keys:/run/engine:ro
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
@@ -58,5 +66,58 @@ services:
       retries: 3
       start_period: 10s
 
+  # The payment engine (engine/cipherpay/). It watches the Zcash chain with a viewing key and
+  # tells the site what arrived at each order's address. It cannot spend. Only the site reaches
+  # it: no port is published. Until ENGINE_ENCRYPTION_KEY is set it is switched off, and the
+  # container waits and does nothing.
+  engine:
+    build: ./engine/cipherpay
+    restart: unless-stopped
+    environment:
+      NETWORK: ${PAYMENT_NETWORK:-mainnet}
+      # Which chain explorer the engine reads. Empty: the public one for its network.
+      CIPHERSCAN_API_URL: ${CIPHERSCAN_API_URL:-}
+      # SECRET. 64 hex characters. Encrypts the viewing key where the engine stores it.
+      ENCRYPTION_KEY: ${ENGINE_ENCRYPTION_KEY:-}
+      DATABASE_URL: sqlite:/data/cipherpay.db?mode=rwc
+      API_HOST: 0.0.0.0
+      API_PORT: "3080"
+      ALLOWED_ORIGINS: http://app:3000
+      # An unpaid invoice and a paid one are both watched for seven days, so that a payment that
+      # comes late, or twice, is found and owed back (PAYMENT_WATCH_HOURS on the site).
+      INVOICE_EXPIRY_MINUTES: "10080"
+      PAID_WATCH_HOURS: "168"
+    volumes:
+      - engine-data:/data
+    healthcheck:
+      # Switched off counts as well. Switched on, any answer does: the site asks the engine itself
+      # whether it is fit to take an order.
+      test: ["CMD-SHELL", "[ -z \"$$ENCRYPTION_KEY\" ] || curl -s -o /dev/null http://127.0.0.1:3080/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  # Gives the engine the shop's viewing key, once, and leaves the key to the engine where the
+  # site reads it (engine/cipherpay/register.sh). It runs at each start and ends at once.
+  engine-setup:
+    build: ./engine/cipherpay
+    restart: "no"
+    # Coolify: this one ends on purpose, and that is not a failure.
+    exclude_from_hc: true
+    command: ["zolace-register"]
+    depends_on:
+      - engine
+    environment:
+      # SECRET. The unified full viewing key of the shop's wallet (uview1...). Never the seed.
+      ZCASH_VIEWING_KEY: ${ZCASH_VIEWING_KEY:-}
+      ENCRYPTION_KEY: ${ENGINE_ENCRYPTION_KEY:-}
+    volumes:
+      - engine-keys:/keys
+
 volumes:
   zolace-data:
+  # The engine's own records, and the key the site uses to talk to it. Removing one without the
+  # other leaves a key the engine no longer knows: remove both, and it registers again.
+  engine-data:
+  engine-keys:

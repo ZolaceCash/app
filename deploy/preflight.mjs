@@ -41,6 +41,31 @@ if (k > 0 && c > 0) {
   console.log("      without both prices no order can be placed")
 }
 
+// Payments: which engine the site would use right now, and whether that engine is fit.
+const network = (process.env.PAYMENT_NETWORK ?? "").trim()
+const engineUrl = (process.env.CIPHERPAY_URL ?? "").trim().replace(/\/+$/, "")
+let engineKey = (process.env.CIPHERPAY_API_KEY ?? "").trim()
+if (!engineKey && process.env.CIPHERPAY_API_KEY_FILE) {
+  engineKey = await import("node:fs").then((fs) => fs.readFileSync(process.env.CIPHERPAY_API_KEY_FILE, "utf8").trim()).catch(() => "")
+}
+if (network !== "mainnet" && network !== "testnet") {
+  note("payments", `PAYMENT_NETWORK is ${network ? `"${network}", which is neither mainnet nor testnet` : "empty"}: the shop takes test orders only`)
+} else if (!engineUrl || !engineKey) {
+  line(false, `payments (${network})`, !engineUrl ? "CIPHERPAY_URL is not set" : "the engine has no key on file: was ZCASH_VIEWING_KEY set, and did engine-setup run?")
+} else {
+  const engine = await ask(`${engineUrl}/api/health`)
+  const scanner = engine.body?.checks?.scanner
+  line(
+    engine.status === 200 && engine.body?.status !== "unhealthy",
+    `payments (${network})`,
+    engine.failed
+      ? `the engine does not answer: ${engine.failed}`
+      : `the engine says "${engine.body?.status}"${scanner ? `, ${scanner.blocks_behind} blocks behind` : ""}${engine.body?.status === "unhealthy" ? ". After a start it reads the blocks it missed first; no order is taken until it has" : ""}`
+  )
+  const made = await ask(`${engineUrl}/api/invoices?limit=1`, { headers: { Authorization: `Bearer ${engineKey}` } })
+  line(made.status === 200, "the engine knows the site's key", made.failed ?? `http ${made.status}`)
+}
+
 const database = process.env.DATABASE_URL ?? ""
 note("the database", database.startsWith("file:") || !database ? `a file on this server (${database || "the default"})` : "a hosted database: the orders are stored with that provider")
 

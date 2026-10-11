@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs"
+
 import { cipherpay } from "@/lib/cipherpay"
 import { toZat } from "@/lib/price"
 
@@ -75,14 +77,33 @@ export const standIn: PaymentEngine = {
   },
 }
 
+// The key to the engine: given outright, or read from the file the engine's registration leaves
+// (engine/cipherpay/register.sh). The file may not be there yet, or ever: then there is no key.
+function engineKey() {
+  const given = (process.env.CIPHERPAY_API_KEY ?? "").trim()
+  if (given) return given
+  const file = (process.env.CIPHERPAY_API_KEY_FILE ?? "").trim()
+  if (!file) return ""
+  try {
+    return readFileSync(file, "utf8").trim()
+  } catch {
+    return ""
+  }
+}
+
 // The engine the server is told to use, read when it is needed and not when the site is built.
-// It takes all three settings to leave the stand-in: where the engine is, the key to it, and
-// which network it is on. With one missing or mistyped the site keeps taking test orders, which
-// say on their face that no money moves.
+// It takes all three to leave the stand-in: where the engine is, the key to it, and which network
+// it is on. With one missing or mistyped the site keeps taking test orders, which say on their
+// face that no money moves.
 export function engine(): PaymentEngine {
   const url = (process.env.CIPHERPAY_URL ?? "").trim().replace(/\/+$/, "")
-  const key = (process.env.CIPHERPAY_API_KEY ?? "").trim()
+  const key = engineKey()
   const network = (process.env.PAYMENT_NETWORK ?? "").trim()
   if (!url || !key || (network !== "testnet" && network !== "mainnet")) return standIn
-  return cipherpay({ url, key, network, scanUrl: (process.env.CIPHERSCAN_API_URL ?? "").trim().replace(/\/+$/, "") })
+  // The chain explorer the depth of a payment is asked of: the one the engine reads. Without it
+  // a confirmed payment would count as one block for ever and nothing would be handed over.
+  const scanUrl =
+    (process.env.CIPHERSCAN_API_URL ?? "").trim().replace(/\/+$/, "") ||
+    (network === "testnet" ? "https://api.testnet.cipherscan.app" : "https://api.mainnet.cipherscan.app")
+  return cipherpay({ url, key, network, scanUrl })
 }
