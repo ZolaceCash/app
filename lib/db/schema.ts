@@ -15,7 +15,9 @@ export const products = sqliteTable("products", {
   priceCents: integer("price_cents").notNull(),
   // "test": the item is made up on the spot and no money moves. "stock": a code the owner uploaded.
   // "supplier": made by a supplier the moment the order is paid (lib/supplier.ts), never held here.
-  kind: text("kind", { enum: ["test", "stock", "supplier"] }).notNull(),
+  // "hand": bought by the owner, by hand, after the order is paid, and handed over on the owner's
+  // screen. Nothing is bought before the money is in.
+  kind: text("kind", { enum: ["test", "stock", "supplier", "hand"] }).notNull(),
   // For a "supplier" item: which of the supplier's packages it is.
   supplierRef: text("supplier_ref"),
   // Which shelf the item stands on, as the owner chose. Null: on none, it is only in the list of items.
@@ -71,6 +73,17 @@ export const orders = sqliteTable("orders", {
   refundedAt: integer("refunded_at"),
   // For an item made by a supplier: the supplier's own number for what was bought for this order.
   supplyRef: text("supply_ref"),
+  // For an item the owner buys by hand: when the payment was deep enough and the order began to
+  // wait for the owner. The owner's screen lists an order to buy only once this is set.
+  readyAt: integer("ready_at"),
+  // What the buyer wrote about an item that was handed over and did not work, and when. Null: no
+  // report. The address a refund for it would go to is `refundAddress`.
+  problem: text("problem"),
+  problemAt: integer("problem_at"),
+  // The owner's answer: when it was given, what it says, and whether a refund was sent with it.
+  problemClosedAt: integer("problem_closed_at"),
+  problemReply: text("problem_reply"),
+  problemRefunded: integer("problem_refunded", { mode: "boolean" }),
   // The public half of a key pair the buyer's browser made. The item is sealed to it.
   publicKey: text("public_key").notNull(),
   // The private half, locked with the secret part of the link, which the server never receives.

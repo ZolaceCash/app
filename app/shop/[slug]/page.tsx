@@ -7,7 +7,7 @@ import { shopWords } from "@/lib/shop-mode";
 import { ZecIcon } from "@/components/site/chain-icons";
 import { PageShell } from "@/components/site/page-shell";
 import { DotLabel, PillLink } from "@/components/site/primitives";
-import { getItem, type ShelfItem } from "@/lib/orders";
+import { getItem, handHours, type ShelfItem } from "@/lib/orders";
 
 const FALLBACK: Metadata = {
   title: "An item",
@@ -82,7 +82,7 @@ function Item({ item }: { item: ShelfItem }) {
       <div className="cut-2 rounded-3xl bg-card p-7 md:p-12">
         <DotLabel>
           <span className="text-muted-foreground">The shop /</span>
-          {test ? "Test item" : item.kind === "supplier" ? "Made to order" : "From stock"}
+          {test ? "Test item" : item.kind === "supplier" ? "Made to order" : item.kind === "hand" ? "Bought to order" : "From stock"}
         </DotLabel>
         <h1 className="mt-5 text-4xl leading-[1.02] font-medium tracking-[-0.04em] text-balance md:text-6xl">
           {item.name}
@@ -104,6 +104,8 @@ function Item({ item }: { item: ShelfItem }) {
             ? "Made up at checkout: it unlocks nothing"
             : item.kind === "supplier"
               ? "Made for you when the order is paid"
+              : item.kind === "hand"
+                ? `Bought for you once the order is paid: within ${handHours()} hours`
               : soldOut
                 ? "None left"
                 : `${item.left} left`}
@@ -127,6 +129,15 @@ function Item({ item }: { item: ShelfItem }) {
           <span className="label-mono mb-2 block text-foreground">{shopWords().noteLabel}</span>
           {shopWords().note}
         </p>
+
+        {item.kind === "hand" ? (
+          <p className="mt-2.5 max-w-xl rounded-xl bg-secondary p-5 text-sm leading-relaxed text-muted-foreground">
+            <span className="label-mono mb-2 block text-foreground">Bought after you pay</span>
+            This item is not kept in stock. Once your payment is confirmed it is bought for your order, by
+            hand, and opens on the order&apos;s page within {handHours()} hours of the confirmation. If it is not
+            handed over by then, all of your payment is owed back to you.
+          </p>
+        ) : null}
 
         {item.shelf === "esim" ? (
           <p className="mt-2.5 max-w-xl rounded-xl bg-secondary p-5 text-sm leading-relaxed text-muted-foreground">

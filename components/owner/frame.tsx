@@ -15,16 +15,19 @@ const SCREENS = [
 ] as const
 
 // What every owner's screen shares: the site's frame, which screen this is, the way to the others,
-// and the way out. `due` is the number of refunds waiting, shown on its tab so it cannot be missed.
+// and the way out. `due` is the number of refunds waiting, shown on its tab so it cannot be missed;
+// `toBuy` is the number of paid orders whose item the owner still has to buy, shown on the orders tab.
 export function OwnerFrame({
   at,
   title,
   due,
+  toBuy = 0,
   children,
 }: {
   at: (typeof SCREENS)[number]["href"]
   title: string
   due: number
+  toBuy?: number
   children: ReactNode
 }) {
   return (
@@ -42,6 +45,9 @@ export function OwnerFrame({
               <Button key={screen.href} asChild variant={screen.href === at ? "default" : "secondary"} size="sm">
                 <Link href={screen.href} aria-current={screen.href === at ? "page" : undefined}>
                   {screen.name}
+                  {screen.href === "/owner" && toBuy > 0 ? (
+                    <span className="rounded bg-foreground/15 px-1.5 py-0.5">{toBuy}</span>
+                  ) : null}
                   {screen.href === "/owner/refunds" && due > 0 ? (
                     <span className="rounded bg-destructive/20 px-1.5 py-0.5 text-destructive">{due}</span>
                   ) : null}

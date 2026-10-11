@@ -53,12 +53,14 @@ export const WHITEPAPER_SECTIONS: Section[] = [
         ],
       },
       {
-        p: "An order can also leave this path: it can expire, be underpaid, be overpaid, or be owed a refund. Each of those needs a written rule and a test before real money is accepted.",
+        p: "An order can also leave this path: it can expire, be underpaid, be overpaid, or be owed a refund. Each has a written rule and a test: too little or too late and nothing is handed over, and what arrived is owed back; too much and the excess is owed back; paid in full with nothing left to hand over and all of it is owed back.",
       },
       {
         p: "Refunds are made by hand. A shielded payment does not name its sender, so the buyer gives an address and the owner sends the refund from their own wallet, less the network fee.",
       },
-      { open: "The rules for the side paths are not written yet. They belong to stage 2 of the roadmap." },
+      {
+        p: "A buyer whose item does not work says so on the order page, with no email and no account. The owner reads the report by hand and answers there.",
+      },
     ],
   },
   {

@@ -8,3 +8,7 @@ export const LOCK_MS = 15 * 60 * 1000
 // After that the page asks once each time it is opened, for as long as the order is watched
 // (lib/orders.ts, watchMs).
 export const LATE_MS = 45 * 60 * 1000
+
+// How short and how long a buyer's report about an item may be, in characters.
+export const PROBLEM_MIN = 10
+export const PROBLEM_MAX = 500

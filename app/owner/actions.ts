@@ -5,7 +5,8 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
 import type { FormState } from "@/components/owner/action-form"
-import { addStock, createProduct, markRefunded, parsePrice, parseShelf, updateProduct } from "@/lib/admin"
+import { addStock, answerProblem, createProduct, markRefunded, parsePrice, parseShelf, updateProduct } from "@/lib/admin"
+import { cannotBuy, HAND_CODE_MAX, handOver } from "@/lib/orders"
 import { isOwnerSecret, newSession, ownerEnabled } from "@/lib/owner"
 import { isOwner, OWNER_COOKIE, OWNER_PATH } from "@/lib/owner-session"
 import { tokenConfig, vaultLive } from "@/lib/token"
@@ -58,6 +59,45 @@ export async function refundSent(_previous: FormState, form: FormData): Promise<
   return { ok: "Taken off the queue." }
 }
 
+// The owner bought the item for a paid order and hands it over. The code is sealed to the buyer's
+// key in the same step and is not kept readable.
+export async function handOverItem(_previous: FormState, form: FormData): Promise<FormState> {
+  if (!(await isOwner())) return SIGNED_OUT
+  const result = await handOver(text(form, "id"), String(form.get("code") ?? ""))
+  if (!result.ok) {
+    return {
+      error: {
+        "no-order": "There is no such order.",
+        "not-waiting": "That order is not waiting for its item any more.",
+        "bad-code": `Paste the item: 1 to ${HAND_CODE_MAX} characters.`,
+      }[result.reason],
+    }
+  }
+  refresh()
+  return { ok: "Handed over. The buyer can open it on the order's page." }
+}
+
+export async function cannotBuyItem(_previous: FormState, form: FormData): Promise<FormState> {
+  if (!(await isOwner())) return SIGNED_OUT
+  if (form.get("sure") !== "yes") return { error: "Tick the box to say the item cannot be bought." }
+  if (!(await cannotBuy(text(form, "id")))) return { error: "That order is not waiting for its item any more." }
+  refresh()
+  return { ok: "The payment is owed back. It is on the refunds screen." }
+}
+
+export async function answerReport(_previous: FormState, form: FormData): Promise<FormState> {
+  if (!(await isOwner())) return SIGNED_OUT
+  const outcome = form.get("outcome")
+  if (outcome !== "refunded" && outcome !== "none") {
+    return { error: "Say whether you sent a refund for it or not." }
+  }
+
+  const result = await answerProblem(text(form, "id"), { refunded: outcome === "refunded", reply: text(form, "reply") })
+  if (!result.ok) return { error: result.error }
+  refresh()
+  return { ok: "Answered. The buyer reads it on the order's page." }
+}
+
 export async function addItem(_previous: FormState, form: FormData): Promise<FormState> {
   if (!(await isOwner())) return SIGNED_OUT
   const priceCents = parsePrice(text(form, "price"))
@@ -73,13 +113,16 @@ export async function addItem(_previous: FormState, form: FormData): Promise<For
     priceCents,
     shelf,
     supplierRef: text(form, "supplierRef"),
+    byHand: form.get("byHand") === "yes",
   })
   if (!result.ok) return { error: result.error }
   refresh()
   return {
     ok: text(form, "supplierRef")
       ? "Added, off the shelf. Check what it costs you below, then put it on the shelf."
-      : "Added, off the shelf. Upload codes, then put it on the shelf.",
+      : form.get("byHand") === "yes"
+        ? "Added, off the shelf. Put it on the shelf when you are ready to buy it for whoever orders."
+        : "Added, off the shelf. Upload codes, then put it on the shelf.",
   }
 }
 

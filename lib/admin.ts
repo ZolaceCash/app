@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, isNull, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gt, isNotNull, isNull, sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/lib/db"
 import { SHELF_SLUGS, type Order, type Product, type ShelfSlug } from "@/lib/db/schema"
@@ -7,8 +7,9 @@ import { sweep } from "@/lib/orders"
 const { orders, products, stock } = schema
 
 // What the owner's screens read and change. Nothing here checks who is asking: every caller in
-// app/owner does that first (lib/owner-session.ts). No function returns a code from the stock or
-// anything about a buyer, because the owner's screens have no use for either.
+// app/owner does that first (lib/owner-session.ts). No function returns a code from the stock. Of
+// a buyer, only what they typed in for the owner to read: a refund address, and a report about an
+// item that did not work.
 
 export type OwnerOrder = {
   id: string
@@ -80,6 +81,59 @@ export async function listRefundsDue(now = Date.now()): Promise<OwnerOrder[]> {
     .orderBy(asc(orders.seenAt))
 }
 
+// A report from a buyer that the item they were handed does not work, waiting for the owner.
+export type OwnerProblem = {
+  id: string
+  product: string
+  priceCents: number
+  zat: number
+  receivedZat: number
+  note: string
+  reportedAt: number
+  deliveredAt: number | null
+  // Where a refund would go. Given with the report, so it is always there.
+  refundAddress: string | null
+}
+
+// The reports the owner has not answered, oldest first.
+export async function listProblems(): Promise<OwnerProblem[]> {
+  const db = await getDb()
+  return db
+    .select({
+      id: orders.id,
+      product: sql<string>`coalesce(${products.name}, 'Item')`,
+      priceCents: orders.priceCents,
+      zat: orders.zat,
+      receivedZat: orders.receivedZat,
+      note: sql<string>`${orders.problem}`,
+      reportedAt: sql<number>`coalesce(${orders.problemAt}, 0)`,
+      deliveredAt: orders.deliveredAt,
+      refundAddress: orders.refundAddress,
+    })
+    .from(orders)
+    .leftJoin(products, eq(orders.productId, products.id))
+    .where(and(isNotNull(orders.problem), isNull(orders.problemClosedAt)))
+    .orderBy(asc(orders.problemAt))
+}
+
+export const REPLY_MAX = 300
+
+// The owner answers a report: with a refund the owner sent by hand, or without one, and with a
+// line for the buyer if the owner wrote one. The buyer reads it on the order's page. The server
+// sends nothing; this records the answer and takes the report off the queue.
+export async function answerProblem(id: string, answer: { refunded: boolean; reply: string }, now = Date.now()): Promise<Result> {
+  const reply = answer.reply.trim()
+  if (reply.length > REPLY_MAX) return { ok: false, error: `The answer has to be ${REPLY_MAX} characters or fewer.` }
+
+  const db = await getDb()
+  const done = await db
+    .update(orders)
+    .set({ problemClosedAt: now, problemReply: reply || null, problemRefunded: answer.refunded })
+    .where(and(eq(orders.id, id), isNotNull(orders.problem), isNull(orders.problemClosedAt)))
+    .returning({ id: orders.id })
+  return done.length > 0 ? { ok: true } : { ok: false, error: "That report is not waiting for an answer any more." }
+}
+
 // The owner sent the refund by hand, from the owner's own wallet, and says so here. The server
 // sends nothing: this only takes the order off the queue.
 export async function markRefunded(id: string, now = Date.now()) {
@@ -142,9 +196,10 @@ function checkProduct(input: ProductInput) {
 export type Result = { ok: true } | { ok: false; error: string }
 
 // A new item. With `supplierRef` (one of the supplier's packages) it is made by the supplier when
-// an order for it is paid; without, it is handed over from codes the owner uploads. Either way it
-// starts off the shelf, so the owner can look at it before anyone can order it.
-export async function createProduct(input: ProductInput & { slug: string; supplierRef?: string }): Promise<Result> {
+// an order for it is paid; with `byHand` the owner buys it after its order is paid and hands it
+// over on the orders screen; with neither it is handed over from codes the owner uploads. Either
+// way it starts off the shelf, so the owner can look at it before anyone can order it.
+export async function createProduct(input: ProductInput & { slug: string; supplierRef?: string; byHand?: boolean }): Promise<Result> {
   if (input.slug.length > 60 || !SLUG.test(input.slug)) {
     return { ok: false, error: "The link name has to be lower-case letters, digits and single dashes." }
   }
@@ -163,7 +218,7 @@ export async function createProduct(input: ProductInput & { slug: string; suppli
       name: input.name,
       blurb: input.blurb,
       priceCents: input.priceCents,
-      kind: supplierRef ? "supplier" : "stock",
+      kind: supplierRef ? "supplier" : input.byHand ? "hand" : "stock",
       supplierRef: supplierRef || null,
       shelf: input.shelf ?? null,
       active: false,
@@ -213,6 +268,9 @@ export async function addStock(productId: number, text: string): Promise<Result 
   if (!product) return { ok: false, error: "There is no such item." }
   if (product.kind === "supplier") {
     return { ok: false, error: "This item is made by the supplier when it is paid for. It takes no stock." }
+  }
+  if (product.kind === "hand") {
+    return { ok: false, error: "This item is bought by you after its order is paid. It takes no stock." }
   }
   if (product.kind !== "stock") {
     return { ok: false, error: "A test item makes up its codes at checkout. It takes no stock." }

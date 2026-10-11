@@ -143,7 +143,7 @@ export const DOCS: Doc[] = [
             p: "When the 15 minutes run out without a payment, the order expires and the item goes back on the shelf.",
           },
           {
-            open: "What happens to a payment that arrives after an order has expired is not written down yet. It will be, here, before checkout opens.",
+            p: "A payment that arrives after the 15 minutes does not buy the item, and it is not lost. It shows up on the order page and is owed back to you: the order's address is watched for as long as the order is kept. Refunds has how it is sent back.",
           },
         ],
       },
@@ -175,15 +175,17 @@ export const DOCS: Doc[] = [
         heading: "Other paths",
         blocks: [
           {
-            list: [
-              "Expired: the lock ran out before a payment was seen.",
-              "Underpaid: less arrived than the order asked for.",
-              "Overpaid: more arrived than the order asked for.",
-              "Refund due: the order cannot be completed and the payment has to go back.",
+            rows: [
+              ["Expired", "No payment was seen in the 15 minutes. The item goes back on the shelf"],
+              ["Underpaid", "Part of the amount arrived. Send the rest while the 15 minutes run and the order goes on. If they run out first, nothing is handed over and what arrived is owed back"],
+              ["Paid late", "The payment arrived after the 15 minutes. Nothing is handed over and all of it is owed back"],
+              ["Overpaid", "The item is handed over and the excess is owed back. An excess of 0.0001 ZEC or less is not: the network fee would use it up"],
+              ["Nothing left", "Paid in full and in time, and there was no item left to hand over. All of it is owed back"],
+              ["Not handed over", "An item that is bought to order was paid for and not handed over in the time its page gives. All of it is owed back"],
             ],
           },
           {
-            open: "The exact rule for each of these is written together with the tests for it (roadmap, stage 2). The rules will be published here before checkout opens.",
+            p: "What is owed back is shown on the order page, with a place to give the address it should be sent to. Refunds has the rest.",
           },
         ],
       },
@@ -219,12 +221,13 @@ export const DOCS: Doc[] = [
       },
       {
         id: "two-kinds-of-goods",
-        heading: "Two kinds of goods",
+        heading: "Three kinds of goods",
         blocks: [
           {
             rows: [
               ["From stock", "A code uploaded beforehand: vouchers, licences, gift cards"],
               ["Made on demand", "Made by a supplier when the order is paid: AI credit keys, eSIM"],
+              ["Bought to order", "Bought by the owner, by hand, once the order is paid. Nothing is bought before the payment is confirmed. The item's page says within how many hours it is handed over"],
             ],
           },
           { p: "The shop opens with goods from stock. Goods made on demand are added later, one at a time." },
@@ -259,8 +262,19 @@ export const DOCS: Doc[] = [
         heading: "Asking for one",
         blocks: [
           {
-            open: "The support channel is not set up yet. It will be one that needs no email, and it will be named here before checkout opens.",
+            p: "Money that is owed back needs no asking. The order page says what is owed and asks for a shielded address to send it to.",
           },
+          {
+            p: "If the item you were handed does not work, say so on the order page. Under the item there is a place to write what is wrong and to give an address. It needs no email and no account: the order's link is how the report is found.",
+          },
+          {
+            list: [
+              "The owner reads each report by hand and answers on the same page.",
+              "The answer is a refund, sent by hand, or the reason there is none.",
+              "What you write is kept with the order, readable by the owner. Write nothing in it that you want kept from the shop.",
+            ],
+          },
+          { open: "No time is promised for an answer, and a report does not by itself mean a refund." },
         ],
       },
     ],

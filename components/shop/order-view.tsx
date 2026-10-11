@@ -4,6 +4,7 @@ import { Check, Gift, Link2, TriangleAlert } from "lucide-react"
 import { useEffect, useState, useSyncExternalStore } from "react"
 
 import { ZecIcon } from "@/components/site/chain-icons"
+import { ProblemForm } from "@/components/shop/problem-form"
 import { Qr } from "@/components/shop/qr"
 import { RefundForm } from "@/components/shop/refund-form"
 import { CopyButton } from "@/components/site/copy-button"
@@ -16,6 +17,7 @@ import { openSealed } from "@/lib/seal"
 import { cn } from "@/lib/utils"
 
 const POLL_MS = 2000
+const HAND_POLL_MS = 30_000
 const STEPS = ["Waiting", "Seen", "Confirmed", "Delivered"] as const
 
 const dollars = (cents: number) => `$${(cents / 100).toFixed(2)}`
@@ -58,6 +60,8 @@ export function OrderView({ id }: { id: string }) {
     order?.state === "owed" ||
     (order?.state === "expired" && (order.network === "stand-in" || order.now > order.expiresAt + LATE_MS))
 
+  const awaited = order?.handBy != null
+
   useEffect(() => {
     if (finished) return
     let alive = true
@@ -71,12 +75,13 @@ export function OrderView({ id }: { id: string }) {
       setLoaded({ order: next, skew: next.now - Date.now() })
     }
     load()
-    const timer = window.setInterval(load, POLL_MS)
+    // An item that is bought by hand takes hours, not seconds: ask rarely while it is awaited.
+    const timer = window.setInterval(load, awaited ? HAND_POLL_MS : POLL_MS)
     return () => {
       alive = false
       window.clearInterval(timer)
     }
-  }, [id, finished])
+  }, [id, finished, awaited])
 
   useEffect(() => {
     const tick = () => setNow(Date.now())
@@ -130,13 +135,17 @@ export function OrderView({ id }: { id: string }) {
     waiting: "Waiting for your payment",
     underpaid: "Part of the amount arrived",
     seen: "Payment seen",
-    confirmed: order.making ? "Preparing your item" : "Confirming your payment",
+    confirmed: order.handBy ? "Your item is being bought" : order.making ? "Preparing your item" : "Confirming your payment",
     delivered: "Your item",
     expired: "This order expired",
     owed: "A refund is owed to you",
     refunded: "This order was refunded",
   }[order.state]
   const missing = Math.max(0, order.zat - order.receivedZat)
+  // How long the owner still has to hand over an item bought by hand, in words.
+  // (Less a minute, so that twelve hours and a second read as twelve, not thirteen.)
+  const handHoursLeft = order.handBy ? Math.ceil((order.handBy - (now + loaded.skew) - 60_000) / (60 * 60 * 1000)) : 0
+  const handWithin = handHoursLeft > 1 ? `within ${handHoursLeft} hours` : "within the hour"
 
   return (
     <div className="enter">
@@ -243,7 +252,7 @@ export function OrderView({ id }: { id: string }) {
                   />
                   <p className="max-w-[16rem] text-sm leading-snug text-muted-foreground">
                     Scan it with your Zcash wallet: it fills in the address and the amount. The code is drawn in
-                    your browser.
+                    your browser. Is your wallet on this device? Open it from the button below instead.
                   </p>
                 </div>
               )}
@@ -255,6 +264,13 @@ export function OrderView({ id }: { id: string }) {
                   <CopyButton text={formatZec(order.state === "underpaid" ? missing : order.zat)} variant="secondary">
                     Copy the amount
                   </CopyButton>
+                  {/* The same request as the QR code, handed to a wallet on this device. It goes to no
+                      server: a zcash: address is opened by whatever wallet took that name. */}
+                  <Button asChild variant="secondary">
+                    <a href={`zcash:${order.address}?amount=${formatZec(order.state === "underpaid" ? missing : order.zat)}`}>
+                      Open in your wallet
+                    </a>
+                  </Button>
                 </div>
               )}
               {order.test ? (
@@ -294,7 +310,9 @@ export function OrderView({ id }: { id: string }) {
                 ))}
               </div>
               <p className="mt-6 leading-relaxed text-muted-foreground">
-                {order.making
+                {order.handBy
+                  ? `Your payment is confirmed. The item is now bought for this order, by hand, and opens on this page ${handWithin}. If it is not handed over by then, all of your payment is owed back to you. Keep the link and come back with it: there is nothing to wait for here.`
+                  : order.making
                   ? "Your payment is confirmed. The item is being made for this order and opens on this page when it is ready, usually within a minute. You can leave and come back with the link."
                   : "The item opens on this page when the last block arrives. You can leave and come back with the link."}
               </p>
@@ -381,6 +399,10 @@ export function OrderView({ id }: { id: string }) {
               ) : (
                 <p className="mt-4 h-20 rounded-xl bg-secondary" aria-busy />
               )}
+              {/* A made-up item paid with nothing has nothing to report. */}
+              {!order.test && order.network !== "stand-in" ? (
+                <ProblemForm id={order.id} network={order.network} problem={order.problem} />
+              ) : null}
             </>
           ) : null}
 
@@ -390,7 +412,7 @@ export function OrderView({ id }: { id: string }) {
                 ? `Only ${formatZec(order.receivedZat)} ZEC of ${formatZec(order.zat)} arrived before the price lock ran out, so nothing was handed over.`
                 : order.owedWhy === "late"
                   ? "Your payment arrived after the price lock ran out. The item had gone back on the shelf, so nothing was handed over."
-                  : "Your payment was confirmed, but there was no item left to hand over."}{" "}
+                  : "Your payment was confirmed, but no item was handed over for it: none was left, or it could not be bought in time."}{" "}
               Refunds are made by hand, less the network&apos;s fee, to the address you give below. Keep this
               link: it is how the order is found.
             </Warning>

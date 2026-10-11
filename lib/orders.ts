@@ -2,7 +2,7 @@ import { and, eq, gt, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-or
 
 import { getDb, schema } from "@/lib/db"
 import type { Order, ShelfSlug } from "@/lib/db/schema"
-import { LOCK_MS } from "@/lib/order-times"
+import { LOCK_MS, PROBLEM_MAX, PROBLEM_MIN } from "@/lib/order-times"
 import { CONFIRMATIONS_NEEDED, engine, FEE_ZAT, type Network, type Seen } from "@/lib/payment"
 import { quoteZec } from "@/lib/price"
 import { sealTo, type PublicKey, type Sealed, type Wrapped } from "@/lib/seal"
@@ -16,6 +16,15 @@ export { LOCK_MS }
 // How long a paid order waits for a supplier to make its item before it is given up on and owed
 // back. The supplier says an eSIM takes up to half a minute; this is for the day it does not come.
 export const SUPPLY_WAIT_MS = 30 * 60 * 1000
+
+// How long the owner has to buy an item that is bought by hand and to hand it over, counted from
+// when the payment was three blocks deep. After that the payment is owed back. Twelve hours
+// unless HAND_HOURS says otherwise.
+export function handHours() {
+  const hours = Number(process.env.HAND_HOURS ?? "")
+  return Number.isFinite(hours) && hours > 0 ? hours : 12
+}
+const handWaitMs = () => handHours() * 60 * 60 * 1000
 
 // PLAN.md says orders are deleted "some days" after they are done and leaves the number open.
 // Seven is a placeholder until the owner fixes it; ORDER_RETENTION_DAYS overrides it.
@@ -87,9 +96,10 @@ export async function createOrder(input: {
 
   // Set an item aside for this order: a fresh made-up code for a test product, otherwise one
   // free code from the stock, claimed only if nobody else took it in the meantime. An item a
-  // supplier makes has nothing to set aside: it is bought when the order is paid.
+  // supplier makes, or the owner buys by hand, has nothing to set aside: it is bought when the
+  // order is paid.
   let stockId: number | null
-  if (product.kind === "supplier") {
+  if (product.kind === "supplier" || product.kind === "hand") {
     stockId = null
   } else if (product.kind === "test") {
     const [row] = await db
@@ -342,11 +352,127 @@ async function deliverSupplied(order: Order, packageCode: string, now: number): 
   return done[0] ?? (await db.select().from(orders).where(eq(orders.id, order.id)))[0]
 }
 
+// An item the owner buys by hand. Its payment is three blocks deep: from now the order is on the
+// owner's list of things to buy, and not a moment earlier, so nothing is bought before the money
+// is in. It waits there until the owner hands the item over (handOver) or says it cannot be
+// bought (cannotBuy); after handHours() without either, the payment is owed back.
+async function awaitHand(order: Order, now: number): Promise<Order> {
+  const db = await getDb()
+  if (order.readyAt === null) {
+    const [ready] = await db
+      .update(orders)
+      .set({ state: "confirmed", readyAt: now, receivedZat: order.receivedZat })
+      .where(and(eq(orders.id, order.id), inArray(orders.state, [...PAID]), isNull(orders.readyAt)))
+      .returning()
+    return ready ?? (await db.select().from(orders).where(eq(orders.id, order.id)))[0]
+  }
+  if (now > order.readyAt + handWaitMs()) {
+    const [stuck] = await db
+      .update(orders)
+      .set({ state: "owed", receivedZat: order.receivedZat, owedZat: order.receivedZat })
+      .where(and(eq(orders.id, order.id), inArray(orders.state, [...PAID])))
+      .returning()
+    return stuck ?? (await db.select().from(orders).where(eq(orders.id, order.id)))[0]
+  }
+  return order
+}
+
+export const HAND_CODE_MAX = 2000
+
+export type HandResult = { ok: true } | { ok: false; reason: "no-order" | "not-waiting" | "bad-code" }
+
+// The owner bought the item and hands it over: what the owner typed is sealed to the buyer's key
+// here and now, and is never written down in a form the server can read. Only for an order that
+// is on the owner's list (paid, three blocks deep) and has not been given up on.
+export async function handOver(id: string, code: string, now = Date.now()): Promise<HandResult> {
+  const db = await getDb()
+  const [order] = await db.select().from(orders).where(eq(orders.id, id))
+  if (!order) return { ok: false, reason: "no-order" }
+  const [product] = await db.select().from(products).where(eq(products.id, order.productId))
+  if (product?.kind !== "hand" || order.readyAt === null || (order.state !== "seen" && order.state !== "confirmed")) {
+    return { ok: false, reason: "not-waiting" }
+  }
+  const item = code.trim()
+  if (item.length === 0 || item.length > HAND_CODE_MAX) return { ok: false, reason: "bad-code" }
+
+  const sealed = await sealTo(JSON.parse(order.publicKey) as PublicKey, item)
+  const excess = order.receivedZat - order.zat
+  const done = await db
+    .update(orders)
+    .set({
+      state: "delivered",
+      sealed: JSON.stringify(sealed),
+      deliveredAt: now,
+      closedAt: now,
+      owedZat: excess > FEE_ZAT ? excess : 0,
+    })
+    .where(and(eq(orders.id, id), inArray(orders.state, [...PAID]), isNotNull(orders.readyAt)))
+    .returning({ id: orders.id })
+  return done.length > 0 ? { ok: true } : { ok: false, reason: "not-waiting" }
+}
+
+// The owner says the item cannot be bought (sold out where the owner buys it, or the price there
+// moved): all of the payment is owed back at once, without waiting for the time to run out.
+export async function cannotBuy(id: string): Promise<boolean> {
+  const db = await getDb()
+  const [order] = await db.select().from(orders).where(eq(orders.id, id))
+  if (!order || order.readyAt === null) return false
+  const [product] = await db.select().from(products).where(eq(products.id, order.productId))
+  if (product?.kind !== "hand") return false
+  const stuck = await db
+    .update(orders)
+    .set({ state: "owed", owedZat: order.receivedZat })
+    .where(and(eq(orders.id, id), inArray(orders.state, [...PAID]), isNotNull(orders.readyAt)))
+    .returning({ id: orders.id })
+  return stuck.length > 0
+}
+
+// The orders the owner has to buy an item for: paid, three blocks deep, not handed over yet. Each
+// is moved along first, so one whose payment only now became deep enough is on the list, and one
+// whose time ran out is off it and owed back.
+export async function listToBuy(now = Date.now()) {
+  const db = await getDb()
+  const paid = await db
+    .select({ order: orders })
+    .from(orders)
+    .innerJoin(products, eq(orders.productId, products.id))
+    .where(and(inArray(orders.state, [...PAID]), eq(products.kind, "hand")))
+  for (const { order } of paid) await advance(order, now)
+
+  const rows = await db
+    .select({
+      id: orders.id,
+      product: products.name,
+      priceCents: orders.priceCents,
+      zat: orders.zat,
+      receivedZat: orders.receivedZat,
+      test: orders.test,
+      readyAt: sql<number>`${orders.readyAt}`,
+    })
+    .from(orders)
+    .innerJoin(products, eq(orders.productId, products.id))
+    .where(and(inArray(orders.state, [...PAID]), eq(products.kind, "hand"), isNotNull(orders.readyAt)))
+    .orderBy(orders.readyAt)
+  return rows.map((row) => ({ ...row, handBy: row.readyAt + handWaitMs() }))
+}
+
+// How many orders wait for the owner to buy their item, as last seen: nothing is moved along.
+export async function countToBuy() {
+  const db = await getDb()
+  const [row] = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(orders)
+    .innerJoin(products, eq(orders.productId, products.id))
+    .where(and(inArray(orders.state, [...PAID]), eq(products.kind, "hand"), isNotNull(orders.readyAt)))
+  return row?.count ?? 0
+}
+
 // Seals the item to the buyer's key, then forgets the readable copy in the same step.
 async function deliver(order: Order, now: number): Promise<Order> {
   const db = await getDb()
   const [product] = await db.select().from(products).where(eq(products.id, order.productId))
   if (product?.kind === "supplier" && product.supplierRef) return deliverSupplied(order, product.supplierRef, now)
+  if (product?.kind === "hand") return awaitHand(order, now)
 
   const [item] = order.stockId
     ? await db.select().from(stock).where(eq(stock.id, order.stockId))
@@ -403,12 +529,19 @@ async function releaseStock(order: Pick<Order, "stockId" | "productId">) {
 }
 
 // Orders that finished or expired long enough ago are deleted, with what was kept for them.
-// Never one that is still owed a refund: it stays until the owner has sent it.
+// Never one that is still owed a refund, or whose buyer reported a problem that has no answer
+// yet: it stays until the owner has dealt with it.
 async function purge(now: number) {
   const db = await getDb()
   const old = await db
     .delete(orders)
-    .where(and(lt(orders.closedAt, now - RETENTION_MS), or(eq(orders.owedZat, 0), isNotNull(orders.refundedAt))))
+    .where(
+      and(
+        lt(orders.closedAt, now - RETENTION_MS),
+        or(eq(orders.owedZat, 0), isNotNull(orders.refundedAt)),
+        or(isNull(orders.problem), isNotNull(orders.problemClosedAt))
+      )
+    )
     .returning({ stockId: orders.stockId })
   const ids = old.map((row) => row.stockId).filter((id): id is number => id !== null)
   if (ids.length > 0) await db.delete(stock).where(and(inArray(stock.id, ids), eq(stock.state, "given")))
@@ -447,8 +580,14 @@ export type OrderView = {
   // The address given for the refund, shortened: whoever has the order's link can tell whether one
   // is on file and recognise their own, and cannot read anyone's address off it.
   refundTo: string | null
+  // What was reported about the item that was handed over, and the owner's answer to it. Whoever
+  // has the order's link wrote it or was given the link by who did.
+  problem: { note: string; at: number; answered: boolean; reply: string | null; refunded: boolean } | null
   // Paid and deep enough, and the supplier is still making the item.
   making: boolean
+  // Paid and deep enough, and the owner is buying the item by hand: when it has to be handed over
+  // by, after which the payment is owed back. Null for any other order.
+  handBy: number | null
   address: string
   createdAt: number
   expiresAt: number
@@ -481,7 +620,17 @@ export async function readOrder(id: string, now = Date.now()): Promise<OrderView
     owedWhy: owedWhy(order),
     refunded: order.refundedAt !== null,
     refundTo: order.refundAddress ? maskAddress(order.refundAddress) : null,
+    problem: order.problem
+      ? {
+          note: order.problem,
+          at: order.problemAt ?? 0,
+          answered: order.problemClosedAt !== null,
+          reply: order.problemReply,
+          refunded: order.problemRefunded === true,
+        }
+      : null,
     making: product?.kind === "supplier" && order.state === "confirmed" && confirmations >= CONFIRMATIONS_NEEDED,
+    handBy: product?.kind === "hand" && order.state === "confirmed" && order.readyAt !== null ? order.readyAt + handWaitMs() : null,
     address: order.address,
     createdAt: order.createdAt,
     expiresAt: order.expiresAt,
@@ -517,19 +666,48 @@ export async function setRefundAddress(id: string, text: string): Promise<Addres
   return kept.length > 0 ? { ok: true, refundTo: maskAddress(address) } : { ok: false, reason: "nothing-owed" }
 }
 
+export type ProblemResult =
+  | { ok: true }
+  | { ok: false; reason: "no-order" | "not-delivered" | "answered" | "bad-note" | "bad-address" }
+
+// The buyer says that the item they were handed does not work: what is wrong, and where a refund
+// would go. Taken only for an order that was paid with real coins and handed over, and only until
+// the owner has answered; a later report replaces an earlier one. Nothing is decided here: the
+// owner reads it and answers by hand (lib/admin.ts).
+export async function reportProblem(id: string, note: string, addressText: string, now = Date.now()): Promise<ProblemResult> {
+  const db = await getDb()
+  const [order] = await db.select().from(orders).where(eq(orders.id, id))
+  if (!order) return { ok: false, reason: "no-order" }
+  // A test order handed over a made-up item, paid with nothing.
+  if (order.test || order.state !== "delivered") return { ok: false, reason: "not-delivered" }
+  if (order.problemClosedAt !== null) return { ok: false, reason: "answered" }
+
+  const text = note.trim()
+  if (text.length < PROBLEM_MIN || text.length > PROBLEM_MAX) return { ok: false, reason: "bad-note" }
+  const address = shieldedAddress(addressText, order.address.startsWith("utest") ? "testnet" : "mainnet")
+  if (!address) return { ok: false, reason: "bad-address" }
+
+  const kept = await db
+    .update(orders)
+    .set({ problem: text, problemAt: now, refundAddress: address })
+    .where(and(eq(orders.id, id), eq(orders.state, "delivered"), isNull(orders.problemClosedAt)))
+    .returning({ id: orders.id })
+  return kept.length > 0 ? { ok: true } : { ok: false, reason: "answered" }
+}
+
 export type ShelfItem = {
   slug: string
   name: string
   blurb: string
   priceCents: number
-  kind: "test" | "stock" | "supplier"
+  kind: "test" | "stock" | "supplier" | "hand"
   left: number | null
   // The shelf it stands on, if the owner put it on one.
   shelf: ShelfSlug | null
 }
 
-// What is on sale right now. `left` is null for an item that does not run out: a test item, and
-// one a supplier makes to order. The second is only on sale where real payments are taken and the
+// What is on sale right now. `left` is null for an item that does not run out: a test item, one
+// the owner buys by hand once it is paid for, and one a supplier makes to order. The second is only on sale where real payments are taken and the
 // server has the key to the supplier; whether the supplier can make it is asked at checkout.
 export async function listItems(now = Date.now()): Promise<ShelfItem[]> {
   const db = await getDb()
@@ -546,6 +724,13 @@ export async function listItems(now = Date.now()): Promise<ShelfItem[]> {
     .where(eq(stock.state, "free"))
     .groupBy(stock.productId)
   const left = new Map(free.map((row) => [row.productId, row.count]))
+  // An item the owner put on no shelf is on the eSIM shelf if that is plainly what it is: made by
+  // the eSIM supplier, or with a code in stock that is an eSIM's activation code.
+  const esimCodes = await db
+    .selectDistinct({ productId: stock.productId })
+    .from(stock)
+    .where(and(eq(stock.state, "free"), sql`${stock.payload} like 'LPA:%'`))
+  const esim = new Set(esimCodes.map((row) => row.productId))
   return rows.map((row) => ({
     slug: row.slug,
     name: row.name,
@@ -553,7 +738,7 @@ export async function listItems(now = Date.now()): Promise<ShelfItem[]> {
     priceCents: row.priceCents,
     kind: row.kind,
     left: row.kind === "stock" ? (left.get(row.id) ?? 0) : null,
-    shelf: row.shelf,
+    shelf: row.shelf ?? (row.kind === "supplier" || esim.has(row.id) ? "esim" : null),
   }))
 }
 

@@ -4,8 +4,9 @@ import Link from "next/link";
 import { addItem, saveItem, uploadCodes } from "@/app/owner/actions";
 import { ActionForm } from "@/components/owner/action-form";
 import { dollars, Field, OwnerFrame, Panel } from "@/components/owner/frame";
-import { listProducts, listRefundsDue, MAX_CODES_AT_ONCE } from "@/lib/admin";
+import { listProblems, listProducts, listRefundsDue, MAX_CODES_AT_ONCE } from "@/lib/admin";
 import { SHELVES } from "@/lib/catalog";
+import { countToBuy } from "@/lib/orders";
 import { requireOwner } from "@/lib/owner-session";
 import { shopMode } from "@/lib/shop-mode";
 import { balanceCents, supplierOn, wholesaleCents } from "@/lib/supplier";
@@ -82,10 +83,10 @@ function ShelfField({ value }: { value: string | null }) {
 
 export default async function OwnerProducts() {
   await requireOwner();
-  const [products, due] = await Promise.all([listProducts(), listRefundsDue()]);
+  const [products, due, problems, toBuy] = await Promise.all([listProducts(), listRefundsDue(), listProblems(), countToBuy()]);
 
   return (
-    <OwnerFrame at="/owner/products" title="Items" due={due.length}>
+    <OwnerFrame at="/owner/products" title="Items" due={due.length + problems.length} toBuy={toBuy}>
       <div className="grid items-start gap-2.5 lg:grid-cols-[minmax(0,1fr)_21rem]">
         <div className="space-y-2.5">
           {products.map((product) => (
@@ -94,7 +95,7 @@ export default async function OwnerProducts() {
                 <h2 className="text-2xl font-medium tracking-[-0.035em]">{product.name}</h2>
                 <p className="label-mono flex flex-wrap items-center gap-2 text-muted-foreground">
                   <span className="rounded-md bg-secondary px-2.5 py-1.5">
-                    {product.kind === "test" ? "Test item" : product.kind === "supplier" ? "Made when paid" : "From stock"}
+                    {{ test: "Test item", supplier: "Made when paid", hand: "Bought when paid", stock: "From stock" }[product.kind]}
                   </span>
                   <span
                     className={
@@ -122,7 +123,7 @@ export default async function OwnerProducts() {
               {product.kind === "supplier" ? <Supplied product={product} /> : null}
 
               {/* How many codes there are. The codes themselves are never shown here. */}
-              <dl className={product.kind === "supplier" ? "hidden" : "mt-6 grid grid-cols-3 gap-1.5"}>
+              <dl className={product.kind === "supplier" || product.kind === "hand" ? "hidden" : "mt-6 grid grid-cols-3 gap-1.5"}>
                 {(
                   [
                     ["On the shelf", product.free],
@@ -190,11 +191,17 @@ export default async function OwnerProducts() {
                     </span>
                   </label>
                 </ActionForm>
-              ) : (
+              ) : product.kind === "hand" ? (
+                <p className="mt-8 rounded-lg bg-secondary px-5 py-4 text-sm leading-relaxed text-muted-foreground">
+                  Nothing is uploaded for this item. An order for it shows on the orders screen once its payment
+                  is three blocks deep: buy the item then, and hand it over there. Take it off the shelf while
+                  you cannot look.
+                </p>
+              ) : product.kind === "test" ? (
                 <p className="mt-8 rounded-lg bg-secondary px-5 py-4 text-sm leading-relaxed text-muted-foreground">
                   A test item takes no stock: its code is made up at checkout and unlocks nothing.
                 </p>
-              )}
+              ) : null}
             </Panel>
           ))}
         </div>
@@ -223,6 +230,16 @@ export default async function OwnerProducts() {
               placeholder="JP_5_30"
               hint="Leave empty for an item you upload codes for. Filled in, the item is an eSIM bought from eSIM Access when its order is paid: give the package's code or slug from their price list."
             />
+            <label className="flex items-start gap-3 leading-snug">
+              <input type="checkbox" name="byHand" value="yes" className="mt-1 size-4 accent-[var(--primary)]" />
+              <span>
+                I buy it myself after the order is paid.
+                <span className="mt-1 block text-sm text-muted-foreground">
+                  No codes are uploaded. A paid order waits on the orders screen for you to buy the item and
+                  hand it over.
+                </span>
+              </span>
+            </label>
           </ActionForm>
           <p className="mt-6 text-sm leading-relaxed text-muted-foreground">
             A new item is handed over from codes you upload, and starts off the shelf.{" "}

@@ -64,6 +64,20 @@
       "when": 1791751409233,
       "tag": "0008_cultured_raider",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1791759540399,
+      "tag": "0009_organic_supreme_intelligence",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1791760549692,
+      "tag": "0010_shiny_madelyne_pryor",
+      "breakpoints": true
     }
   ]
 }
