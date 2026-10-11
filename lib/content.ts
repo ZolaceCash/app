@@ -10,6 +10,9 @@ export type Block =
   // Whether there is a token today, and at which address. Not written here: it is read where the
   // server runs, when the page is asked for (components/site/token-status.tsx).
   | { token: true }
+  // What the shop takes today: test orders, test coins or real ZEC. Read the same way
+  // (components/site/shop-status.tsx).
+  | { shop: true }
 
 export type Section = {
   id: string

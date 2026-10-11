@@ -1,30 +1,44 @@
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import { Suspense } from "react";
 
 import { TestItems, TestItemsFallback } from "@/components/shop/test-items";
 import { PageHead, PageShell } from "@/components/site/page-shell";
 import { DotLabel, PillLink } from "@/components/site/primitives";
 import { ShelfGrid } from "@/components/site/shelf-grid";
+import { ShopWord } from "@/components/site/shop-status";
+import { shopWords } from "@/lib/shop-mode";
 
 export const metadata: Metadata = {
   title: "The shop",
   description:
-    "Try a test order at Zolace: no account, a link for a receipt, the item opened in your browser. No real payments yet.",
+    "The Zolace shop: no account, a link for a receipt, the item opened in your browser.",
 };
+
+async function Head() {
+  await connection();
+  const words = shopWords();
+  return (
+    <PageHead figure="matrix" label="The shop" title={words.title} facts={words.facts}>
+      {words.about}
+    </PageHead>
+  );
+}
 
 export default function Shop() {
   return (
     <PageShell>
-      <PageHead
-        figure="matrix"
-        label="The shop"
-        title="Try an order. No money moves."
-        facts={["Test orders only", "No real payments yet", "No account"]}
+      {/* What the shop takes is read on each request (lib/shop-mode.ts). Until it is known the
+          head names the page and claims nothing. */}
+      <Suspense
+        fallback={
+          <PageHead figure="matrix" label="The shop" title="The shop.">
+            …
+          </PageHead>
+        }
       >
-        The shop has no real goods and takes no real payments yet. What works is the order
-        itself: pick a test item, get a link, watch the order run and open a made-up item in your
-        browser.
-      </PageHead>
+        <Head />
+      </Suspense>
 
       {/* Read from the database on each request, so it streams in after the page's frame. */}
       <Suspense fallback={<TestItemsFallback />}>
@@ -33,8 +47,7 @@ export default function Shop() {
 
       <div className="mt-2.5 flex flex-col gap-5 cut rounded-3xl bg-card p-6 md:flex-row md:items-center md:justify-between">
         <p className="max-w-md leading-relaxed text-muted-foreground">
-          A test order uses the live ZEC price and a pretend payment. Everything else is as the
-          real shop will run it.
+          <ShopWord part="line" />
         </p>
         <div className="flex flex-wrap gap-2">
           <PillLink href="/docs/placing-an-order" variant="secondary" arrow>

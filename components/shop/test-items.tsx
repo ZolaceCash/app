@@ -4,12 +4,15 @@ import { connection } from "next/server"
 import { BuyButton } from "@/components/shop/buy-button"
 import { ZecIcon } from "@/components/site/chain-icons"
 import { listItems, type ShelfItem } from "@/lib/orders"
+import { shopWords } from "@/lib/shop-mode"
 
 const dollars = (cents: number) => `$${(cents / 100).toFixed(2)}`
 
 // What can be ordered right now, read from the database on each request.
 export async function TestItems() {
   await connection()
+  // What the order button says follows what the shop takes.
+  const order = shopWords().order
   // Without a database the rest of the site still stands; this part says what is missing.
   let items: ShelfItem[]
   try {
@@ -60,7 +63,7 @@ export async function TestItems() {
             </span>
           </p>
           <div className="mt-6">
-            <BuyButton slug={item.slug} />
+            <BuyButton slug={item.slug} label={order} />
           </div>
         </li>
       ))}

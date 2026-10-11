@@ -9,7 +9,9 @@ import { newOrderKeys } from "@/lib/seal"
 // Checkout. There is no form because nothing is asked: the browser makes the order's keys and
 // its secret, sends the server only what it may hold, and goes to the order's link. The secret
 // rides in the part after #, which is never sent anywhere.
-export function BuyButton({ slug }: { slug: string }) {
+//
+// `label` is what the button says: it depends on what the shop takes (lib/shop-mode.ts).
+export function BuyButton({ slug, label }: { slug: string; label: string }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -43,7 +45,7 @@ export function BuyButton({ slug }: { slug: string }) {
   return (
     <div>
       <Button onClick={order} disabled={busy}>
-        {busy ? "Starting the order" : "Try a test order"}
+        {busy ? "Starting the order" : label}
         <ArrowUpRight
           aria-hidden
           className="transition-transform duration-300 ease-out group-hover/button:translate-x-0.5 group-hover/button:-translate-y-0.5"

@@ -28,7 +28,7 @@ export default function Docs() {
         figure="contour"
         label="Docs"
         title="How an order runs, page by page."
-        facts={[`${DOCS.length} pages`, "Test orders only", "Not audited"]}
+        facts={[`${DOCS.length} pages`, "Not audited"]}
       >
         These pages describe how the shop is planned to work. Where something is not decided or
         not built, the page says so in a box marked &quot;Not final&quot;.

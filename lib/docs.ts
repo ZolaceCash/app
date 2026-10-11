@@ -49,8 +49,9 @@ export const DOCS: Doc[] = [
         id: "status",
         heading: "Where it stands",
         blocks: [
+          { shop: true },
           {
-            open: "This is a preview. You can place a test order: it uses the live ZEC price, a pretend payment and a made-up item. No real payment is accepted and nothing real is sold. These pages describe how the shop is planned to work, and details can change before it opens.",
+            open: "These pages describe how the shop works and how it is planned to work. Details can still change.",
           },
           { open: "No audit and no legal review have been done." },
         ],

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 
 import { BuyButton } from "@/components/shop/buy-button";
+import { shopWords } from "@/lib/shop-mode";
 import { ZecIcon } from "@/components/site/chain-icons";
 import { PageShell } from "@/components/site/page-shell";
 import { DotLabel, PillLink } from "@/components/site/primitives";
@@ -91,7 +92,7 @@ function Item({ item }: { item: ShelfItem }) {
               runs out of time.
             </p>
           ) : (
-            <BuyButton slug={item.slug} />
+            <BuyButton slug={item.slug} label={shopWords().order} />
           )}
           <PillLink href="/shop" variant="secondary">
             All items
@@ -99,9 +100,8 @@ function Item({ item }: { item: ShelfItem }) {
         </div>
 
         <p className="mt-8 max-w-xl rounded-xl bg-secondary p-5 text-sm leading-relaxed text-muted-foreground">
-          <span className="label-mono mb-2 block text-foreground">Test orders only</span>
-          No real payment is taken yet. An order placed here uses the live ZEC price and a pretend
-          payment, and moves no money.
+          <span className="label-mono mb-2 block text-foreground">{shopWords().noteLabel}</span>
+          {shopWords().note}
         </p>
       </div>
 

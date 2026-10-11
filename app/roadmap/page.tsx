@@ -4,6 +4,7 @@ import { TokenIcon } from "@/components/site/icons";
 import { PageHead, PageShell } from "@/components/site/page-shell";
 import { PillLink } from "@/components/site/primitives";
 import { Reveal } from "@/components/site/reveal";
+import { ShopWord } from "@/components/site/shop-status";
 import { TokenStatus } from "@/components/site/token-status";
 import { STAGES, STATUS_LABEL, type Stage } from "@/lib/roadmap";
 import { cn } from "@/lib/utils";
@@ -115,13 +116,12 @@ export default function Roadmap() {
               {next ? `${name(next)} is next: ${next.title.toLowerCase()}.` : "Every stage is done."}
             </p>
             <p className="mt-4 leading-relaxed text-muted-foreground">
-              The site takes test orders with a pretend payment. No real payment is accepted and
-              nothing real is sold.
+              <ShopWord part="today" />
             </p>
           </div>
           <div className="mt-10 flex flex-wrap gap-2">
             <PillLink href="/shop" arrow>
-              Try a test order
+              <ShopWord part="order" />
             </PillLink>
             <PillLink href="/whitepaper" variant="secondary">
               Read the whitepaper

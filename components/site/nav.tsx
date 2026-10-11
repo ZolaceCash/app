@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/sheet"
 import { NavRoot } from "@/components/site/nav-root"
 import { Container, Logo, LogoMark, PillLink } from "@/components/site/primitives"
+import { ShopWord } from "@/components/site/shop-status"
 
 // The close mark, drawn from polygons like the logo: one stroke whole, the other cut in two.
 function CloseIcon({ className }: { className?: string }) {
@@ -72,7 +73,7 @@ export function Nav() {
 
           <p className="label-mono mx-1 hidden h-10 items-center gap-2.5 rounded-lg bg-background/60 px-3 text-muted-foreground xl:flex">
             <span aria-hidden className="live-dot size-1.5 rounded-full bg-signal" />
-            Preview
+            <ShopWord part="pill" />
           </p>
 
           <PillLink href="/shop" arrow>

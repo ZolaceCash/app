@@ -128,10 +128,10 @@ export const WHITEPAPER_SECTIONS: Section[] = [
         ],
       },
       {
-        p: "The payment engine sits behind an interface so that it can be replaced. Two self-hosted engines were compared. One does not handle the current shielded pool. The other was run on testnet with a viewing key and nothing else: it gave each invoice an address of its own, and saw and confirmed a shielded payment once it was patched for the testnet's newest upgrade. It is not wired into the shop: today a stand-in takes its place.",
+        p: "The payment engine sits behind an interface so that it can be replaced. Two self-hosted engines were compared. One does not handle the current shielded pool. The other was run on testnet with a viewing key and nothing else: it gave each invoice an address of its own, and saw and confirmed a shielded payment once it was patched for the testnet's newest upgrade. It runs beside the shop, switched on by the owner; until then a stand-in takes its place and orders are test orders.",
       },
       {
-        open: "Before real payments, three things about that engine have to be settled: it reads the chain through a block explorer run by others, which then learns which transactions pay this shop; it takes its price from one source where this design asks for two; and it confirms after one block where this design says three. An engine that falls behind a network upgrade misses payments without an error, so the shop also needs an alarm of its own for that.",
+        open: "Two of that engine's differences from this design are worked around in the shop: its one price source is held against the shop's two and an order is refused when they are more than 2% apart, and the shop waits for three blocks where the engine reports one. One remains: it reads the chain through a block explorer run by others, which then learns which transactions pay this shop. And an engine that falls behind a network upgrade misses payments without an error: the shop refuses orders while the engine reports itself unfit, but has no alarm of its own for that yet.",
       },
     ],
   },
@@ -189,7 +189,7 @@ export const WHITEPAPER_SECTIONS: Section[] = [
           ["Reward", "The contract pays what a month's list says, but the owner works out the list and chooses the amount. The vault's contract has not been audited. NVDA is another company's token, with that company's rules and a price that moves"],
           ["Suppliers", "Many suppliers forbid resale. Each item's terms have to be read before it is listed"],
           ["Price", "ZEC can move while a price is held"],
-          ["Engine", "The payment engine has seen one test payment and is not wired into the shop. Behind a network upgrade it misses payments without an error"],
+          ["Engine", "The payment engine is a patched copy of an outside project, run by the shop, and reads the chain through a block explorer run by others. Behind a network upgrade it misses payments without an error"],
         ],
       },
       { open: "No legal review has been done. This paper is a description of a design, not advice of any kind." },
@@ -200,7 +200,11 @@ export const WHITEPAPER_SECTIONS: Section[] = [
     heading: "Status and open questions",
     blocks: [
       {
-        p: "Today the site takes test orders: the order flow, the sealing of the item and the order page work, against a pretend payment and with made-up items. No real payment is accepted and nothing real is sold.",
+        p: "The order flow, the sealing of the item and the order page are built. So is the shop's side of real payments, and the engine behind it has taken a payment on Zcash's test network.",
+      },
+      { shop: true },
+      {
+        p: "What the shop takes at this moment is said in the box above: it is read when this page is opened.",
       },
       {
         list: [

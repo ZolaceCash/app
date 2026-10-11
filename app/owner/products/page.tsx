@@ -6,6 +6,7 @@ import { ActionForm } from "@/components/owner/action-form";
 import { dollars, Field, OwnerFrame, Panel } from "@/components/owner/frame";
 import { listProducts, listRefundsDue, MAX_CODES_AT_ONCE } from "@/lib/admin";
 import { requireOwner } from "@/lib/owner-session";
+import { shopMode } from "@/lib/shop-mode";
 
 export const metadata: Metadata = { title: "Items" };
 
@@ -147,8 +148,14 @@ export default async function OwnerProducts() {
             <Field label="One line about it" name="blurb" maxLength={200} />
           </ActionForm>
           <p className="mt-6 text-sm leading-relaxed text-muted-foreground">
-            A new item is handed over from codes you upload, and starts off the shelf. Nothing real
-            can be sold yet: every order is still a test order.
+            A new item is handed over from codes you upload, and starts off the shelf.{" "}
+            {
+              {
+                preview: "Nothing real can be sold yet: every order is still a test order.",
+                testnet: "Orders are paid in test coins for now, so nothing real is sold yet.",
+                open: "Once it is on the shelf with a code in stock, it is sold for real ZEC.",
+              }[shopMode()]
+            }
           </p>
         </Panel>
       </div>

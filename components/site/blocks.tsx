@@ -1,3 +1,4 @@
+import { ShopToday } from "@/components/site/shop-status"
 import { TokenStatus } from "@/components/site/token-status"
 import type { Block, Section } from "@/lib/content"
 
@@ -37,6 +38,7 @@ function BlockView({ block }: { block: Block }) {
   }
 
   if ("token" in block) return <TokenStatus />
+  if ("shop" in block) return <ShopToday />
 
   // Not decided, not built or not checked: set apart so it cannot be read as a promise.
   return (

@@ -2,6 +2,7 @@ import type { ComponentType, CSSProperties } from "react"
 
 import { HeroDeck } from "@/components/landing/hero-deck"
 import { ZecIcon } from "@/components/site/chain-icons"
+import { ShopWord } from "@/components/site/shop-status"
 import { TokenAddress } from "@/components/site/token-address"
 import { KeyIcon, NoAccountIcon, PriceLockIcon } from "@/components/site/icons"
 import { Container, PillLink } from "@/components/site/primitives"
@@ -45,7 +46,7 @@ export function Hero() {
           >
             <p className="label-mono inline-flex items-center gap-2.5 rounded-md bg-secondary py-2 pr-3.5 pl-3">
               <span aria-hidden className="live-dot size-1.5 shrink-0 rounded-full bg-signal" />
-              Preview: test orders only, no real payments
+              <ShopWord part="badge" />
             </p>
             <p className="max-w-[19rem] leading-snug tracking-[-0.01em] text-pretty text-muted-foreground">
               A shop for digital goods that needs no account. Priced in dollars, paid in shielded
@@ -53,7 +54,7 @@ export function Hero() {
             </p>
             <div className="flex flex-wrap gap-2">
               <PillLink href="/shop" arrow>
-                Try a test order
+                <ShopWord part="order" />
               </PillLink>
               <PillLink href="#how" variant="secondary">
                 How it works
