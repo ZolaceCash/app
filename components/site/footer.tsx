@@ -2,6 +2,7 @@ import Link from "next/link"
 
 import { Container, Logo } from "@/components/site/primitives"
 import { ShopWord } from "@/components/site/shop-status"
+import { XIcon, X_HANDLE, X_URL } from "@/components/site/x-link"
 
 const LINKS = [
   { href: "/#shop", label: "The shop" },
@@ -32,10 +33,21 @@ export function Footer() {
             <p className="mt-4 max-w-xs leading-relaxed text-muted-foreground">
               Digital goods with no account, paid in shielded ZEC.
             </p>
-            <p className="label-mono mt-5 inline-flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-card py-2.5 pr-4 pl-3.5">
-              <span className="text-muted-foreground">Status</span>
-              <ShopWord part="status" />
-            </p>
+            <div className="mt-5 flex flex-wrap items-stretch gap-2">
+              <p className="label-mono inline-flex flex-wrap items-center gap-x-3 gap-y-1 rounded-md bg-card py-2.5 pr-4 pl-3.5">
+                <span className="text-muted-foreground">Status</span>
+                <ShopWord part="status" />
+              </p>
+              <a
+                href={X_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="label-mono inline-flex items-center gap-2.5 rounded-md bg-card py-2.5 pr-4 pl-3.5 transition-colors hover:text-brand"
+              >
+                <XIcon className="size-3.5 shrink-0" />
+                <span className="sr-only">Zolace on X:</span>@{X_HANDLE}
+              </a>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-x-16 gap-y-10 sm:grid-cols-3">

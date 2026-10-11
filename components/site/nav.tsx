@@ -14,6 +14,7 @@ import {
 import { NavRoot } from "@/components/site/nav-root"
 import { Container, Logo, LogoMark, PillLink } from "@/components/site/primitives"
 import { ShopWord } from "@/components/site/shop-status"
+import { XIcon, X_URL } from "@/components/site/x-link"
 
 // The close mark, drawn from polygons like the logo: one stroke whole, the other cut in two.
 function CloseIcon({ className }: { className?: string }) {
@@ -71,6 +72,19 @@ export function Nav() {
             ))}
           </nav>
 
+          {/* On a phone the bar has no room for it: there it sits in the menu instead. */}
+          <Button
+            asChild
+            variant="ghost"
+            size="icon"
+            className="mr-1 text-muted-foreground hover:text-foreground max-sm:hidden xl:mr-0"
+          >
+            <a href={X_URL} target="_blank" rel="noopener noreferrer">
+              <XIcon />
+              <span className="sr-only">Zolace on X</span>
+            </a>
+          </Button>
+
           <p className="label-mono mx-1 hidden h-10 items-center gap-2.5 rounded-lg bg-background/60 px-3 text-muted-foreground xl:flex">
             <span aria-hidden className="live-dot size-1.5 rounded-full bg-signal" />
             <ShopWord part="pill" />
@@ -124,11 +138,19 @@ export function Nav() {
                   </SheetClose>
                 ))}
               </nav>
-              <div className="mt-auto pb-6 pl-8">
+              <div className="mt-auto flex items-center gap-2 pb-6 pl-8">
                 <SheetClose asChild>
                   <PillLink href="/shop" arrow>
                     Browse the shop
                   </PillLink>
+                </SheetClose>
+                <SheetClose asChild>
+                  <Button asChild variant="outline" size="icon">
+                    <a href={X_URL} target="_blank" rel="noopener noreferrer">
+                      <XIcon />
+                      <span className="sr-only">Zolace on X</span>
+                    </a>
+                  </Button>
                 </SheetClose>
               </div>
             </SheetContent>
