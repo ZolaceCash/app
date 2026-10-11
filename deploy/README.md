@@ -88,7 +88,8 @@ publishes no port. `init-cert.sh`, the Cloudflare token and the `.env` file are 
 
 1. New resource from the repository, build strategy **Compose**, Docker Compose Location
    `/docker-compose.coolify.yml`.
-2. **Domains**: add the domain on the service `web`, with its port: `https://zolace.cash:80`. Not on `app`:
+2. **Domains**: add the domain on the service `web`, with its port: `https://zolace.cash:80`, and
+   `https://www.zolace.cash:80` beside it if www should answer (it is sent on to the bare name). Not on `app`:
    `web` is the nginx that strips the visitor's address before a request reaches the site.
 3. **Environment Variables**: every setting of the compose file is listed there. `OWNER_SECRET` has to be
    filled in before Coolify deploys (32 characters or more: `openssl rand -base64 48`). The rest start with
