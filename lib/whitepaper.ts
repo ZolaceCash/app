@@ -171,8 +171,9 @@ export const WHITEPAPER_SECTIONS: Section[] = [
       {
         p: "NVDA is not this project's token. Robinhood issues it and describes it as a tokenised debt security, not a share, and it restricts where the token may be offered. Nothing here is endorsed by Robinhood or by NVIDIA, and whether a holder may be handed NVDA where they live has not been reviewed.",
       },
+      { token: true },
       {
-        open: "There is no token today and no contract address. Two contracts have been written and tested, the token and the vault; neither has been audited or deployed. They will not launch before an audit and a legal review, and neither has been done. The numbers above can still change before deployment. How much goes into a month, the share of an order that goes to the reward, and who receives the supply at the start are not decided. Nothing in this paper is an offer.",
+        open: "Two contracts have been written and tested, the token and the vault. Neither has been audited, and no legal review has been done. The numbers above can still change before deployment. How much goes into a month, the share of an order that goes to the reward, and who receives the supply at the start are not decided. Nothing in this paper is an offer.",
       },
     ],
   },

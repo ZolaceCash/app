@@ -2,6 +2,7 @@ import { ChainIcon } from "@/components/site/chain-icons"
 import { TokenIcon } from "@/components/site/icons"
 import { Container, DotLabel, PillLink } from "@/components/site/primitives"
 import { Reveal } from "@/components/site/reveal"
+import { TokenAddressShort, TokenStatus } from "@/components/site/token-status"
 
 const FACTS = [
   { name: "Chain", value: "Robinhood Chain" },
@@ -9,12 +10,12 @@ const FACTS = [
   { name: "Minimum to be listed", value: "3,000,000 tokens" },
   { name: "Paid from", value: "A fee on transfers, a share of orders" },
   { name: "On the chain", value: "Holdings, transfers and every claim" },
-  { name: "Before launch", value: "An audit and a legal review" },
-  { name: "Status", value: "Not live" },
+  { name: "Checks", value: "No audit, no legal review" },
 ]
 
 // The one deep-indigo block on the page: the token and the reward to its holders, which come
-// after the shop. Both are on a public chain, and the block says so.
+// after the shop. Both are on a public chain, and the block says so. Whether there is a token
+// today, and at which address, is not written here: it comes from TOKEN_ADDRESS (token-status.tsx).
 export function Token() {
   return (
     <section id="token" className="pt-24 md:pt-32">
@@ -35,10 +36,10 @@ export function Token() {
                 NVDA, a stock token on the same chain, bought with a fee on each transfer of the
                 token and a share of each order in the shop, and claimed from a contract. All of
                 it is public on the chain: who holds the token, and what each wallet claims.
-                There is no token today and no contract
-                address. It will not launch before an audit and a legal review, and neither has
-                been done.
               </p>
+              <div className="mt-4 max-w-md">
+                <TokenStatus tone="navy" />
+              </div>
               <div className="mt-8 flex flex-wrap gap-2">
                 <PillLink href="/whitepaper" variant="inverse" arrow>
                   Read the whitepaper
@@ -53,7 +54,7 @@ export function Token() {
             </div>
 
             <dl className="flex flex-col justify-center gap-1.5">
-              {FACTS.map((fact) => (
+              {[...FACTS, { name: "Contract", value: <TokenAddressShort /> }].map((fact) => (
                 <div
                   key={fact.name}
                   className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 rounded-lg bg-white/[0.07] px-5 py-4"

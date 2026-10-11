@@ -13,7 +13,7 @@ async function Current() {
 
 export function TokenAddress() {
   return (
-    <Suspense fallback={<ContractAddress address={null} />}>
+    <Suspense fallback={<ContractAddress address={null} pending />}>
       <Current />
     </Suspense>
   )

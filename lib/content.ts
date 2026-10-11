@@ -7,6 +7,9 @@ export type Block =
   | { rows: [string, string][] }
   // Something that is not decided, not built or not checked yet. Said where it applies.
   | { open: string }
+  // Whether there is a token today, and at which address. Not written here: it is read where the
+  // server runs, when the page is asked for (components/site/token-status.tsx).
+  | { token: true }
 
 export type Section = {
   id: string

@@ -80,6 +80,31 @@ export function vaultLive(config: TokenConfig): config is TokenConfig & {
   return config.address !== null && config.vault !== null && config.reward !== null
 }
 
+// The network by the name people know it by.
+export const chainName = (chainId: number) =>
+  chainId === 4663 ? "Robinhood Chain" : chainId === 46630 ? "Robinhood Chain testnet" : `network ${chainId}`
+
+// Where anyone can look an address up, on the two networks that have a public explorer.
+const EXPLORERS: Record<number, string> = {
+  4663: "https://robinhoodchain.blockscout.com",
+  46630: "https://explorer.testnet.chain.robinhood.com",
+}
+export const explorerUrl = (chainId: number, address: string) =>
+  EXPLORERS[chainId] ? `${EXPLORERS[chainId]}/address/${address}` : null
+
+// What the site says about the token today, in each of its two states. Every page that speaks of
+// the token's state takes it from here (components/site/token-status.tsx), so setting or clearing
+// TOKEN_ADDRESS changes all of them at once and none is left saying the opposite.
+export function tokenStatement(config: TokenConfig) {
+  if (!config.address) {
+    return "There is no token today and no contract address. It will not launch before an audit and a legal review, and neither has been done. Anything offered under this name today is not from this project."
+  }
+  const reward = vaultLive(config)
+    ? "The vault that pays its holders is open."
+    : "The reward for its holders is not open: the vault's contract is not deployed."
+  return `The token is on ${chainName(config.chainId)}, at the address below. Its contract has not been audited and no legal review has been done. A token with this name at any other address is not this project's. ${reward} Nothing here is an offer.`
+}
+
 // A whole number of smallest units as an amount for people: "3,000,000" or "12.5".
 export function formatUnitsShort(units: bigint, decimals: number, places = 6) {
   const base = 10n ** BigInt(decimals)

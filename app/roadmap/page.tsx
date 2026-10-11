@@ -4,6 +4,7 @@ import { TokenIcon } from "@/components/site/icons";
 import { PageHead, PageShell } from "@/components/site/page-shell";
 import { PillLink } from "@/components/site/primitives";
 import { Reveal } from "@/components/site/reveal";
+import { TokenStatus } from "@/components/site/token-status";
 import { STAGES, STATUS_LABEL, type Stage } from "@/lib/roadmap";
 import { cn } from "@/lib/utils";
 
@@ -207,6 +208,9 @@ export default function Roadmap() {
                 {stage.title}
               </h2>
               <p className="mt-6 max-w-md text-lg leading-snug text-white/70">{stage.doneWhen}</p>
+              <div className="mt-6 max-w-md">
+                <TokenStatus tone="navy" />
+              </div>
             </div>
             <ul className="space-y-1.5 self-end">
               {stage.work.map((item) => (

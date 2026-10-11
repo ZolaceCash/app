@@ -49,7 +49,7 @@ chmod 600 .env
 | `CLOUDFLARE_API_TOKEN` | Secret. The token from step 4 above |
 | `OWNER_SECRET` | Secret. Opens `/owner`. 32 characters or more: `openssl rand -base64 48` |
 | `ORDER_RETENTION_DAYS` | Days an order is kept after it closes |
-| `TOKEN_ADDRESS` | The token's contract address. Empty until there is a token |
+| `TOKEN_ADDRESS` | The token's contract address (the CA) shown across the site. Empty until there is a token |
 | `TOKEN_CHAIN_ID`, `TOKEN_RPC_URL`, `TOKEN_DEPLOY_BLOCK` | The token's network, where the site reads it, and the block the contract was deployed in |
 | `VAULT_ADDRESS` | The vault's contract address. Empty until it is deployed: the vault stays closed |
 | `REWARD_ASSET`, `REWARD_SYMBOL`, `REWARD_DECIMALS` | What holders are rewarded in. Set to NVDA on Robinhood Chain; it has to be on the token's network |
@@ -67,6 +67,18 @@ It is run once. After that the `certbot` container looks twice a day and renews 
 under 30 days left, and nginx reloads twice a day to pick a new one up.
 
 The site makes its own tables and puts the three test items on the shelf the first time it is opened.
+
+Then check what the server can reach:
+
+```bash
+sh deploy/preflight.sh
+```
+
+It asks, from inside the site's container, for the two ZEC prices an order needs, for the token's network,
+and whether the settings read as meant. It changes nothing and prints no secret. Run it on the server
+itself, not on a laptop: some networks answer for an exchange's or a chain's host with an address of their
+own, and a site behind one starts, looks fine and cannot price a single order. If a line fails for that
+reason, the fix is the server's network or its DNS, not the site.
 
 ## The database
 
@@ -96,20 +108,37 @@ switched off. Changing it and restarting ends every session:
 docker compose up -d app
 ```
 
-## Switching the token on
+## The contract address (CA), and the vault
 
-There is no token, so `TOKEN_ADDRESS` and `VAULT_ADDRESS` are empty: the home page shows the contract
-address as not available, the vault at `/vault` says it is not open, and the owner's payout screen says it
-is switched off. When the two contracts are deployed (`CONTRACT.md`), put the token's address, its network,
-the block it was deployed in and the vault's address into `.env` and restart the site. Nothing has to be
-built again:
+The site launches without a token: `TOKEN_ADDRESS` is empty, and every page that speaks of the token says
+there is none. The shop does not depend on it.
+
+To show a contract address, put it into `.env` and restart the site. Nothing is built again:
+
+```bash
+# in .env
+TOKEN_ADDRESS=0x...
+```
 
 ```bash
 docker compose up -d app
 ```
 
-Counting a month of holdings reads old blocks. The public endpoint is rate limited and may not serve them:
-use a provider's archive endpoint for `TOKEN_RPC_URL`.
+That one setting changes the slot on the home page (with its copy button), the token block under it, the
+token page of the docs, the whitepaper, the roadmap and the vault page, all at once. With an address set
+they say the token is on the chain, not audited and not reviewed; they never say more than that. Clearing
+the line and restarting takes it back. `TOKEN_CHAIN_ID` is 4663 for Robinhood Chain.
+
+The vault (the holders' reward) is a second switch and can come later: it stays closed, and the owner's
+payout screen stays switched off, until `VAULT_ADDRESS` is set as well (`CONTRACT.md`). Then also set
+`TOKEN_DEPLOY_BLOCK` to the block the token was deployed in.
+
+Counting a month of holdings reads the token's transfers back to its first block. The public endpoint was
+tried on 11 Oct 2026: it serves old blocks and old transfers, at most 10,000 transfers or 10,000,000 blocks
+per request, and it answers "too many requests" when asked quickly. The site cuts a stretch in two when it
+is too large and waits when it is asked to, so the public endpoint works for a token with a modest history
+and gets slow for a busy one. A provider's endpoint in `TOKEN_RPC_URL` avoids the waiting. Old balances (an
+archive) are not needed: the count is made from transfers alone.
 
 The site only reads the chain. It holds no key for it: a month is funded from the owner's own wallet, in the
 browser, on `/owner/payout`, and a holder claims from theirs on `/vault`. Both need a wallet in that browser.
@@ -132,7 +161,8 @@ on Cloudflare's "Authenticated Origin Pulls" and have nginx ask for Cloudflare's
 
 ## Not in here
 
-- The payment engine. It is not wired into the site (PLAN.md, "Stage 0: what was run"). When it is, it
-  gets a container of its own that only the site can reach.
+- The payment engine. It is not wired into the site (`engine/cipherpay/README.md`): the shop takes test
+  orders only, and no real payment. When the engine is wired in, it gets a container of its own that only
+  the site can reach.
 - A Tor mirror.
 - Backups on a schedule.

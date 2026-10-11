@@ -1,3 +1,4 @@
+import { TokenStatus } from "@/components/site/token-status"
 import type { Block, Section } from "@/lib/content"
 
 // Draws the long-form content of lib/docs.ts and lib/whitepaper.ts.
@@ -34,6 +35,8 @@ function BlockView({ block }: { block: Block }) {
       </dl>
     )
   }
+
+  if ("token" in block) return <TokenStatus />
 
   // Not decided, not built or not checked: set apart so it cannot be read as a promise.
   return (

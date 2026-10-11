@@ -354,8 +354,8 @@ export const DOCS: Doc[] = [
               ["How it is paid", "Claimed by the wallet from the vault's contract"],
               ["Minimum to be listed", "3,000,000 tokens in the wallet, all month"],
               ["Paid from", "A fee on each transfer of the token, and a share of each order in the shop"],
-              ["Before launch", "An audit and a legal review"],
-              ["Status", "Not live. Two contracts are written, not audited, not deployed"],
+              ["Checks", "No audit and no legal review has been done"],
+              ["Contracts", "Two are written and tested: the token, and the vault that pays the reward"],
             ],
           },
           { p: "The shop comes first. A token only makes sense once there is a shop whose orders have something to share." },
@@ -398,14 +398,9 @@ export const DOCS: Doc[] = [
         id: "today",
         heading: "Today",
         blocks: [
+          { token: true },
           {
-            open: "There is no token and no contract address. Anything offered under this name today is not from this project.",
-          },
-          {
-            p: "A contract has been written and tested. It has not been audited and has not been deployed anywhere, so there is nothing to buy, hold or claim.",
-          },
-          {
-            p: "When a contract exists, its address will be shown on the home page with a copy button. Until then that slot reads \"Not available yet\".",
+            p: "The token's address is shown on the home page, with a copy button, and in the box above. Where there is no token, they say so. An address shown anywhere else is not this project's.",
           },
         ],
       },

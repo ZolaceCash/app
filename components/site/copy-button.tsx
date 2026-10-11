@@ -17,7 +17,12 @@ export function CopyButton({
   useEffect(() => () => window.clearTimeout(reset.current), [])
 
   async function copy() {
-    await navigator.clipboard.writeText(text)
+    // A browser may refuse the clipboard: then nothing was copied, and the button does not say so.
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      return
+    }
     setCopied(true)
     window.clearTimeout(reset.current)
     reset.current = window.setTimeout(() => setCopied(false), 1800)

@@ -13,7 +13,7 @@ import { listMonths, type FundedMonth } from "@/lib/vault-store";
 export const metadata: Metadata = {
   title: "The vault",
   description:
-    "How holders of the Zolace token are rewarded: a monthly list, funded in NVDA on Robinhood Chain, claimed from a contract by the wallet. Not live.",
+    "How holders of the Zolace token are rewarded: a monthly list, funded in NVDA on Robinhood Chain, claimed from a contract by the wallet.",
 };
 
 const MINIMUM = formatTokens(MINIMUM_UNITS);
@@ -155,9 +155,10 @@ async function Claim() {
         </>
       ) : (
         <p className="mt-6 max-w-xl rounded-xl bg-accent p-5 leading-relaxed text-foreground/85">
-          <span className="label-mono mb-2 block text-accent-foreground">Not live</span>
-          There is no token and no vault yet, so there is nothing to hold and nothing to claim. This panel
-          opens when both contracts exist. Anything offered under this name today is not from this project.
+          <span className="label-mono mb-2 block text-accent-foreground">Not open</span>
+          {config.address
+            ? "The vault's contract is not deployed, so there is nothing to claim. This panel opens when it is. No month has been funded and none is promised."
+            : "There is no token and no vault yet, so there is nothing to hold and nothing to claim. This panel opens when both contracts exist. Anything offered under this name today is not from this project."}
         </p>
       )}
 

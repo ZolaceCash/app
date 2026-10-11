@@ -104,7 +104,7 @@ const CARDS: Card[] = [
     fill: "#26262e",
     ink: "#7a45f5",
     title: "A token on Robinhood Chain, after the shop",
-    note: "Not live yet",
+    note: "Not audited",
     icon: TokenIcon,
     tone: "bg-graphite text-white",
     dark: true,

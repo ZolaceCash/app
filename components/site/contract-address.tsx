@@ -9,7 +9,9 @@ import { Button } from "@/components/ui/button"
 // The token's contract address with a copy button. Until the token exists the slot is there but
 // says so, and the button cannot be pressed. The address comes from the server (token-address.tsx),
 // which is told it where it runs.
-export function ContractAddress({ address: TOKEN_ADDRESS }: { address: string | null }) {
+//
+// `pending` is the moment before the server's answer is there: the slot then says neither.
+export function ContractAddress({ address: TOKEN_ADDRESS, pending = false }: { address: string | null; pending?: boolean }) {
   const [copied, setCopied] = useState(false)
   const reset = useRef(0)
 
@@ -17,7 +19,12 @@ export function ContractAddress({ address: TOKEN_ADDRESS }: { address: string | 
 
   async function copy() {
     if (!TOKEN_ADDRESS) return
-    await navigator.clipboard.writeText(TOKEN_ADDRESS)
+    // A browser may refuse the clipboard: then nothing was copied, and the button does not say so.
+    try {
+      await navigator.clipboard.writeText(TOKEN_ADDRESS)
+    } catch {
+      return
+    }
     setCopied(true)
     window.clearTimeout(reset.current)
     reset.current = window.setTimeout(() => setCopied(false), 1800)
@@ -34,14 +41,14 @@ export function ContractAddress({ address: TOKEN_ADDRESS }: { address: string | 
           {short}
         </span>
       ) : (
-        <span className="truncate font-mono text-xs text-muted-foreground">Not available yet</span>
+        <span className="truncate font-mono text-xs text-muted-foreground">{pending ? "…" : "Not available yet"}</span>
       )}
       <Button
         variant="outline"
         size="xs"
         onClick={copy}
         disabled={!TOKEN_ADDRESS}
-        title={TOKEN_ADDRESS ? undefined : "The token is not live, so there is no address to copy"}
+        title={TOKEN_ADDRESS || pending ? undefined : "The token is not live, so there is no address to copy"}
         className="ml-1"
       >
         {copied ? <Check aria-hidden /> : <Copy aria-hidden />}

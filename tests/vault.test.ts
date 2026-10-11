@@ -8,7 +8,9 @@ import {
   MINIMUM_UNITS,
   parseAsset,
   parseUnitsExact,
+  explorerUrl,
   tokenConfig,
+  tokenStatement,
   vaultLive,
 } from "../lib/token"
 import {
@@ -98,6 +100,31 @@ test("a reward on another network than the token switches the vault off", () => 
       assert.equal(vaultLive(config), true)
     }
   )
+})
+
+test("what the site says about the token follows the address it is given", () => {
+  withEnv({}, () => {
+    const said = tokenStatement(tokenConfig())
+    assert.match(said, /There is no token today and no contract address/)
+    assert.match(said, /not from this project/)
+  })
+  withEnv({ TOKEN_ADDRESS: A }, () => {
+    const said = tokenStatement(tokenConfig())
+    assert.doesNotMatch(said, /There is no token/)
+    assert.match(said, /on Robinhood Chain, at the address below/)
+    // Having an address must not make the site claim a check that was not done.
+    assert.match(said, /has not been audited and no legal review has been done/)
+    assert.match(said, /reward for its holders is not open/)
+    assert.match(said, /Nothing here is an offer/)
+  })
+  withEnv({ TOKEN_ADDRESS: A, VAULT_ADDRESS: B }, () => assert.match(tokenStatement(tokenConfig()), /vault that pays its holders is open/))
+  withEnv({ TOKEN_ADDRESS: A, TOKEN_CHAIN_ID: "46630" }, () => assert.match(tokenStatement(tokenConfig()), /on Robinhood Chain testnet/))
+  // An address that is not one is no address: the site keeps saying there is no token.
+  withEnv({ TOKEN_ADDRESS: "0x1234" }, () => assert.match(tokenStatement(tokenConfig()), /There is no token today/))
+  withEnv({ TOKEN_ADDRESS: `  ${A}  ` }, () => assert.equal(tokenConfig().address, A))
+
+  assert.equal(explorerUrl(4663, A), `https://robinhoodchain.blockscout.com/address/${A}`)
+  assert.equal(explorerUrl(1, A), null)
 })
 
 test("an asset is read as written, with or without a stray 0x in front", () => {

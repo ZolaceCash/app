@@ -15,7 +15,9 @@ const TOKEN_ROLES = parseAbi(["function owner() view returns (address)", "functi
 export class ChainError extends Error {}
 
 function reader(config: TokenConfig): PublicClient {
-  return createPublicClient({ transport: http(config.rpcUrl, { timeout: 20_000, retryCount: 2 }) })
+  // A public endpoint answers "too many requests" quickly: each call is tried again a few times,
+  // a little later each time, before it counts as failed.
+  return createPublicClient({ transport: http(config.rpcUrl, { timeout: 20_000, retryCount: 5, retryDelay: 400 }) })
 }
 
 // The token and the vault have to be switched on (lib/token.ts) before anything here can run.
@@ -45,6 +47,11 @@ async function firstBlockAt(client: PublicClient, timestamp: bigint, lowest: big
 // The blocks a stretch of time ran over, both included. `start` and `end` are in seconds.
 export async function blocksBetween(start: number, end: number) {
   const { config, client } = live()
+  // A month counted on another network than the token's would look right and be wrong.
+  const answering = await client.getChainId()
+  if (answering !== config.chainId) {
+    throw new ChainError(`TOKEN_RPC_URL answers for network ${answering}, and the token is set to network ${config.chainId}.`)
+  }
   const from = await firstBlockAt(client, BigInt(start), config.deployBlock)
   const after = await firstBlockAt(client, BigInt(end) + 1n, config.deployBlock)
   if (from === null || after === null) throw new ChainError("The chain has not reached the end of that month yet.")
@@ -52,24 +59,44 @@ export async function blocksBetween(start: number, end: number) {
   return { fromBlock: from, toBlock: after - 1n }
 }
 
+// Whether an endpoint refused a call because it is asked too often, not because of what was asked.
+function askedTooOften(error: unknown) {
+  const told = error as { status?: number; code?: number; message?: string; details?: string }
+  // By its words, not by a bare 429 in the text: the message carries block numbers, which may hold those digits.
+  return told.status === 429 || told.code === 429 || /too many requests|rate limit/i.test(`${told.message} ${told.details}`)
+}
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
 // A provider answers only so many blocks or results at once. A stretch it refuses is cut in two
-// and asked again, down to a stretch too short to be the problem.
+// and asked again, down to a stretch too short to be the problem. Being asked too often is another
+// matter: cutting the stretch would only ask more often, so the same stretch waits and is asked
+// again (seen on Robinhood Chain's public endpoint, 11 Oct 2026).
 async function logsIn(client: PublicClient, address: `0x${string}`, fromBlock: bigint, toBlock: bigint): Promise<Transfer[]> {
-  try {
-    const logs = await client.getLogs({ address, event: TRANSFER, fromBlock, toBlock })
-    return logs.map((log) => ({
-      from: log.args.from as string,
-      to: log.args.to as string,
-      value: log.args.value as bigint,
-      block: log.blockNumber,
-      index: log.logIndex,
-    }))
-  } catch (error) {
-    if (toBlock - fromBlock < 1_000n) throw error
-    const middle = (fromBlock + toBlock) / 2n
-    const first = await logsIn(client, address, fromBlock, middle)
-    const second = await logsIn(client, address, middle + 1n, toBlock)
-    return [...first, ...second]
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const logs = await client.getLogs({ address, event: TRANSFER, fromBlock, toBlock })
+      return logs.map((log) => ({
+        from: log.args.from as string,
+        to: log.args.to as string,
+        value: log.args.value as bigint,
+        block: log.blockNumber,
+        index: log.logIndex,
+      }))
+    } catch (error) {
+      if (askedTooOften(error)) {
+        if (attempt >= 5) {
+          throw new ChainError("The endpoint keeps answering that it is asked too often. Try again later, or use a provider's endpoint for TOKEN_RPC_URL.")
+        }
+        await wait(2_000 * 2 ** attempt)
+        continue
+      }
+      if (toBlock - fromBlock < 1_000n) throw error
+      const middle = (fromBlock + toBlock) / 2n
+      const first = await logsIn(client, address, fromBlock, middle)
+      const second = await logsIn(client, address, middle + 1n, toBlock)
+      return [...first, ...second]
+    }
   }
 }
 
