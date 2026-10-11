@@ -1,0 +1,239 @@
+<!doctype html>
+<!--
+  The picture for the post that says the vault is open, 1600 x 900. brand/render.mjs renders it at
+  twice the size. Its layout is its own: the vault's address, one character to a tile, is the
+  picture; the six characters it starts with and the four it ends with are lit, the way an address
+  is shortened, so a reader can check them at a glance.
+  The address and the rate are the contract's own (PLAN.md, "The hourly reward"): the vault is
+  0x7846a8e5cb8517254be8e7bb38c7d0f800609485, and 0.01 USD an hour for a lot of 3,000,000 is a
+  ceiling, so the picture says "up to".
+  The proof line is left out until it is true. Add it through the address, with figures read from
+  the chain:  x-post-vault.html?amount=0.4349&tx=0x<the whole hash>
+  Do not post this picture before NVDA is in the vault and zolace.cash/vault takes claims.
+  For the hours between the two, add &soon=1: the headline says "funded" and the claim line says
+  claims open soon, which is what is true while the site is still being brought up.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@500;700&family=Geist+Mono:wght@400;500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ground: #09090b;
+        --tile: #17171c;
+        --ice: #f4f4f6;
+        --indigo: #5567ea;
+        --brand: #7b8cff;
+        --quiet: rgb(244 244 246 / 0.58);
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      body {
+        width: 1600px;
+        height: 900px;
+        overflow: hidden;
+        background-color: var(--ground);
+        /* The site's ground: a faint grid of dots. */
+        background-image: radial-gradient(rgb(255 255 255 / 0.055) 1px, transparent 1px);
+        background-size: 28px 28px;
+        color: var(--ice);
+        font-family: "Geist", system-ui, sans-serif;
+        position: relative;
+      }
+      .mono {
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-weight: 500;
+        font-size: 18px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--quiet);
+      }
+      /* An address or a transaction's id is written as it is, in lower case. */
+      .plain {
+        text-transform: none;
+      }
+      .left {
+        position: absolute;
+        left: 80px;
+        top: 64px;
+        bottom: 64px;
+        width: 640px;
+        display: flex;
+        flex-direction: column;
+      }
+      /* The site's logo as it stands in the nav: the mark beside the name in bold lowercase. */
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 700;
+        font-size: 38px;
+        line-height: 1;
+        letter-spacing: -0.05em;
+      }
+      .logo svg {
+        width: 40px;
+        height: 40px;
+        fill: currentColor;
+      }
+      .eyebrow {
+        margin-top: 92px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--brand);
+      }
+      .eyebrow::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        background: currentColor;
+      }
+      h1 {
+        margin-top: 26px;
+        font-weight: 500;
+        font-size: 136px;
+        line-height: 0.94;
+        letter-spacing: -0.055em;
+        white-space: nowrap;
+      }
+      h1 em {
+        font-style: normal;
+        color: var(--brand);
+      }
+      .rate {
+        margin-top: 52px;
+        font-weight: 500;
+        font-size: 50px;
+        line-height: 1;
+        letter-spacing: -0.04em;
+      }
+      .rate span {
+        color: var(--quiet);
+      }
+      .terms {
+        margin-top: 20px;
+        line-height: 1.75;
+        color: var(--ice);
+      }
+      .claim {
+        margin-top: auto;
+        line-height: 1.75;
+      }
+      .claim b {
+        font-weight: 500;
+        color: var(--ice);
+      }
+      .right {
+        position: absolute;
+        right: 80px;
+        top: 64px;
+        bottom: 64px;
+        width: 722px;
+        display: flex;
+        flex-direction: column;
+      }
+      /* 42 characters, 7 across and 6 down. */
+      .address {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 10px;
+      }
+      .address i {
+        aspect-ratio: 1.02;
+        border-radius: 16px;
+        background: var(--tile);
+        display: grid;
+        place-items: center;
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-style: normal;
+        font-weight: 500;
+        font-size: 46px;
+        line-height: 1;
+        color: rgb(244 244 246 / 0.82);
+      }
+      .address i.lit {
+        background: var(--indigo);
+        color: #fff;
+      }
+      .under {
+        margin-top: 22px;
+        display: flex;
+        justify-content: space-between;
+      }
+      .proof {
+        margin-top: 10px;
+        display: none;
+        justify-content: space-between;
+        color: var(--brand);
+      }
+      body[data-proof] .proof {
+        display: flex;
+      }
+      .fine {
+        margin-top: auto;
+        text-align: right;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="left">
+      <p class="logo">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <polygon points="8.1,2 22,2 13.25,14.5 10.65,14.5 15.9,7 4.6,7" />
+          <polygon points="19.4,17 15.9,22 2,22 10.75,9.5 13.35,9.5 8.1,17" />
+          <polygon points="5.5,2 7,2 3.5,7 2,7" />
+          <polygon points="20.5,17 22,17 18.5,22 17,22" />
+        </svg>
+        zolace
+      </p>
+      <p class="mono eyebrow">Holders' reward</p>
+      <h1>The vault<br />is <em id="state">live.</em></h1>
+      <p class="rate">Up to $0.01 <span>an hour</span></p>
+      <p class="mono terms">For every 3,000,000 $ZOLACE held<br />Paid in NVDA</p>
+      <p class="mono claim"><span id="claim">Claim at</span> <b>zolace.cash/vault</b><br />Every claim is public on the chain</p>
+    </div>
+
+    <div class="right">
+      <div class="address" id="address"></div>
+      <div class="mono under"><span>The vault's contract</span><span>Robinhood Chain</span></div>
+      <div class="mono proof">
+        <span>Topped up · <span id="amount"></span> NVDA</span>
+        <span>Tx <span class="plain" id="tx"></span></span>
+      </div>
+      <p class="mono fine">Independent of Robinhood and NVIDIA</p>
+    </div>
+
+    <script>
+      const VAULT = "0x7846a8e5cb8517254be8e7bb38c7d0f800609485"
+      const address = document.getElementById("address")
+      ;[...VAULT].forEach((character, index) => {
+        const tile = document.createElement("i")
+        tile.textContent = character
+        if (index < 6 || index >= VAULT.length - 4) tile.className = "lit"
+        address.append(tile)
+      })
+
+      // The proof line shows only when both of its figures are given, and the id looks like one.
+      const asked = new URLSearchParams(location.search)
+      const amount = asked.get("amount") ?? ""
+      const tx = asked.get("tx") ?? ""
+      if (/^\d+(\.\d+)?$/.test(amount) && /^0x[0-9a-f]{64}$/.test(tx)) {
+        document.getElementById("amount").textContent = amount
+        document.getElementById("tx").textContent = `${tx.slice(0, 10)}…${tx.slice(-8)}`
+        document.body.dataset.proof = ""
+      }
+      if (asked.get("soon") === "1") {
+        document.getElementById("state").textContent = "funded."
+        document.getElementById("claim").textContent = "Claims open soon at"
+      }
+    </script>
+  </body>
+</html>

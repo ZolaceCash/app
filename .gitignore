@@ -47,3 +47,6 @@ next-env.d.ts
 /contracts/node_modules
 /contracts/artifacts
 /contracts/cache
+
+# the demo films: made by the scripts in brand/video, too large to keep here
+/brand/video/*.mp4

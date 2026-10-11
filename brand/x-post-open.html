@@ -1,0 +1,211 @@
+<!doctype html>
+<!--
+  The picture for the post that says the shop takes real payments, 1600 x 900. brand/render.mjs
+  renders it at twice the size. Its layout is its own: the headline runs across the top in one
+  line, and under it three full-width rows show what the chain shows of a shielded payment, each
+  one covered by the site's dither.
+  It shows no item and no price on purpose: the shelf was empty when this was made (12 Oct 2026).
+  What it says is the site's own claim and no wider: a shielded payment shows no sender, no
+  receiver and no amount on the chain. What the server keeps is on /proof, and the picture says so.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@500;700&family=Geist+Mono:wght@400;500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ground: #09090b;
+        --tile: #15151a;
+        --ice: #f4f4f6;
+        --indigo: #5567ea;
+        --brand: #7b8cff;
+        --quiet: rgb(244 244 246 / 0.58);
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      body {
+        width: 1600px;
+        height: 900px;
+        overflow: hidden;
+        padding: 64px 80px;
+        background-color: var(--ground);
+        /* The site's ground: a faint grid of dots. */
+        background-image: radial-gradient(rgb(255 255 255 / 0.055) 1px, transparent 1px);
+        background-size: 28px 28px;
+        color: var(--ice);
+        font-family: "Geist", system-ui, sans-serif;
+        display: flex;
+        flex-direction: column;
+      }
+      .mono {
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-weight: 500;
+        font-size: 18px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--quiet);
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      /* The site's logo as it stands in the nav: the mark beside the name in bold lowercase. */
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 700;
+        font-size: 38px;
+        line-height: 1;
+        letter-spacing: -0.05em;
+      }
+      .logo svg {
+        width: 40px;
+        height: 40px;
+        fill: currentColor;
+      }
+      h1 {
+        margin-top: 50px;
+        margin-left: -1px;
+        font-weight: 500;
+        font-size: 176px;
+        line-height: 0.92;
+        letter-spacing: -0.06em;
+        white-space: nowrap;
+      }
+      h1 em {
+        font-style: normal;
+        color: var(--brand);
+      }
+      .lede {
+        margin-top: 30px;
+        color: var(--ice);
+        font-size: 20px;
+      }
+      .chain {
+        margin-top: auto;
+        display: grid;
+        gap: 12px;
+      }
+      .chain div {
+        display: grid;
+        grid-template-columns: 210px 1fr 250px;
+        align-items: center;
+      }
+      .chain .mono:last-child {
+        text-align: right;
+        color: var(--brand);
+      }
+      .chain canvas {
+        width: 100%;
+        height: 92px;
+        border-radius: 16px;
+        background: var(--tile);
+        image-rendering: pixelated;
+      }
+      .foot {
+        margin-top: 34px;
+      }
+      .foot b {
+        font-weight: 500;
+        color: var(--ice);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="row">
+      <p class="logo">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <polygon points="8.1,2 22,2 13.25,14.5 10.65,14.5 15.9,7 4.6,7" />
+          <polygon points="19.4,17 15.9,22 2,22 10.75,9.5 13.35,9.5 8.1,17" />
+          <polygon points="5.5,2 7,2 3.5,7 2,7" />
+          <polygon points="20.5,17 22,17 18.5,22 17,22" />
+        </svg>
+        zolace
+      </p>
+      <span class="mono">Real payments are on · First items on the shelf soon</span>
+    </div>
+
+    <h1>The shop is <em>open.</em></h1>
+    <p class="mono lede">Paid in shielded ZEC. This is what the chain shows of your payment:</p>
+
+    <div class="chain">
+      <div>
+        <span class="mono">Sender</span>
+        <canvas data-seed="1.3"></canvas>
+        <span class="mono">Not on the chain</span>
+      </div>
+      <div>
+        <span class="mono">Receiver</span>
+        <canvas data-seed="7.9"></canvas>
+        <span class="mono">Not on the chain</span>
+      </div>
+      <div>
+        <span class="mono">Amount</span>
+        <canvas data-seed="4.6"></canvas>
+        <span class="mono">Not on the chain</span>
+      </div>
+    </div>
+
+    <div class="row foot mono">
+      <span>No account · No name · No email</span>
+      <span>What the server keeps: <b>zolace.cash/proof</b></span>
+    </div>
+
+    <script>
+      // The site's ordered dither over a field of noise, one canvas pixel for every four on the
+      // page: a row that is filled in, and cannot be read.
+      const CELL = 4
+      const fract = (x) => x - Math.floor(x)
+      const hash = (x, y) => fract(Math.sin(x * 127.1 + y * 311.7) * 43758.5453)
+      const noise = (x, y) => {
+        const ix = Math.floor(x)
+        const iy = Math.floor(y)
+        let fx = x - ix
+        let fy = y - iy
+        fx = fx * fx * (3 - 2 * fx)
+        fy = fy * fy * (3 - 2 * fy)
+        const top = hash(ix, iy) + (hash(ix + 1, iy) - hash(ix, iy)) * fx
+        const bottom = hash(ix, iy + 1) + (hash(ix + 1, iy + 1) - hash(ix, iy + 1)) * fx
+        return top + (bottom - top) * fy
+      }
+      const fbm = (x, y) => {
+        let value = 0
+        let weight = 0.5
+        for (let i = 0; i < 4; i++) {
+          value += weight * noise(x, y)
+          x *= 2.03
+          y *= 2.03
+          weight *= 0.5
+        }
+        return value
+      }
+      const bayer2 = (x, y) => fract(Math.floor(x) / 2 + Math.floor(y) * Math.floor(y) * 0.75)
+      const bayer4 = (x, y) => bayer2(0.5 * x, 0.5 * y) * 0.25 + bayer2(x, y)
+
+      for (const canvas of document.querySelectorAll("canvas")) {
+        const seed = Number(canvas.dataset.seed)
+        const width = Math.round(canvas.clientWidth / CELL)
+        const height = Math.round(canvas.clientHeight / CELL)
+        canvas.width = width
+        canvas.height = height
+        const context = canvas.getContext("2d")
+        context.fillStyle = "#5567ea"
+        for (let py = 0; py < height; py++) {
+          for (let px = 0; px < width; px++) {
+            const value = 0.12 + 1.25 * fbm(px / 14 + seed, py / 9 + seed * 2)
+            if (bayer4(px, py) + 0.03 <= value) context.fillRect(px, py, 1, 1)
+          }
+        }
+      }
+    </script>
+  </body>
+</html>

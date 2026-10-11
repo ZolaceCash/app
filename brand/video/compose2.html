@@ -1,0 +1,490 @@
+<!doctype html>
+<!--
+  Puts the recorded eSIM order together into the demo film, one frame at a time. Against the
+  first film (compose.html) this one moves: a camera goes in close on what each step is about,
+  the title cards build up line by line beside a drawn SIM card, scenes change through the site's
+  dither, and the captions roll over from one step to the next.
+  The frames are encoded as they are drawn (encode.js). Opened by compose.mjs (PAGE=compose2.html),
+  which serves this folder and takes the finished file. ?still=<seconds> draws one moment and stops.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=Geist+Mono:wght@500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #09090b;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage" width="1920" height="1080"></canvas>
+    <script type="module">
+      const W = 1920
+      const H = 1080
+      const GROUND = "#09090b"
+      const ICE = "#f4f4f6"
+      const QUIET = "rgba(244,244,246,0.58)"
+      const INDIGO = "#5567ea"
+      const BRAND = "#7b8cff"
+      const NAVY = "#1f2358"
+      const SANS = "Geist, system-ui, sans-serif"
+      const MONO = '"Geist Mono", ui-monospace, monospace'
+      const WIN = { x: 160, y: 40, w: 1600, h: 900, r: 26 }
+      const INTRO = 3.4
+      const OUTRO = 4.4
+      const CROSS = 0.7
+
+      const canvas = document.getElementById("stage")
+      const ctx = canvas.getContext("2d")
+      const take = await (await fetch("take.json")).json()
+      const t0 = take.marks[0].t
+      const at = Object.fromEntries(take.marks.map((m) => [m.name, m.t - t0]))
+      const frames = take.frames.map((f) => ({ name: f.name, t: f.t - t0 }))
+      const VW = take.width
+      const VH = take.height
+      const PX = take.scale
+
+      // What is kept of the take, and how fast.
+      const cuts = [
+        { from: 0, to: at.checkout + 0.9, speed: 1 },
+        { from: at.order - 0.15, to: at.pay + 0.6, speed: 1 },
+        { from: at.pay + 0.6, to: at.delivered + 0.35, speed: 1.6 },
+        { from: at.delivered + 0.35, to: at.end, speed: 1 },
+      ]
+      let run = 0
+      for (const cut of cuts) {
+        cut.start = run
+        cut.length = (cut.to - cut.from) / cut.speed
+        run += cut.length
+      }
+      const TAKE = run
+      const TOTAL = INTRO + TAKE + OUTRO
+      const filmOf = (source) => {
+        for (const cut of cuts) if (source <= cut.to) return cut.start + Math.max(0, source - cut.from) / cut.speed
+        return TAKE
+      }
+      const sourceOf = (film) => {
+        for (const cut of cuts) if (film < cut.start + cut.length) return { cut, t: cut.from + Math.max(0, film - cut.start) * cut.speed }
+        const last = cuts.at(-1)
+        return { cut: last, t: last.to }
+      }
+
+      const steps = [
+        { from: 0, title: "Pick the eSIM", note: "US data, 1 GB, 7 days. No account, no sign-up." },
+        { from: at.item - 0.2, title: "Order in one click", note: "Checkout asks nothing about you." },
+        { from: at.order - 0.15, title: "Your order gets an address of its own", note: "The price in ZEC is held for 15 minutes." },
+        { from: at.pay - 1.5, title: "Pay from your Zcash wallet", note: "This demo simulates the payment." },
+        { from: at.confirming - 0.2, title: "Three confirmations", note: "Then the order delivers itself." },
+        { from: at.delivered + 0.1, title: "Scan the QR to install your eSIM", note: "It opens in your browser. The server keeps a sealed copy it cannot read." },
+        { from: at.link - 0.1, title: "The link is your receipt", note: "There is no account to recover it from. Keep it safe." },
+      ].map((step) => ({ ...step, film: filmOf(step.from) }))
+
+      // ------------------------------------------------------------ the camera
+      // Where it looks (in the page's own pixels) and how close, from each moment on. It eases
+      // from wherever it was to the new place over `d` seconds.
+      const keys = [
+        { t: at.pick - 1.9, d: 1.0, x: 330, y: 330, z: 1.5 },
+        { t: at.pick + 0.25, d: 0.5, x: 640, y: 360, z: 1 },
+        { t: at.item + 0.9, d: 1.0, x: 360, y: 470, z: 1.4 },
+        { t: at.order - 0.15, d: 0.01, x: 640, y: 360, z: 1 },
+        { t: at["order-still"] + 0.05, d: 0.9, x: 919, y: 330, z: 1.5 },
+        { t: at.pay - 1.5, d: 0.8, x: 850, y: 520, z: 1.65 },
+        { t: at.pay + 0.7, d: 0.9, x: 640, y: 300, z: 1.28 },
+        { t: at.delivered + 0.5, d: 0.9, x: 860, y: 300, z: 1.6 },
+        { t: at.link - 0.15, d: 0.5, x: 640, y: 360, z: 1 },
+        { t: at["link-still"] + 0.1, d: 0.9, x: 400, y: 270, z: 1.45 },
+      ]
+      const clamp = (x, low = 0, high = 1) => Math.min(high, Math.max(low, x))
+      const easeOut = (x) => 1 - Math.pow(1 - clamp(x), 3)
+      const easeBoth = (x) => {
+        const t = clamp(x)
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+      }
+      const lerp = (a, b, p) => a + (b - a) * p
+      const camera = (source) => {
+        let now = { x: VW / 2, y: VH / 2, z: 1 }
+        for (const key of keys) {
+          if (source < key.t) break
+          const p = easeBoth((source - key.t) / key.d)
+          now = { x: lerp(now.x, key.x, p), y: lerp(now.y, key.y, p), z: lerp(now.z, key.z, p) }
+        }
+        const halfW = VW / 2 / now.z
+        const halfH = VH / 2 / now.z
+        return { z: now.z, x: clamp(now.x, halfW, VW - halfW), y: clamp(now.y, halfH, VH - halfH) }
+      }
+
+      // ------------------------------------------------------------ frames of the take
+      const images = new Map()
+      const want = (index) => {
+        if (index < 0 || index >= frames.length || images.has(index)) return
+        const image = new Image()
+        image.src = "frames/" + frames[index].name
+        const entry = { image, ready: false }
+        images.set(index, entry)
+        image.decode().then(() => (entry.ready = true)).catch(() => {})
+      }
+      const indexAt = (source) => {
+        let low = 0
+        let high = frames.length - 1
+        while (low < high) {
+          const middle = (low + high + 1) >> 1
+          if (frames[middle].t <= source) low = middle
+          else high = middle - 1
+        }
+        return low
+      }
+      let shown = null
+      const frameFor = (source) => {
+        const index = indexAt(source)
+        for (let ahead = 0; ahead <= 16; ahead++) want(index + ahead)
+        for (let back = index; back >= Math.max(0, index - 40); back--) {
+          const entry = images.get(back)
+          if (entry?.ready) {
+            shown = entry.image
+            break
+          }
+        }
+        for (const key of images.keys()) if (key < index - 30) images.delete(key)
+        return shown
+      }
+
+      // ------------------------------------------------------------ small tools
+      const rounded = (x, y, w, h, r) => {
+        ctx.beginPath()
+        ctx.roundRect(x, y, w, h, r)
+      }
+      const text = (value, x, y, font, colour, align = "left", spacing = "0px") => {
+        ctx.font = font
+        ctx.fillStyle = colour
+        ctx.textAlign = align
+        ctx.letterSpacing = spacing
+        ctx.fillText(value, x, y)
+      }
+      // A line that rises into place from under its own baseline.
+      const rise = (value, x, y, size, font, colour, p, spacing = "0px") => {
+        if (p <= 0) return
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(0, y - size * 0.95, W, size * 1.22)
+        ctx.clip()
+        ctx.globalAlpha *= clamp(p * 1.6)
+        text(value, x, y + (1 - easeOut(p)) * size * 0.9, font, colour, "left", spacing)
+        ctx.restore()
+      }
+      const MARK = [
+        [8.1, 2, 22, 2, 13.25, 14.5, 10.65, 14.5, 15.9, 7, 4.6, 7],
+        [19.4, 17, 15.9, 22, 2, 22, 10.75, 9.5, 13.35, 9.5, 8.1, 17],
+        [5.5, 2, 7, 2, 3.5, 7, 2, 7],
+        [20.5, 17, 22, 17, 18.5, 22, 17, 22],
+      ]
+      const logo = (x, y, size, colour) => {
+        ctx.fillStyle = colour
+        const k = size / 24
+        for (const points of MARK) {
+          ctx.beginPath()
+          for (let i = 0; i < points.length; i += 2) ctx[i ? "lineTo" : "moveTo"](x + points[i] * k, y + points[i + 1] * k)
+          ctx.closePath()
+          ctx.fill()
+        }
+        text("zolace", x + size * 1.28, y + size * 0.86, `700 ${size * 0.95}px ${SANS}`, colour, "left", `${-size * 0.05}px`)
+      }
+      // The ordered dither the site uses, as an 8 by 8 table of thresholds.
+      const BAYER = [0, 32, 8, 40, 2, 34, 10, 42, 48, 16, 56, 24, 50, 18, 58, 26, 12, 44, 4, 36, 14, 46, 6, 38, 60, 28, 52, 20, 62, 30, 54, 22, 3, 35, 11, 43, 1, 33, 9, 41, 51, 19, 59, 27, 49, 17, 57, 25, 15, 47, 7, 39, 13, 45, 5, 37, 63, 31, 55, 23, 61, 29, 53, 21]
+      const threshold = (cx, cy) => (BAYER[(cy & 7) * 8 + (cx & 7)] + 0.5) / 64
+      // Draws `next` over what is there, a cell at a time, sweeping from the left.
+      const dissolve = (p, next) => {
+        if (p <= 0) return
+        if (p >= 1) return next()
+        const cell = 24
+        const cols = Math.ceil(W / cell)
+        const rows = Math.ceil(H / cell)
+        ctx.save()
+        ctx.beginPath()
+        for (let cy = 0; cy < rows; cy++) {
+          for (let cx = 0; cx < cols; cx++) {
+            const gate = threshold(cx, cy) * 0.45 + (cx / cols) * 0.55
+            if (gate < p * 1.02) ctx.rect(cx * cell, cy * cell, cell, cell)
+          }
+        }
+        ctx.clip()
+        next()
+        ctx.restore()
+      }
+      const ground = (time) => {
+        ctx.fillStyle = GROUND
+        ctx.fillRect(0, 0, W, H)
+        ctx.fillStyle = "rgba(255,255,255,0.06)"
+        const drift = (time * 5) % 28
+        for (let y = 14 - 28 + drift; y < H; y += 28) for (let x = 14; x < W; x += 28) ctx.fillRect(x, y, 1.5, 1.5)
+      }
+
+      // The item, drawn as a SIM card with the site's cut corner.
+      function sim(cx, cy, w, angle, alpha) {
+        if (alpha <= 0) return
+        const h = w * 0.625
+        const r = w * 0.05
+        const cut = w * 0.16
+        ctx.save()
+        ctx.globalAlpha *= alpha
+        ctx.translate(cx, cy)
+        ctx.rotate(angle)
+        ctx.translate(-w / 2, -h / 2)
+        ctx.shadowColor = "rgba(0,0,0,0.7)"
+        ctx.shadowBlur = 70
+        ctx.shadowOffsetY = 40
+        ctx.beginPath()
+        ctx.moveTo(r, 0)
+        ctx.lineTo(w - cut, 0)
+        ctx.lineTo(w, cut)
+        ctx.lineTo(w, h - r)
+        ctx.arcTo(w, h, w - r, h, r)
+        ctx.lineTo(r, h)
+        ctx.arcTo(0, h, 0, h - r, r)
+        ctx.lineTo(0, r)
+        ctx.arcTo(0, 0, r, 0, r)
+        ctx.closePath()
+        ctx.fillStyle = INDIGO
+        ctx.fill()
+        ctx.shadowColor = "transparent"
+        ctx.clip()
+        // The dither at the right edge.
+        ctx.fillStyle = NAVY
+        const cell = Math.max(3, Math.round(w / 130))
+        for (let y = h * 0.28; y < h * 0.9; y += cell) {
+          for (let x = w * 0.74; x < w; x += cell) {
+            const edge = clamp((x / w - 0.74) / 0.26) * (1 - Math.abs((y / h - 0.59) / 0.31) ** 2)
+            if (threshold(Math.round(x / cell), Math.round(y / cell)) < edge * 0.85) ctx.fillRect(x, y, cell, cell)
+          }
+        }
+        const k = w / 800
+        text("ESIM · UNITED STATES", 48 * k, 66 * k, `500 ${16 * k}px ${MONO}`, "#fff", "left", `${1.4 * k}px`)
+        // The contacts.
+        const chip = { x: 48 * k, y: 176 * k, w: 172 * k, h: 136 * k }
+        ctx.fillStyle = NAVY
+        rounded(chip.x, chip.y, chip.w, chip.h, 24 * k)
+        ctx.fill()
+        ctx.fillStyle = ICE
+        const pad = 9 * k
+        const gap = 7 * k
+        const side = (chip.w - pad * 2 - gap * 2) / 2.8
+        const tall = (chip.h - pad * 2 - gap * 2) / 3
+        for (let row = 0; row < 3; row++) {
+          for (const left of [chip.x + pad, chip.x + pad + side + gap + side * 0.8 + gap]) {
+            rounded(left, chip.y + pad + row * (tall + gap), side, tall, 8 * k)
+            ctx.fill()
+          }
+        }
+        rounded(chip.x + pad + side + gap, chip.y + pad, side * 0.8, chip.h - pad * 2, 8 * k)
+        ctx.fill()
+        text("1 GB", 268 * k, 286 * k, `500 ${176 * k}px ${SANS}`, "#fff", "left", `${-10 * k}px`)
+        text("7 days of data", 276 * k, 356 * k, `500 ${60 * k}px ${SANS}`, "rgba(255,255,255,0.8)", "left", `${-2.6 * k}px`)
+        text("OPENS IN YOUR BROWSER", 48 * k, 456 * k, `500 ${16 * k}px ${MONO}`, "#fff", "left", `${1.4 * k}px`)
+        ctx.restore()
+      }
+
+      // ------------------------------------------------------------ the scenes
+      function titleCard(time, t, eyebrow, lines, accent, foot, small) {
+        ground(time)
+        ctx.save()
+        ctx.globalAlpha = easeOut(t / 0.5)
+        logo(160, 150, 52, ICE)
+        ctx.restore()
+        const p = (from) => clamp((t - from) / 0.75)
+        ctx.save()
+        ctx.globalAlpha = easeOut(p(0.2) * 1.4)
+        ctx.fillStyle = BRAND
+        ctx.fillRect(160, 398, 10, 10)
+        text(eyebrow, 186, 412, `500 24px ${MONO}`, BRAND, "left", "2px")
+        ctx.restore()
+        lines.forEach((line, row) => {
+          const y = 584 + row * 132
+          const font = `500 132px ${SANS}`
+          const from = 0.32 + row * 0.16
+          if (row === lines.length - 1 && accent) {
+            const head = line.slice(0, line.length - accent.length)
+            ctx.font = font
+            ctx.letterSpacing = "-7px"
+            const width = ctx.measureText(head).width
+            rise(head, 154, y, 132, font, ICE, p(from), "-7px")
+            rise(accent, 154 + width, y, 132, font, BRAND, p(from + 0.1), "-7px")
+          } else {
+            rise(line, 154, y, 132, font, ICE, p(from), "-7px")
+          }
+        })
+        ctx.save()
+        ctx.globalAlpha = easeOut(p(0.9))
+        text(foot, 160, 880, `500 24px ${MONO}`, ICE, "left", "2px")
+        if (small) text(small, 160, 930, `500 19px ${MONO}`, QUIET, "left", "1.6px")
+        ctx.restore()
+        // The card comes in from the right, turning a little, and keeps drifting.
+        const arrive = easeOut((t - 0.45) / 1.0)
+        const drift = Math.sin(time * 1.3) * 10
+        sim(1500 + (1 - arrive) * 260, 500 + drift, 580, -0.11 + (1 - arrive) * 0.22 + Math.sin(time * 0.9) * 0.008, arrive)
+      }
+
+      function caption(film) {
+        let current = 0
+        for (let i = 0; i < steps.length; i++) if (film >= steps[i].film) current = i
+        const step = steps[current]
+        const since = film - step.film
+        const turn = current === 0 ? 1 : easeOut(since / 0.5)
+        const y = 968
+        // The number rolls over inside its square.
+        ctx.fillStyle = INDIGO
+        rounded(WIN.x, y, 72, 72, 16)
+        ctx.fill()
+        ctx.save()
+        rounded(WIN.x, y, 72, 72, 16)
+        ctx.clip()
+        const digits = (n) => String(n + 1).padStart(2, "0")
+        if (turn < 1) text(digits(current - 1), WIN.x + 36, y + 47 - turn * 60, `500 28px ${MONO}`, "#fff", "center")
+        text(digits(current), WIN.x + 36, y + 47 + (1 - turn) * 60, `500 28px ${MONO}`, "#fff", "center")
+        ctx.restore()
+        rise(step.title, WIN.x + 100, y + 34, 42, `500 42px ${SANS}`, ICE, current === 0 ? clamp(film / 0.6) : clamp(since / 0.55), "-1.6px")
+        ctx.save()
+        ctx.globalAlpha *= current === 0 ? easeOut(film / 0.8) : easeOut((since - 0.15) / 0.5)
+        text(step.note, WIN.x + 100, y + 70, `400 25px ${SANS}`, QUIET, "left", "-0.3px")
+        ctx.restore()
+        // One mark for each step; the one that is on fills up while it lasts.
+        const right = WIN.x + WIN.w
+        text("DEMO · A TEST ORDER · NO MONEY MOVES", right, y + 26, `500 17px ${MONO}`, QUIET, "right", "1.5px")
+        const gap = 8
+        const wide = 52
+        for (let i = 0; i < steps.length; i++) {
+          const x = right - (steps.length - i) * (wide + gap) + gap
+          ctx.fillStyle = "#26262e"
+          rounded(x, y + 50, wide, 8, 4)
+          ctx.fill()
+          const until = i + 1 < steps.length ? steps[i + 1].film : TAKE
+          const filled = i < current ? 1 : i === current ? clamp(since / (until - step.film)) : 0
+          if (filled > 0) {
+            ctx.fillStyle = i === current ? BRAND : "rgba(123,140,255,0.5)"
+            rounded(x, y + 50, Math.max(8, wide * filled), 8, 4)
+            ctx.fill()
+          }
+        }
+      }
+
+      function filmScene(time, film) {
+        ground(time)
+        const inside = clamp(film, 0, TAKE - 0.001)
+        const { cut, t } = sourceOf(inside)
+        const image = frameFor(t)
+        const view = camera(t)
+        const before = cuts[cuts.indexOf(cut) - 1]
+        // Where the take jumps, the window dips and comes back.
+        const dip = before && cut.from - before.to > 0.5 ? 0.3 + 0.7 * easeOut((inside - cut.start) / 0.4) : 1
+        const settle = 0.97 + 0.03 * easeOut(film / 0.8)
+        ctx.save()
+        ctx.translate(W / 2, WIN.y + WIN.h / 2)
+        ctx.scale(settle, settle)
+        ctx.translate(-W / 2, -(WIN.y + WIN.h / 2))
+        ctx.shadowColor = "rgba(0,0,0,0.7)"
+        ctx.shadowBlur = 60
+        ctx.shadowOffsetY = 26
+        ctx.fillStyle = "#111114"
+        rounded(WIN.x, WIN.y, WIN.w, WIN.h, WIN.r)
+        ctx.fill()
+        ctx.shadowColor = "transparent"
+        rounded(WIN.x, WIN.y, WIN.w, WIN.h, WIN.r)
+        ctx.clip()
+        if (image) {
+          const sw = (VW * PX) / view.z
+          const sh = (VH * PX) / view.z
+          ctx.globalAlpha = dip
+          ctx.imageSmoothingQuality = "high"
+          ctx.drawImage(image, view.x * PX - sw / 2, view.y * PX - sh / 2, sw, sh, WIN.x, WIN.y, WIN.w, WIN.h)
+        }
+        ctx.restore()
+        caption(inside)
+      }
+
+      const intro = (time) =>
+        titleCard(time, time, "DEMO · A TEST ORDER, NO MONEY MOVES", ["Buy a US eSIM", "with no account."], "no account.", "1 GB · 7 DAYS · $5.99 · PAID IN SHIELDED ZEC")
+      const outro = (time) =>
+        titleCard(
+          time,
+          time - (INTRO + TAKE) + CROSS / 2,
+          "ZOLACE.CASH/SHOP",
+          ["Pay shielded.", "Get the goods."],
+          "Get the goods.",
+          "US DATA ESIM · 1 GB · 7 DAYS · $5.99",
+          "THIS WAS A TEST ORDER ON A DEMO COPY: NO MONEY MOVED",
+        )
+
+      function draw(time) {
+        ctx.globalAlpha = 1
+        const film = time - INTRO
+        if (time < INTRO - CROSS / 2) intro(time)
+        else if (time < INTRO + CROSS / 2) {
+          intro(time)
+          dissolve((time - (INTRO - CROSS / 2)) / CROSS, () => filmScene(time, film))
+        } else if (film < TAKE - CROSS / 2) filmScene(time, film)
+        else if (film < TAKE + CROSS / 2) {
+          filmScene(time, film)
+          dissolve((film - (TAKE - CROSS / 2)) / CROSS, () => outro(time))
+        } else {
+          outro(time)
+          // The last moments fade to the ground.
+          const left = TOTAL - time
+          if (left < 0.35) {
+            ctx.globalAlpha = 1 - clamp(left / 0.35)
+            ctx.fillStyle = GROUND
+            ctx.fillRect(0, 0, W, H)
+            ctx.globalAlpha = 1
+          }
+        }
+      }
+
+      // ------------------------------------------------------------ playing and recording
+      await Promise.all([
+        document.fonts.load(`500 42px ${SANS}`),
+        document.fonts.load(`400 25px ${SANS}`),
+        document.fonts.load(`700 50px ${SANS}`),
+        document.fonts.load(`500 24px ${MONO}`),
+      ])
+      const asked = new URLSearchParams(location.search)
+      window.film = { total: TOTAL, take: TAKE, steps: steps.map((s) => +(s.film + INTRO).toFixed(2)) }
+
+      if (asked.has("still")) {
+        const time = Number(asked.get("still"))
+        const film = clamp(time - INTRO, 0, TAKE - 0.001)
+        const index = indexAt(sourceOf(film).t)
+        want(index)
+        await images.get(index).image.decode()
+        images.get(index).ready = true
+        draw(time)
+        window.done = true
+      } else {
+        // The frame of the take that belongs to a moment, decoded before that moment is drawn.
+        const ready = async (time) => {
+          const film = Math.min(Math.max(time - INTRO, 0), TAKE - 0.001)
+          const index = indexAt(sourceOf(film).t)
+          want(index)
+          const entry = images.get(index)
+          if (!entry.ready) {
+            await entry.image.decode()
+            entry.ready = true
+          }
+        }
+        const { encodeFilm } = await import("./encode.js")
+        const { blob, frames: written } = await encodeFilm({ canvas, total: TOTAL, bitrate: 10_000_000, ready, draw, onFrame: (at, of) => console.log(`frame ${at} of ${of}`) })
+        window.film.frames = written
+        await fetch("out", { method: "POST", body: blob })
+        window.done = true
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,257 @@
+<!doctype html>
+<!--
+  The picture for the post about the creator fee (12 Oct 2026), 1600 x 900. brand/render.mjs renders
+  it at twice the size. Its layout is its own, on purpose: a picture for X does not reuse the layout
+  of the one before it. Here the canvas is split in two: what comes in on the left, what holders
+  claim on the right, and an arrow on the seam. It is an announcement of what is to come: the
+  wording is "will go", and the foot says "coming soon" (the owner's wording, 12 Oct 2026; no date is set).
+  It carries no contract address on purpose: an address belongs in the post's text, where it can be
+  copied and checked. The rate is the owner's (12 Oct 2026): $0.01 per hour for every 3,000,000
+  tokens held, and multiples of it. How the hours are counted is not settled, so the picture does
+  not say (PLAN.md, "What it is").
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@500;700&family=Geist+Mono:wght@400;500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ground: #09090b;
+        --tile: #17171c;
+        --ice: #f4f4f6;
+        --ink: #0b0b10;
+        --indigo: #5567ea;
+        --brand: #7b8cff;
+        --navy: #1f2358;
+        --quiet: rgb(244 244 246 / 0.58);
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      body {
+        width: 1600px;
+        height: 900px;
+        overflow: hidden;
+        padding: 56px;
+        background-color: var(--ground);
+        /* The site's ground: a faint grid of dots. */
+        background-image: radial-gradient(rgb(255 255 255 / 0.055) 1px, transparent 1px);
+        background-size: 28px 28px;
+        color: var(--ice);
+        font-family: "Geist", system-ui, sans-serif;
+        display: flex;
+        flex-direction: column;
+      }
+      .mono {
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-weight: 500;
+        font-size: 18px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--quiet);
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .split {
+        position: relative;
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        height: 568px;
+      }
+      .side {
+        position: relative;
+        overflow: hidden;
+        border-radius: 28px;
+        padding: 40px 48px 44px;
+        background: var(--tile);
+        display: flex;
+        flex-direction: column;
+      }
+      .side h1 {
+        margin-top: auto;
+        font-weight: 500;
+        letter-spacing: -0.06em;
+        white-space: nowrap;
+      }
+      .side p:last-child {
+        margin-top: 26px;
+        font-weight: 500;
+        font-size: 27px;
+        line-height: 1.25;
+        letter-spacing: -0.02em;
+        color: var(--quiet);
+      }
+      .in h1 {
+        /* Pulled left by the capital's own side bearing, so it lines up with the label above. */
+        margin-left: -9px;
+        font-size: 178px;
+        line-height: 0.88;
+      }
+      .out {
+        /* Room on the left for the arrow on the seam. */
+        padding-left: 96px;
+        background: var(--indigo);
+      }
+      /* The dots of the hero's cards, in the corner the text leaves free. */
+      .out::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background-image: radial-gradient(var(--navy) 2.6px, transparent 3px);
+        background-size: 14px 14px;
+        -webkit-mask-image: linear-gradient(to top left, #000 2%, transparent 29%);
+        mask-image: linear-gradient(to top left, #000 2%, transparent 29%);
+      }
+      .out > * {
+        position: relative;
+      }
+      .out .mono,
+      .out p:last-child {
+        color: rgb(244 244 246 / 0.86);
+      }
+      .out h1 {
+        margin-left: -13px;
+        font-size: 232px;
+        line-height: 0.8;
+      }
+      /* The arrow sits on the seam, on the ground's own colour so it reads as cut out of both sides. */
+      .arrow {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 104px;
+        height: 104px;
+        margin: -52px 0 0 -52px;
+        border-radius: 22px;
+        background: var(--ice);
+        box-shadow: 0 0 0 12px var(--ground);
+        display: grid;
+        place-items: center;
+      }
+      .arrow svg {
+        width: 54px;
+        height: 54px;
+        fill: none;
+        stroke: var(--ink);
+        stroke-width: 2.4;
+        stroke-linecap: square;
+        stroke-linejoin: miter;
+      }
+      .foot {
+        flex: 1;
+        align-items: flex-end;
+        padding: 0 24px 4px;
+      }
+      /* The site's logo as it stands in the nav: the mark beside the name in bold lowercase. */
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 700;
+        font-size: 38px;
+        line-height: 1;
+        letter-spacing: -0.05em;
+      }
+      .logo svg {
+        width: 40px;
+        height: 40px;
+        fill: currentColor;
+      }
+      .say {
+        margin-top: 22px;
+        font-weight: 500;
+        font-size: 46px;
+        line-height: 1.05;
+        letter-spacing: -0.045em;
+      }
+      .say em {
+        font-style: normal;
+        color: var(--brand);
+      }
+      .facts {
+        display: grid;
+        gap: 14px;
+        justify-items: end;
+        text-align: right;
+      }
+      /* The rate is the news, so it is set as large as the sentence on the left. */
+      .rate {
+        margin-bottom: 6px;
+        font-family: "Geist", system-ui, sans-serif;
+        font-weight: 500;
+        font-size: 46px;
+        line-height: 1.05;
+        letter-spacing: -0.045em;
+        text-transform: none;
+        color: var(--ice);
+      }
+      .rate em {
+        font-style: normal;
+        color: var(--brand);
+      }
+      .facts .lit {
+        color: var(--ice);
+      }
+      .facts b {
+        font-weight: inherit;
+        color: var(--brand);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="split">
+      <section class="side in">
+        <div class="row mono">
+          <span>In</span>
+          <span>$ZOLACE · Robinhood Chain</span>
+        </div>
+        <h1>Creator<br />fee</h1>
+        <p>What the token earns its creator.</p>
+      </section>
+      <section class="side out">
+        <div class="row mono">
+          <span>Out</span>
+          <span>To holders</span>
+        </div>
+        <h1>NVDA</h1>
+        <p>A stock token, claimed from the vault.</p>
+      </section>
+      <div class="arrow">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <path d="M3.5 12h16M13 5.5l6.5 6.5-6.5 6.5" />
+        </svg>
+      </div>
+    </div>
+
+    <div class="row foot">
+      <div>
+        <p class="logo">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <polygon points="8.1,2 22,2 13.25,14.5 10.65,14.5 15.9,7 4.6,7" />
+            <polygon points="19.4,17 15.9,22 2,22 10.75,9.5 13.35,9.5 8.1,17" />
+            <polygon points="5.5,2 7,2 3.5,7 2,7" />
+            <polygon points="20.5,17 22,17 18.5,22 17,22" />
+          </svg>
+          zolace
+        </p>
+        <p class="say">The creator fee<br />will go <em>to holders.</em></p>
+      </div>
+      <div class="facts mono">
+        <p class="rate">$0.01 <em>per hour</em></p>
+        <span class="lit">For every 3,000,000 $ZOLACE held · Paid in NVDA</span>
+        <span>Every claim is public on the chain</span>
+        <span><b>Coming soon</b> · Independent of Robinhood and NVIDIA</span>
+      </div>
+    </div>
+  </body>
+</html>

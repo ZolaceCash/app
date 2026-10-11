@@ -1,0 +1,204 @@
+<!doctype html>
+<!--
+  The picture for the post about holding more and earning more, 1600 x 900. brand/render.mjs
+  renders it at twice the size. Its layout is its own: a staircase of blocks, one block for each
+  lot of 3,000,000, with what a wallet holding that much can earn in an hour over each step.
+  The figures are the rule as the owner set it (PLAN.md, "The hourly reward"): 0.01 USD an hour
+  for a lot is a ceiling, and whole lots multiply. So every amount here reads "up to".
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@500;700&family=Geist+Mono:wght@400;500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ground: #09090b;
+        --ice: #f4f4f6;
+        --indigo: #5567ea;
+        --brand: #7b8cff;
+        --quiet: rgb(244 244 246 / 0.58);
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      body {
+        width: 1600px;
+        height: 900px;
+        overflow: hidden;
+        background-color: var(--ground);
+        /* The site's ground: a faint grid of dots. */
+        background-image: radial-gradient(rgb(255 255 255 / 0.055) 1px, transparent 1px);
+        background-size: 28px 28px;
+        color: var(--ice);
+        font-family: "Geist", system-ui, sans-serif;
+        position: relative;
+      }
+      .mono {
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-weight: 500;
+        font-size: 18px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--quiet);
+      }
+      .top,
+      .foot {
+        position: absolute;
+        left: 80px;
+        right: 80px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .top {
+        top: 64px;
+      }
+      .foot {
+        bottom: 64px;
+      }
+      .foot b {
+        font-weight: 500;
+        color: var(--ice);
+      }
+      /* The site's logo as it stands in the nav: the mark beside the name in bold lowercase. */
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 700;
+        font-size: 38px;
+        line-height: 1;
+        letter-spacing: -0.05em;
+      }
+      .logo svg {
+        width: 40px;
+        height: 40px;
+        fill: currentColor;
+      }
+      .text {
+        position: absolute;
+        left: 80px;
+        top: 236px;
+        width: 600px;
+      }
+      .eyebrow {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--brand);
+      }
+      .eyebrow::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        background: currentColor;
+      }
+      h1 {
+        margin-top: 26px;
+        margin-left: -4px;
+        font-weight: 500;
+        font-size: 128px;
+        line-height: 0.93;
+        letter-spacing: -0.055em;
+        white-space: nowrap;
+      }
+      h1 em {
+        font-style: normal;
+        color: var(--brand);
+      }
+      .rule {
+        margin-top: 40px;
+        font-size: 27px;
+        line-height: 1.32;
+        letter-spacing: -0.015em;
+        color: var(--quiet);
+      }
+      .rule b {
+        font-weight: 500;
+        color: var(--ice);
+      }
+      /* The staircase: columns that stand on one line, each a block taller than the last. */
+      .stairs {
+        position: absolute;
+        right: 80px;
+        bottom: 150px;
+        display: flex;
+        align-items: flex-end;
+        gap: 14px;
+      }
+      .step {
+        width: 142px;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 9px;
+      }
+      .step .earns {
+        margin-bottom: 8px;
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-weight: 500;
+        font-size: 31px;
+        line-height: 1;
+        letter-spacing: -0.05em;
+        text-align: center;
+      }
+      .step i {
+        height: 70px;
+        border-radius: 14px;
+        background: var(--indigo);
+      }
+      .step .holds {
+        margin-top: 9px;
+        text-align: center;
+        font-size: 16px;
+        color: var(--ice);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="top">
+      <p class="logo">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <polygon points="8.1,2 22,2 13.25,14.5 10.65,14.5 15.9,7 4.6,7" />
+          <polygon points="19.4,17 15.9,22 2,22 10.75,9.5 13.35,9.5 8.1,17" />
+          <polygon points="5.5,2 7,2 3.5,7 2,7" />
+          <polygon points="20.5,17 22,17 18.5,22 17,22" />
+        </svg>
+        zolace
+      </p>
+      <span class="mono">Holders' reward · Up to, per hour, in NVDA</span>
+    </div>
+
+    <div class="text">
+      <p class="mono eyebrow">The vault is live</p>
+      <h1>Hold more.<br />Earn <em>more.</em></h1>
+      <p class="rule">Every <b>3,000,000 $ZOLACE</b> you hold is one lot, and every lot earns up to <b>$0.01 an hour</b>, paid in NVDA.</p>
+    </div>
+
+    <div class="stairs" id="stairs"></div>
+
+    <div class="foot mono">
+      <span>Claim at <b>zolace.cash/vault</b> · Every claim is public on the chain</span>
+      <span>Independent of Robinhood and NVIDIA</span>
+    </div>
+
+    <script>
+      // One column for each number of lots: that many blocks, and what they can earn in an hour.
+      const LOTS = [1, 2, 3, 4, 5]
+      const stairs = document.getElementById("stairs")
+      for (const lots of LOTS) {
+        const step = document.createElement("div")
+        step.className = "step"
+        const blocks = Array.from({ length: lots }, (_, at) => `<i style="opacity:${(0.42 + (0.58 * (lots - at)) / lots).toFixed(2)}"></i>`).join("")
+        step.innerHTML = `<p class="earns">$${(lots / 100).toFixed(2)}</p>${blocks}<p class="mono holds">${(lots * 3).toLocaleString("en-US")},000,000</p>`
+        stairs.append(step)
+      }
+    </script>
+  </body>
+</html>

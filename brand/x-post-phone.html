@@ -1,0 +1,312 @@
+<!doctype html>
+<!--
+  The picture for the post about the two changes for buyers who come from a phone, 1600 x 900.
+  brand/render.mjs renders it at twice the size. Its layout is its own: a phone standing at the
+  right, running off the bottom edge, with the order page's two copy rows on its screen, and on
+  the left a link's preview card as a post shows it.
+  Both are drawings of the idea, not screenshots: the card is not the image the site makes, and
+  the two codes on the phone are made up (the same demo values as in the films). The item's name
+  and price are the shelf's (12 Oct 2026); the price comes from the address: ?price=5.99
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@500;700&family=Geist+Mono:wght@400;500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ground: #09090b;
+        --tile: #15151a;
+        --raise: #1e1e25;
+        --ice: #f4f4f6;
+        --indigo: #5567ea;
+        --brand: #7b8cff;
+        --navy: #1f2358;
+        --quiet: rgb(244 244 246 / 0.58);
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      body {
+        width: 1600px;
+        height: 900px;
+        overflow: hidden;
+        background-color: var(--ground);
+        /* The site's ground: a faint grid of dots. */
+        background-image: radial-gradient(rgb(255 255 255 / 0.055) 1px, transparent 1px);
+        background-size: 28px 28px;
+        color: var(--ice);
+        font-family: "Geist", system-ui, sans-serif;
+        position: relative;
+      }
+      .mono {
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-weight: 500;
+        font-size: 18px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      /* The site's logo as it stands in the nav: the mark beside the name in bold lowercase. */
+      .logo {
+        position: absolute;
+        left: 80px;
+        top: 64px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 700;
+        font-size: 38px;
+        line-height: 1;
+        letter-spacing: -0.05em;
+      }
+      .logo svg {
+        width: 40px;
+        height: 40px;
+        fill: currentColor;
+      }
+      .text {
+        position: absolute;
+        left: 80px;
+        top: 168px;
+      }
+      h1 {
+        margin-left: -4px;
+        font-weight: 500;
+        font-size: 108px;
+        line-height: 0.94;
+        letter-spacing: -0.055em;
+        white-space: nowrap;
+      }
+      h1 em {
+        font-style: normal;
+        color: var(--brand);
+      }
+      .two {
+        margin-top: 34px;
+        display: grid;
+        gap: 10px;
+        color: var(--ice);
+      }
+      .two span {
+        color: var(--brand);
+        margin-right: 16px;
+      }
+      /* A link as a post shows it: a picture, then where it leads and what it is called. */
+      .card {
+        position: absolute;
+        left: 80px;
+        bottom: 64px;
+        width: 640px;
+        border-radius: 24px;
+        overflow: hidden;
+        background: var(--raise);
+      }
+      .card .picture {
+        height: 232px;
+        padding: 0 40px;
+        background: var(--tile);
+        display: flex;
+        align-items: center;
+        gap: 40px;
+      }
+      .sim {
+        flex: none;
+        width: 208px;
+        height: 130px;
+        padding: 16px 18px;
+        border-radius: 14px;
+        background: var(--indigo);
+        transform: rotate(-4deg);
+        clip-path: polygon(0 0, calc(100% - 34px) 0, 100% 34px, 100% 100%, 0 100%);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        color: #fff;
+      }
+      .sim .mono {
+        font-size: 8px;
+      }
+      .sim b {
+        font-weight: 500;
+        font-size: 50px;
+        line-height: 0.9;
+        letter-spacing: -0.06em;
+      }
+      .card .name {
+        font-weight: 500;
+        font-size: 33px;
+        line-height: 1.05;
+        letter-spacing: -0.04em;
+      }
+      .card .price {
+        margin-top: 14px;
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-weight: 500;
+        font-size: 44px;
+        line-height: 1;
+        letter-spacing: -0.06em;
+      }
+      .card .strip {
+        padding: 18px 26px 20px;
+      }
+      .card .strip .mono {
+        font-size: 14px;
+        color: var(--quiet);
+        text-transform: none;
+        letter-spacing: 0.04em;
+      }
+      .card .strip p + p {
+        margin-top: 6px;
+        font-weight: 500;
+        font-size: 23px;
+        letter-spacing: -0.03em;
+      }
+      /* The phone. It stands lower than the picture is tall, so its foot is out of sight. */
+      .phone {
+        position: absolute;
+        left: 1010px;
+        top: 96px;
+        width: 448px;
+        height: 900px;
+        padding: 16px;
+        border-radius: 64px;
+        background: #26262e;
+        transform: rotate(3deg);
+        transform-origin: 50% 0;
+        filter: drop-shadow(0 40px 70px rgb(0 0 0 / 0.75));
+      }
+      .screen {
+        height: 100%;
+        padding: 30px 26px;
+        border-radius: 50px;
+        background: var(--ground);
+        overflow: hidden;
+      }
+      .bar {
+        width: 110px;
+        height: 26px;
+        margin: 0 auto 38px;
+        border-radius: 13px;
+        background: #1b1b21;
+      }
+      .screen .mono {
+        font-size: 13px;
+        color: var(--quiet);
+      }
+      .screen h2 {
+        margin-top: 12px;
+        font-weight: 500;
+        font-size: 46px;
+        line-height: 1;
+        letter-spacing: -0.045em;
+      }
+      .code {
+        margin-top: 18px;
+        padding: 20px 20px 18px;
+        border-radius: 20px;
+        background: var(--tile);
+      }
+      .code:first-of-type {
+        margin-top: 30px;
+      }
+      .code .value {
+        margin-top: 12px;
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-weight: 500;
+        font-size: 19px;
+        letter-spacing: -0.02em;
+        color: var(--ice);
+        word-break: break-all;
+      }
+      .copy {
+        margin-top: 16px;
+        display: inline-block;
+        padding: 11px 16px;
+        border-radius: 10px;
+        background: var(--indigo);
+        color: #fff !important;
+        font-size: 13px !important;
+      }
+      .screen .hint {
+        margin-top: 24px;
+        font-size: 19px;
+        line-height: 1.35;
+        letter-spacing: -0.01em;
+        color: var(--quiet);
+      }
+      .label {
+        position: absolute;
+        right: 80px;
+        top: 76px;
+        color: var(--quiet);
+      }
+    </style>
+  </head>
+  <body>
+    <p class="logo">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <polygon points="8.1,2 22,2 13.25,14.5 10.65,14.5 15.9,7 4.6,7" />
+        <polygon points="19.4,17 15.9,22 2,22 10.75,9.5 13.35,9.5 8.1,17" />
+        <polygon points="5.5,2 7,2 3.5,7 2,7" />
+        <polygon points="20.5,17 22,17 18.5,22 17,22" />
+      </svg>
+      zolace
+    </p>
+
+    <div class="text">
+      <h1>From the link<br />to <em>your phone.</em></h1>
+      <div class="two mono">
+        <p><span>01</span>Every item link shows its name and price</p>
+        <p><span>02</span>Install the eSIM on the phone you bought it with</p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="picture">
+        <div class="sim">
+          <span class="mono">eSIM · United States</span>
+          <b>1 GB</b>
+        </div>
+        <div>
+          <p class="name">US data eSIM,<br />1 GB, 7 days</p>
+          <p class="price" id="price"></p>
+        </div>
+      </div>
+      <div class="strip">
+        <p class="mono">zolace.cash</p>
+        <p id="title"></p>
+      </div>
+    </div>
+
+    <div class="phone">
+      <div class="screen">
+        <div class="bar"></div>
+        <p class="mono">Order · Delivered</p>
+        <h2>Your eSIM</h2>
+        <div class="code">
+          <p class="mono">SM-DP+ address</p>
+          <p class="value">demo.zolace.example</p>
+          <span class="mono copy">Copy</span>
+        </div>
+        <div class="code">
+          <p class="mono">Activation code</p>
+          <p class="value">DEMO-ESIM-NOT-A-REAL-CODE</p>
+          <span class="mono copy">Copy</span>
+        </div>
+        <p class="hint">Paste both into your phone's eSIM settings. No second screen to scan from.</p>
+      </div>
+    </div>
+
+    <script>
+      const asked = new URLSearchParams(location.search).get("price") ?? ""
+      const price = /^\d+(\.\d{2})?$/.test(asked) ? `$${asked}` : ""
+      document.getElementById("price").textContent = price
+      document.getElementById("title").textContent = `US data eSIM, 1 GB, 7 days${price ? ", " + price : ""}`
+    </script>
+  </body>
+</html>

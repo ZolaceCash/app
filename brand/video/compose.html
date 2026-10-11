@@ -1,0 +1,308 @@
+<!doctype html>
+<!--
+  Puts the recorded take together into the demo video: the take in a framed window, a caption for
+  each step under it, a title card before and one after. The film is drawn and encoded one frame
+  at a time (encode.js), so no other program is needed and no frame is dropped. Opened by
+  compose.mjs, which serves this folder and takes the finished file. ?still=<seconds> draws one
+  moment and stops, for checking.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=Geist+Mono:wght@500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #09090b;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage" width="1920" height="1080"></canvas>
+    <script type="module">
+      const W = 1920
+      const H = 1080
+      const GROUND = "#09090b"
+      const ICE = "#f4f4f6"
+      const QUIET = "rgba(244,244,246,0.58)"
+      const INDIGO = "#5567ea"
+      const BRAND = "#7b8cff"
+      const SANS = "Geist, system-ui, sans-serif"
+      const MONO = '"Geist Mono", ui-monospace, monospace'
+      // The window the take plays in. The take is 1600 x 900, so it is drawn pixel for pixel.
+      const WIN = { x: 160, y: 40, w: 1600, h: 900, r: 26 }
+      const INTRO = 2.8
+      const OUTRO = 3.6
+      const FADE = 0.35
+
+      const canvas = document.getElementById("stage")
+      const ctx = canvas.getContext("2d")
+      const take = await (await fetch("take.json")).json()
+      const t0 = take.marks[0].t
+      const at = Object.fromEntries(take.marks.map((m) => [m.name, m.t - t0]))
+      const frames = take.frames.map((f) => ({ name: f.name, t: f.t - t0 }))
+
+      // What is kept of the take, and how fast. The wait between pressing the button and the order
+      // page (a price is fetched) is cut, and the three stand-in blocks run a little faster.
+      const cuts = [
+        { from: 0, to: at.checkout + 0.9, speed: 1 },
+        { from: at.order - 0.15, to: at.pay + 0.6, speed: 1 },
+        { from: at.pay + 0.6, to: at.delivered + 0.35, speed: 1.6 },
+        { from: at.delivered + 0.35, to: at.end, speed: 1 },
+      ]
+      let run = 0
+      for (const cut of cuts) {
+        cut.start = run
+        cut.length = (cut.to - cut.from) / cut.speed
+        run += cut.length
+      }
+      const TAKE = run
+      const TOTAL = INTRO + TAKE + OUTRO
+      // A moment of the take, as a moment of the film (from the start of the take's part).
+      const filmOf = (source) => {
+        for (const cut of cuts) if (source <= cut.to) return cut.start + Math.max(0, source - cut.from) / cut.speed
+        return TAKE
+      }
+      const sourceOf = (film) => {
+        for (const cut of cuts) if (film < cut.start + cut.length) return { cut, t: cut.from + (film - cut.start) * cut.speed }
+        const last = cuts.at(-1)
+        return { cut: last, t: last.to }
+      }
+
+      // The steps. Each caption shows from its moment in the take until the next one's.
+      const steps = [
+        { from: 0, title: "Pick an item", note: "No account. No sign-up." },
+        { from: at.item - 0.2, title: "Check out in one click", note: "Checkout asks nothing about you." },
+        { from: at.order - 0.15, title: "Your order gets an address of its own", note: "The price in ZEC is held for 15 minutes." },
+        { from: at.pay - 1.4, title: "Pay from your Zcash wallet", note: "This demo simulates the payment." },
+        { from: at.confirming - 0.2, title: "Three confirmations", note: "Then the order delivers itself." },
+        { from: at.delivered + 0.1, title: "Your item opens in your browser", note: "The server keeps a sealed copy it cannot read." },
+        { from: at.link - 0.1, title: "The link is your receipt", note: "There is no account to recover it from. Keep it safe." },
+      ].map((step) => ({ ...step, film: filmOf(step.from) }))
+
+      // ------------------------------------------------------------ frames of the take
+      const images = new Map()
+      const want = (index) => {
+        if (index < 0 || index >= frames.length || images.has(index)) return
+        const image = new Image()
+        image.src = "frames/" + frames[index].name
+        const entry = { image, ready: false }
+        images.set(index, entry)
+        image.decode().then(() => (entry.ready = true)).catch(() => {})
+      }
+      const indexAt = (source) => {
+        let low = 0
+        let high = frames.length - 1
+        while (low < high) {
+          const mid = (low + high + 1) >> 1
+          if (frames[mid].t <= source) low = mid
+          else high = mid - 1
+        }
+        return low
+      }
+      let shown = null
+      const frameFor = (source) => {
+        const index = indexAt(source)
+        for (let ahead = 0; ahead <= 24; ahead++) want(index + ahead)
+        for (let back = index; back >= Math.max(0, index - 40); back--) {
+          const entry = images.get(back)
+          if (entry?.ready) {
+            shown = entry.image
+            break
+          }
+        }
+        for (const key of images.keys()) if (key < index - 60) images.delete(key)
+        return shown
+      }
+
+      // ------------------------------------------------------------ drawing
+      const clamp = (x) => Math.min(1, Math.max(0, x))
+      const ease = (x) => 1 - Math.pow(1 - clamp(x), 3)
+      const ground = new OffscreenCanvas(W, H)
+      {
+        const g = ground.getContext("2d")
+        g.fillStyle = GROUND
+        g.fillRect(0, 0, W, H)
+        g.fillStyle = "rgba(255,255,255,0.06)"
+        for (let y = 14; y < H; y += 28) for (let x = 14; x < W; x += 28) g.fillRect(x, y, 1.5, 1.5)
+      }
+      const rounded = (x, y, w, h, r) => {
+        ctx.beginPath()
+        ctx.roundRect(x, y, w, h, r)
+      }
+      const text = (value, x, y, font, colour, align = "left", spacing = "0px") => {
+        ctx.font = font
+        ctx.fillStyle = colour
+        ctx.textAlign = align
+        ctx.letterSpacing = spacing
+        ctx.fillText(value, x, y)
+      }
+      const MARK = [
+        [8.1, 2, 22, 2, 13.25, 14.5, 10.65, 14.5, 15.9, 7, 4.6, 7],
+        [19.4, 17, 15.9, 22, 2, 22, 10.75, 9.5, 13.35, 9.5, 8.1, 17],
+        [5.5, 2, 7, 2, 3.5, 7, 2, 7],
+        [20.5, 17, 22, 17, 18.5, 22, 17, 22],
+      ]
+      const logo = (x, y, size, colour) => {
+        ctx.fillStyle = colour
+        const k = size / 24
+        for (const points of MARK) {
+          ctx.beginPath()
+          for (let i = 0; i < points.length; i += 2) ctx[i ? "lineTo" : "moveTo"](x + points[i] * k, y + points[i + 1] * k)
+          ctx.closePath()
+          ctx.fill()
+        }
+        text("zolace", x + size * 1.28, y + size * 0.86, `700 ${size * 0.95}px ${SANS}`, colour, "left", `${-size * 0.05}px`)
+      }
+
+      function card(alpha, eyebrow, lines, accent, foot) {
+        ctx.globalAlpha = alpha
+        logo(160, 150, 52, ICE)
+        ctx.fillStyle = BRAND
+        ctx.fillRect(160, 398, 10, 10)
+        text(eyebrow, 186, 412, `500 24px ${MONO}`, BRAND, "left", "2px")
+        lines.forEach((line, row) => {
+          const y = 590 + row * 172
+          if (row === lines.length - 1 && accent) {
+            const head = line.slice(0, line.length - accent.length)
+            text(head, 152, y, `500 184px ${SANS}`, ICE, "left", "-10px")
+            const width = ctx.measureText(head).width
+            text(accent, 152 + width, y, `500 184px ${SANS}`, BRAND, "left", "-10px")
+          } else {
+            text(line, 152, y, `500 184px ${SANS}`, ICE, "left", "-10px")
+          }
+        })
+        text(foot, 160, 950, `500 24px ${MONO}`, QUIET, "left", "2px")
+        ctx.globalAlpha = 1
+      }
+
+      function caption(film) {
+        let current = 0
+        for (let i = 0; i < steps.length; i++) if (film >= steps[i].film) current = i
+        const step = steps[current]
+        const since = film - step.film
+        const inAlpha = current === 0 ? 1 : ease(since / 0.3)
+        const lift = (1 - inAlpha) * 14
+        const y = 968
+        // The step's number.
+        ctx.globalAlpha = inAlpha
+        ctx.fillStyle = INDIGO
+        rounded(WIN.x, y, 72, 72, 16)
+        ctx.fill()
+        text(String(current + 1).padStart(2, "0"), WIN.x + 36, y + 47, `500 28px ${MONO}`, "#fff", "center", "0px")
+        text(step.title, WIN.x + 100, y + 34 + lift, `500 42px ${SANS}`, ICE, "left", "-1.6px")
+        text(step.note, WIN.x + 100, y + 70 + lift, `400 25px ${SANS}`, QUIET, "left", "-0.3px")
+        ctx.globalAlpha = 1
+        // Where the film is, and what it is: one mark for each step.
+        const right = WIN.x + WIN.w
+        text("DEMO · A TEST ORDER · NO MONEY MOVES", right, y + 26, `500 17px ${MONO}`, QUIET, "right", "1.5px")
+        const gap = 8
+        const wide = 44
+        for (let i = 0; i < steps.length; i++) {
+          const x = right - (steps.length - i) * (wide + gap) + gap
+          ctx.fillStyle = i < current ? "rgba(123,140,255,0.45)" : i === current ? INDIGO : "#26262e"
+          rounded(x, y + 50, wide, 8, 4)
+          ctx.fill()
+        }
+      }
+
+      function draw(time) {
+        ctx.globalAlpha = 1
+        ctx.drawImage(ground, 0, 0)
+        if (time < INTRO) {
+          const alpha = ease(time / 0.5) * (1 - ease((time - (INTRO - FADE)) / FADE))
+          card(alpha, "DEMO · A TEST ORDER", ["How to buy", "on Zolace."], "Zolace.", "NO ACCOUNT · PAID IN SHIELDED ZEC · OPENS IN YOUR BROWSER")
+          return
+        }
+        const film = time - INTRO
+        if (film >= TAKE) {
+          const since = film - TAKE
+          const alpha = ease(since / 0.5) * (1 - ease((since - (OUTRO - 0.3)) / 0.3))
+          card(alpha, "ZOLACE.CASH", ["Pay shielded.", "Get the goods."], "Get the goods.", "THIS WAS A TEST ORDER ON A DEMO COPY: NO MONEY MOVED")
+          return
+        }
+        const { cut, t } = sourceOf(film)
+        const image = frameFor(t)
+        const enter = ease(film / 0.6)
+        const leave = 1 - ease((film - (TAKE - 0.3)) / 0.3)
+        const alpha = Math.min(enter, leave)
+        // A cut inside the take is softened: the window dips for a moment where the take jumps.
+        const sinceCut = film - cut.start
+        const dip = cut !== cuts[0] && cut.from - cuts[cuts.indexOf(cut) - 1].to > 0.5 ? 0.35 + 0.65 * ease(sinceCut / 0.35) : 1
+        const grow = 0.975 + 0.025 * enter
+        ctx.save()
+        ctx.globalAlpha = alpha
+        ctx.translate(W / 2, WIN.y + WIN.h / 2)
+        ctx.scale(grow, grow)
+        ctx.translate(-W / 2, -(WIN.y + WIN.h / 2))
+        ctx.shadowColor = "rgba(0,0,0,0.7)"
+        ctx.shadowBlur = 60
+        ctx.shadowOffsetY = 26
+        ctx.fillStyle = "#111114"
+        rounded(WIN.x, WIN.y, WIN.w, WIN.h, WIN.r)
+        ctx.fill()
+        ctx.shadowColor = "transparent"
+        rounded(WIN.x, WIN.y, WIN.w, WIN.h, WIN.r)
+        ctx.clip()
+        if (image) {
+          ctx.globalAlpha = alpha * dip
+          ctx.drawImage(image, WIN.x, WIN.y, WIN.w, WIN.h)
+        }
+        ctx.restore()
+        ctx.globalAlpha = alpha
+        caption(film)
+        ctx.globalAlpha = 1
+      }
+
+      // ------------------------------------------------------------ playing and recording
+      await Promise.all([
+        document.fonts.load(`500 42px ${SANS}`),
+        document.fonts.load(`400 25px ${SANS}`),
+        document.fonts.load(`700 50px ${SANS}`),
+        document.fonts.load(`500 24px ${MONO}`),
+      ])
+      const asked = new URLSearchParams(location.search)
+      window.film = { total: TOTAL, take: TAKE, steps: steps.map((s) => +(s.film + INTRO).toFixed(2)) }
+
+      if (asked.has("still")) {
+        const time = Number(asked.get("still"))
+        if (time >= INTRO && time < INTRO + TAKE) {
+          const { t } = sourceOf(time - INTRO)
+          const index = indexAt(t)
+          want(index)
+          await images.get(index).image.decode()
+          images.get(index).ready = true
+        }
+        draw(time)
+        window.done = true
+      } else {
+        // The frame of the take that belongs to a moment, decoded before that moment is drawn.
+        const ready = async (time) => {
+          const film = Math.min(Math.max(time - INTRO, 0), TAKE - 0.001)
+          const index = indexAt(sourceOf(film).t)
+          want(index)
+          const entry = images.get(index)
+          if (!entry.ready) {
+            await entry.image.decode()
+            entry.ready = true
+          }
+        }
+        const { encodeFilm } = await import("./encode.js")
+        const { blob, frames: written } = await encodeFilm({ canvas, total: TOTAL, bitrate: 10_000_000, ready, draw, onFrame: (at, of) => console.log(`frame ${at} of ${of}`) })
+        window.film.frames = written
+        await fetch("out", { method: "POST", body: blob })
+        window.done = true
+      }
+    </script>
+  </body>
+</html>

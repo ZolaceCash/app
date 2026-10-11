@@ -1,0 +1,236 @@
+<!doctype html>
+<!--
+  The picture for the post about the shelves following the stock, 1600 x 900. brand/render.mjs
+  renders it at twice the size. Its layout is its own: the shop's six shelves as six cards in a
+  row, the one that has something to buy raised and lit.
+  The six names are the shop's own, in their order (lib/catalog.ts). Which shelf is on sale, how
+  many items it has and its lowest price come from the address, so the picture follows the shop:
+    x-post-shelves.html?on=esim&items=1&from=5.99
+  Do not post it before the live shop shows the same.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@500;700&family=Geist+Mono:wght@400;500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ground: #09090b;
+        --tile: #15151a;
+        --ice: #f4f4f6;
+        --indigo: #5567ea;
+        --brand: #7b8cff;
+        --quiet: rgb(244 244 246 / 0.58);
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      body {
+        width: 1600px;
+        height: 900px;
+        overflow: hidden;
+        background-color: var(--ground);
+        /* The site's ground: a faint grid of dots. */
+        background-image: radial-gradient(rgb(255 255 255 / 0.055) 1px, transparent 1px);
+        background-size: 28px 28px;
+        color: var(--ice);
+        font-family: "Geist", system-ui, sans-serif;
+        position: relative;
+      }
+      .mono {
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-weight: 500;
+        font-size: 18px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .top {
+        position: absolute;
+        left: 80px;
+        right: 80px;
+        top: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .top .mono {
+        color: var(--quiet);
+      }
+      /* The site's logo as it stands in the nav: the mark beside the name in bold lowercase. */
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 700;
+        font-size: 38px;
+        line-height: 1;
+        letter-spacing: -0.05em;
+      }
+      .logo svg {
+        width: 40px;
+        height: 40px;
+        fill: currentColor;
+      }
+      .head {
+        position: absolute;
+        left: 80px;
+        right: 80px;
+        top: 176px;
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+      }
+      h1 {
+        margin-left: -4px;
+        font-weight: 500;
+        font-size: 124px;
+        line-height: 0.93;
+        letter-spacing: -0.055em;
+        white-space: nowrap;
+      }
+      h1 em {
+        font-style: normal;
+        color: var(--brand);
+      }
+      .how {
+        width: 470px;
+        padding-bottom: 14px;
+        font-size: 26px;
+        line-height: 1.32;
+        letter-spacing: -0.015em;
+        color: var(--quiet);
+      }
+      .how b {
+        font-weight: 500;
+        color: var(--ice);
+      }
+      .shelves {
+        position: absolute;
+        left: 80px;
+        right: 80px;
+        bottom: 64px;
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 14px;
+        align-items: end;
+      }
+      .shelf {
+        height: 290px;
+        padding: 24px 22px;
+        border-radius: 22px;
+        background: var(--tile);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        /* The site's cut corner. */
+        clip-path: polygon(0 0, 100% 0, 100% calc(100% - 26px), calc(100% - 26px) 100%, 0 100%);
+      }
+      .shelf .mono {
+        font-size: 14px;
+        color: var(--quiet);
+      }
+      .shelf .name {
+        font-weight: 500;
+        font-size: 31px;
+        line-height: 1.04;
+        letter-spacing: -0.04em;
+        color: rgb(244 244 246 / 0.5);
+      }
+      .shelf .state {
+        margin-top: 14px;
+      }
+      .lift {
+        filter: drop-shadow(0 30px 40px rgb(0 0 0 / 0.7));
+      }
+      .shelf.on {
+        height: 372px;
+        background: var(--indigo);
+      }
+      .shelf.on .mono {
+        color: #fff;
+      }
+      .shelf.on .name {
+        font-size: 54px;
+        color: #fff;
+      }
+      .shelf.on .price {
+        margin-top: 12px;
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-weight: 500;
+        font-size: 30px;
+        line-height: 1;
+        letter-spacing: -0.05em;
+      }
+      .row {
+        display: flex;
+        justify-content: space-between;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="top">
+      <p class="logo">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <polygon points="8.1,2 22,2 13.25,14.5 10.65,14.5 15.9,7 4.6,7" />
+          <polygon points="19.4,17 15.9,22 2,22 10.75,9.5 13.35,9.5 8.1,17" />
+          <polygon points="5.5,2 7,2 3.5,7 2,7" />
+          <polygon points="20.5,17 22,17 18.5,22 17,22" />
+        </svg>
+        zolace
+      </p>
+      <span class="mono">Shop update · The shelves follow the stock</span>
+    </div>
+
+    <div class="head">
+      <h1>Six shelves.<br /><em id="count">One stocked.</em></h1>
+      <p class="how">A shelf lights up <b>the moment an item on it can be bought</b>, with the count and the lowest price. When it sells out, it goes dark by itself.</p>
+    </div>
+
+    <div class="shelves" id="shelves"></div>
+
+    <script>
+      // The shop's shelves, in their order (lib/catalog.ts).
+      const SHELVES = [
+        ["vouchers", "Vouchers"],
+        ["licences", "Software licences"],
+        ["gift-cards", "Gift cards"],
+        ["ai-credit", "AI credit keys"],
+        ["esim", "eSIM"],
+        ["gift-links", "Gift links"],
+      ]
+      const asked = new URLSearchParams(location.search)
+      const on = asked.get("on") ?? ""
+      const items = /^\d+$/.test(asked.get("items") ?? "") ? Number(asked.get("items")) : 0
+      const from = /^\d+(\.\d{2})?$/.test(asked.get("from") ?? "") ? asked.get("from") : ""
+      const shelves = document.getElementById("shelves")
+      SHELVES.forEach(([slug, name], at) => {
+        const number = String(at + 1).padStart(2, "0")
+        const wrap = document.createElement("div")
+        const lit = slug === on && items > 0 && from
+        wrap.className = lit ? "lift" : ""
+        wrap.innerHTML = lit
+          ? `<div class="shelf on">
+               <div class="mono row"><span>${number}</span><span>On sale</span></div>
+               <div>
+                 <p class="name">${name}</p>
+                 <p class="price">from $${from}</p>
+                 <p class="mono state">${items} ${items === 1 ? "item" : "items"}</p>
+               </div>
+             </div>`
+          : `<div class="shelf">
+               <div class="mono">${number}</div>
+               <div>
+                 <p class="name">${name}</p>
+                 <p class="mono state">Planned</p>
+               </div>
+             </div>`
+        shelves.append(wrap)
+      })
+    </script>
+  </body>
+</html>

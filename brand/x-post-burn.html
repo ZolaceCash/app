@@ -1,0 +1,190 @@
+<!doctype html>
+<!--
+  The picture for the post about the burn of 11 Oct 2026, 1600 x 900. brand/render.mjs renders it
+  at twice the size. Its layout is its own, on purpose: a picture for X does not reuse the layout
+  of the one before it. Here the amount fills the width, and the supply is drawn as 200 squares.
+  Every figure was read from the chain: transaction 0x04341f79…6d76df2d on Robinhood Chain, token
+  0x8097…b266. 55,064,964.28 burned of 1,000,000,000, which leaves 944,935,035.72. One square is
+  0.5% of the supply before the burn, so 5.5% is 11 squares.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@500;700&family=Geist+Mono:wght@400;500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ground: #09090b;
+        --cell: #26262e;
+        --ice: #f4f4f6;
+        --indigo: #5567ea;
+        --brand: #7b8cff;
+        --quiet: rgb(244 244 246 / 0.58);
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      body {
+        width: 1600px;
+        height: 900px;
+        overflow: hidden;
+        padding: 64px 80px;
+        background-color: var(--ground);
+        /* The site's ground: a faint grid of dots. */
+        background-image: radial-gradient(rgb(255 255 255 / 0.055) 1px, transparent 1px);
+        background-size: 28px 28px;
+        color: var(--ice);
+        font-family: "Geist", system-ui, sans-serif;
+        display: flex;
+        flex-direction: column;
+      }
+      .mono {
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-weight: 500;
+        font-size: 18px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--quiet);
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      /* The site's logo as it stands in the nav: the mark beside the name in bold lowercase. */
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 700;
+        font-size: 38px;
+        line-height: 1;
+        letter-spacing: -0.05em;
+      }
+      .logo svg {
+        width: 40px;
+        height: 40px;
+        fill: currentColor;
+      }
+      .amount {
+        margin-top: 44px;
+        /* Pulled left by the first digit's own side bearing, so it lines up with the logo. */
+        margin-left: -13px;
+        font-weight: 500;
+        font-size: 296px;
+        line-height: 0.86;
+        letter-spacing: -0.065em;
+        white-space: nowrap;
+      }
+      .what {
+        margin-top: 36px;
+        align-items: baseline;
+      }
+      .what h1 {
+        font-weight: 500;
+        font-size: 66px;
+        line-height: 1;
+        letter-spacing: -0.045em;
+      }
+      .what em {
+        font-style: normal;
+        color: var(--brand);
+      }
+      .what .mono {
+        font-size: 22px;
+        color: var(--ice);
+      }
+      /* 200 squares, filled a column at a time, so what was burned is the right-hand edge. */
+      .supply {
+        margin-top: auto;
+        display: grid;
+        grid-template-rows: repeat(4, 1fr);
+        grid-auto-flow: column;
+        grid-auto-columns: 1fr;
+        gap: 6px;
+      }
+      .supply i {
+        aspect-ratio: 1;
+        border-radius: 5px;
+        background: var(--cell);
+      }
+      .supply i.gone {
+        background: var(--indigo);
+      }
+      .legend {
+        margin-top: 22px;
+      }
+      .legend span {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .legend span::before {
+        content: "";
+        width: 12px;
+        height: 12px;
+        border-radius: 3px;
+        background: var(--cell);
+      }
+      .legend .gone {
+        color: var(--brand);
+      }
+      .legend .gone::before {
+        background: var(--indigo);
+      }
+      .foot {
+        margin-top: 34px;
+      }
+      /* A transaction's id is written in lower case. */
+      .hash {
+        text-transform: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="row">
+      <p class="logo">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <polygon points="8.1,2 22,2 13.25,14.5 10.65,14.5 15.9,7 4.6,7" />
+          <polygon points="19.4,17 15.9,22 2,22 10.75,9.5 13.35,9.5 8.1,17" />
+          <polygon points="5.5,2 7,2 3.5,7 2,7" />
+          <polygon points="20.5,17 22,17 18.5,22 17,22" />
+        </svg>
+        zolace
+      </p>
+      <span class="mono">Dev burn · 11 Oct 2026</span>
+    </div>
+
+    <p class="amount">55,064,964</p>
+    <div class="row what">
+      <h1>$ZOLACE <em>burned.</em></h1>
+      <span class="mono">5.5% of the supply, gone for good</span>
+    </div>
+
+    <div class="supply" id="supply"></div>
+    <div class="row legend mono">
+      <span>944,935,035 in the supply now</span>
+      <span class="gone">55,064,964 burned</span>
+    </div>
+    <div class="row foot mono">
+      <span>One square is 0.5% of 1,000,000,000</span>
+      <span>Robinhood Chain · Tx <span class="hash">0x04341f79…6d76df2d</span></span>
+    </div>
+
+    <script>
+      const SQUARES = 200
+      const GONE = 11
+      const supply = document.getElementById("supply")
+      for (let i = 0; i < SQUARES; i++) {
+        const square = document.createElement("i")
+        if (i >= SQUARES - GONE) square.className = "gone"
+        supply.append(square)
+      }
+    </script>
+  </body>
+</html>
