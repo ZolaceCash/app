@@ -43,10 +43,6 @@ next-env.d.ts
 # the SQLite database
 /data
 
-# a deployment's secrets (the examples beside them are kept)
-/deploy/secrets/*
-!/deploy/secrets/*.example
-
 # the token contract's own dependencies and build output
 /contracts/node_modules
 /contracts/artifacts

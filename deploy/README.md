@@ -8,7 +8,8 @@ One server, Docker Compose, three containers:
 | `nginx` | Takes HTTPS on port 443 and hands requests to the site. No access log |
 | `certbot` | Gets and renews the certificate from Let's Encrypt, proving the domain through Cloudflare's DNS |
 
-Cloudflare sits in front of the server: visitors talk to Cloudflare, Cloudflare talks to nginx.
+Cloudflare sits in front of the server: visitors talk to Cloudflare, Cloudflare talks to nginx. The
+domain is `zolace.cash`.
 
 Only test orders exist. Nothing in this setup takes a real payment: the payment engine is not part of it.
 
@@ -24,22 +25,33 @@ That is a third party the site's texts have to name. They do: "the network in fr
 ## Before the first start
 
 1. A server with Docker and the Compose plugin, and ports 80 and 443 open.
-2. The domain's DNS at Cloudflare, with two proxied records pointing at the server: the bare name and
-   `www`.
+2. The DNS of `zolace.cash` at Cloudflare, with two proxied records pointing at the server: `zolace.cash`
+   and `www.zolace.cash`.
 3. In Cloudflare, SSL/TLS mode **Full (strict)**. With "Flexible", Cloudflare would talk to this server
    without encryption.
-4. A Cloudflare API token that can edit the DNS of this one zone (My Profile > API Tokens > "Edit zone
-   DNS"). Certbot uses it to prove the domain is yours.
+4. A Cloudflare API token that can edit the DNS of this one zone (My Profile > API Tokens > Create Token >
+   "Edit zone DNS", limited to `zolace.cash`). Certbot uses it to prove the domain is yours.
 
 ## First start
 
+Everything a deployment needs to be told is in one file, `.env`, beside `docker-compose.yml`. It is the
+only file with secrets in it and it is never committed.
+
 ```bash
 cp deploy/env.example .env
-cp deploy/secrets/cloudflare.ini.example deploy/secrets/cloudflare.ini
-chmod 600 .env deploy/secrets/cloudflare.ini
+chmod 600 .env
 ```
 
-Fill in both files, then:
+| Setting | What it is |
+| --- | --- |
+| `DOMAIN` | `zolace.cash` |
+| `CERTBOT_EMAIL` | Where Let's Encrypt writes when a certificate is about to run out |
+| `CLOUDFLARE_API_TOKEN` | Secret. The token from step 4 above |
+| `OWNER_SECRET` | Secret. Opens `/owner`. 32 characters or more: `openssl rand -base64 48` |
+| `ORDER_RETENTION_DAYS` | Days an order is kept after it closes |
+| `DATABASE_URL`, `DATABASE_AUTH_TOKEN` | Only for a hosted database. Left out, the database is local |
+
+Fill it in, then:
 
 ```bash
 sh deploy/init-cert.sh

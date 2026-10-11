@@ -1,9 +1,8 @@
 # Zolace on one server: the site, nginx in front of it, and certbot for the certificate.
 # Cloudflare sits in front of nginx (deploy/README.md has the steps and what that costs in privacy).
 #
-#   cp deploy/env.example .env                                  # then fill it in
-#   cp deploy/secrets/cloudflare.ini.example deploy/secrets/cloudflare.ini
-#   sh deploy/init-cert.sh                                      # once, for the first certificate
+#   cp deploy/env.example .env        # then fill it in: it is the only file with secrets
+#   sh deploy/init-cert.sh            # once, for the first certificate
 #   docker compose up -d --build
 
 name: zolace
@@ -51,11 +50,14 @@ services:
     # for a certificate, and it works with Cloudflare's proxy switched on.
     image: certbot/dns-cloudflare:latest
     restart: unless-stopped
+    environment:
+      # The token that lets certbot write the proof into the domain's DNS at Cloudflare.
+      CLOUDFLARE_API_TOKEN: ${CLOUDFLARE_API_TOKEN:-}
     volumes:
       - letsencrypt:/etc/letsencrypt
-      - ./deploy/secrets/cloudflare.ini:/run/secrets/cloudflare.ini:ro
+      - ./deploy/certbot.sh:/usr/local/bin/zolace-certbot:ro
     # Looks twice a day. A certificate is only replaced when it has under 30 days left.
-    entrypoint: ["/bin/sh", "-c", "trap exit TERM; while :; do certbot renew --dns-cloudflare --dns-cloudflare-credentials /run/secrets/cloudflare.ini --quiet; sleep 12h & wait $$!; done"]
+    entrypoint: ["/bin/sh", "/usr/local/bin/zolace-certbot", "renew-forever"]
 
 volumes:
   zolace-data:

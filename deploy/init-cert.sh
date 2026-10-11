@@ -10,25 +10,20 @@ if [ ! -f .env ]; then
   echo "There is no .env here. Copy deploy/env.example to .env and fill it in." >&2
   exit 1
 fi
-if [ ! -f deploy/secrets/cloudflare.ini ]; then
-  echo "There is no deploy/secrets/cloudflare.ini. Copy the .example beside it and put the token in." >&2
-  exit 1
-fi
 
-# Only the two values this script needs are read from .env.
-DOMAIN=$(sed -n 's/^DOMAIN=//p' .env | tr -d '\r')
-CERTBOT_EMAIL=$(sed -n 's/^CERTBOT_EMAIL=//p' .env | tr -d '\r')
+# Only the two values this script needs are read from .env. The token goes to the container
+# through docker compose, which reads .env itself.
+value() {
+  sed -n "s/^$1=//p" .env | tr -d '\r' | head -n 1
+}
+DOMAIN=$(value DOMAIN)
+CERTBOT_EMAIL=$(value CERTBOT_EMAIL)
 if [ -z "$DOMAIN" ] || [ -z "$CERTBOT_EMAIL" ]; then
   echo "DOMAIN and CERTBOT_EMAIL have to be set in .env." >&2
   exit 1
 fi
 
-docker compose run --rm --entrypoint certbot certbot certonly \
-  --dns-cloudflare \
-  --dns-cloudflare-credentials /run/secrets/cloudflare.ini \
-  --dns-cloudflare-propagation-seconds 30 \
-  -d "$DOMAIN" -d "www.$DOMAIN" \
-  --email "$CERTBOT_EMAIL" \
-  --agree-tos --no-eff-email --non-interactive
+docker compose run --rm --entrypoint /bin/sh certbot \
+  /usr/local/bin/zolace-certbot first "$DOMAIN" "$CERTBOT_EMAIL"
 
 echo "The certificate for $DOMAIN is in place. Start the site with: docker compose up -d --build"

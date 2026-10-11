@@ -13,6 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  // Where the site lives. Links in a page's metadata are made whole from this.
+  metadataBase: new URL("https://zolace.cash"),
   title: {
     default: "Zolace: digital goods, no account, paid in shielded Zcash",
     template: "%s · Zolace",
