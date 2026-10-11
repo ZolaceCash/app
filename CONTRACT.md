@@ -4,6 +4,78 @@ Two contracts are written and tested (11 Oct 2026): the token, and the vault its
 from. Neither is audited and neither is deployed, on testnet or anywhere. The token is stage 5 of the plan
 and stays behind an audit and a legal review; neither has been done.
 
+Changed late on 11 Oct 2026: the owner launched the token on Pons, a launchpad on Robinhood Chain, instead
+of deploying `ZolaceToken.sol`. The token on the chain is Pons' own launch token: 1,000,000,000 minted, no
+fee on transfers, no owner, and any holder can burn from their own balance. So everything below about the
+token's fee, its owner's key and its 32 tests describes a contract that was not deployed.
+
+Changed on 12 Oct 2026: the vault pays by the hour and is claimed against a list the server signs. The
+section "The hourly vault" below is how it is built now. "The vault", "Counting the 3,000,000 tokens",
+"The vault on the site" and "A month, step by step" further down describe the monthly vault it replaced.
+
+## The hourly vault (12 Oct 2026)
+
+Decided by the owner: at least 3,000,000 tokens held to earn; at most 0.01 USD an hour for every
+3,000,000 held (multiples apply: 9,000,000 earns three times that); paid in NVDA from the creator fee Pons
+pays; 0.01 is a ceiling, and an hour pays less when the fee brought in less; a holder can claim at any
+time, against a list the server makes and signs each hour.
+
+The contract (`contracts/src/ZolaceVault.sol`):
+
+- The constructor takes the owner, the reward token, the most lots the supply can make (333), the signer
+  and the starting rate. The reward token and the number of lots cannot be changed afterwards.
+- `rate` is what one lot earns in an hour at the most, in the reward's units. `ceiling()` is the rate
+  added up over the hours since the vault began; `setRate` keeps what it had reached. It only grows.
+- `claim(account, earned, hour, root, signature, proof)` pays `earned` less what `account` took before.
+  It needs: the hour to be over; the signer's signature over the hour and the root (EIP-712, so it is good
+  for this vault on this chain only); the line `(account, earned)` under the root; something left to
+  take; and all wallets together not past `ceiling() * lots`. Anyone may send it; the reward goes to the
+  account on the list.
+- Funding is a plain transfer of the reward to the vault's address. No function takes anything out.
+
+| The vault's owner can | Cannot |
+| --- | --- |
+| Set the rate, up or down, from now on | Withdraw anything, by any function |
+| Name another signer, or none (which stops claims) | Change what a wallet has already taken |
+| Hand over ownership (two steps), or give it up | Lower what the ceiling has already reached |
+
+What that table hides, and has to be said wherever the vault is described: the list is not checked on
+the chain. Whoever holds the signer's key, or the owner's key (which can name itself the signer), can sign
+a list that pays any wallet, up to the ceiling for all wallets together. So what is in the vault belongs
+to nobody until it is claimed, and the only real limit on a stolen key is what the vault holds. Keep it
+to what a week or two needs. Giving up ownership freezes the rate and the signer.
+
+What the vault's tests prove (24 pass): the ceiling rises by the rate each hour and keeps its height when
+the rate changes; a wallet takes exactly what it earned, once, and a later list pays only the difference;
+a wallet with several lots takes several times the rate; a list signed by another key, for another hour,
+for another root, for another vault or on another chain is refused; so are another amount, another wallet
+and another proof; a list for an hour that is not over is refused; a new signer ends every list the old
+one signed; the vault never pays more than the ceiling for all its lots, whatever is signed and however
+it is spread over wallets; a list that promises more than the vault holds pays nothing until it is funded;
+and the contract hashes and checks a signature the way the site makes one (`tests/vault.test.ts` holds the
+site to the same numbers).
+
+The count (`lib/vault-store.ts`), off the chain and from public data only:
+
+1. The hour is over and 90 seconds have passed. Its blocks are found by their times.
+2. From the balances the hour before left and this hour's `Transfer` events: each wallet's lowest balance
+   in the hour. At least 3,000,000 is one lot, 6,000,000 two, by whole lots. A wallet that arrived during
+   the hour started it with nothing. The vault, the burn addresses, the token's `curve()` and the
+   addresses in `VAULT_SKIP` never earn.
+3. What one lot is due: how far the contract's ceiling rose in that hour, from its `RateSet` events.
+4. What is left: every transfer of the reward to the vault so far, less everything earned so far.
+5. Each lot earns the due amount, or what is left shared evenly over the lots, rounded down.
+6. The list is every wallet with all it has earned since the vault began, in the order of the addresses;
+   its root is what the server signs when the list is asked for.
+
+An hour and the state it leaves are written in one transaction, and an hour is never counted twice. A
+count kept for one vault is dropped when `VAULT_ADDRESS` names another.
+
+Not checked, on top of the list at the end of this file: the count against the public endpoint over many
+days (it asks for a few dozen blocks and three log queries an hour); what the reward's "multiplier"
+(Robinhood's docs) does to an amount held by a contract; a claim from a real wallet; whether Safe or any
+smart wallet a holder uses can send a claim (it can be sent for them by anyone).
+
 The open choices were left to Claude ("decide what is best in your view, then build the contract") and are
 listed under "Choices made" with the reason for each. The owner can still change any of them before
 deployment; after it, most of them are fixed for good.

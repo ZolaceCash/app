@@ -1,6 +1,6 @@
 import { getTableColumns } from "drizzle-orm"
 
-import { orders, products, stock, vaultMonths } from "./db/schema"
+import { orders, products, stock, vaultHours, vaultState } from "./db/schema"
 
 // What each stored column is, in the reader's words. The page at /proof lists every column of
 // every table from the schema and takes its text from here, so the page cannot leave one out:
@@ -36,15 +36,26 @@ const NOTES: Record<string, Record<string, string>> = {
     state: "Free, set aside for an order, or handed over.",
     order_id: "The order it was set aside for.",
   },
-  vault_months: {
-    period: "A month whose reward the owner put into the vault.",
-    from_block: "The first block of that month on the token's chain.",
-    to_block: "The last block of that month on the token's chain.",
-    root: "The one hash that stands for the month's list. The vault's contract holds the same one.",
-    total: "What was put in for the month, in the reward token.",
-    wallets: "How many wallets are on the month's list.",
-    list: "The list itself: each wallet with its part. Public: it follows from the token's transfers, and each claim shows its wallet and amount on the chain.",
-    recorded_at: "When the owner recorded the month.",
+  vault_hours: {
+    hour: "An hour the site counted for the token's holders, by its number.",
+    from_block: "The first block of that hour on the token's chain.",
+    to_block: "The last block of that hour on the token's chain.",
+    wallets: "The wallets that held the minimum of the token through that hour, each with how many times the minimum it held. Public: it follows from the token's transfers.",
+    each: "What 3,000,000 tokens held through the hour earned, in the reward token.",
+    funded: "Everything that had been put into the vault by the end of the hour.",
+    total: "Everything all wallets had earned by the end of the hour.",
+    root: "The one hash that stood for the whole list after that hour. The server signs it, and a claim is checked against it.",
+    counted_at: "When the site counted the hour.",
+  },
+  vault_state: {
+    id: "Always 1: there is one row.",
+    vault: "The vault's contract this count belongs to.",
+    hour: "The last hour counted.",
+    block: "The last block of that hour.",
+    balances: "Every wallet's balance of the token at that block, as the chain shows it to anyone.",
+    earned: "The list: each wallet with all it has earned since the vault began. Public, and each claim shows its wallet and amount on the chain.",
+    funded: "Everything put into the vault so far.",
+    rates: "The vault's rate, each time the owner set it.",
   },
   products: {
     id: "A number for the item.",
@@ -77,10 +88,16 @@ const TABLES = [
     table: products,
   },
   {
-    name: "vault_months",
-    title: "Vault months",
-    about: "One row per month the owner funded for holders of the token. Empty until there is a token. Nothing here is about a buyer.",
-    table: vaultMonths,
+    name: "vault_hours",
+    title: "Vault hours",
+    about: "One row per hour counted for holders of the token. Empty until the vault is open. Nothing here is about a buyer.",
+    table: vaultHours,
+  },
+  {
+    name: "vault_state",
+    title: "Vault count",
+    about: "Where the count for holders of the token stands. All of it is public on the token's chain or follows from it. Nothing here is about a buyer.",
+    table: vaultState,
   },
 ]
 

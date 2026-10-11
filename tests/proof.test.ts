@@ -13,6 +13,6 @@ test("the /proof page explains every column the server stores", () => {
 test("the /proof page covers every table", () => {
   assert.deepEqual(
     STORED.map((table) => table.name),
-    ["orders", "stock", "products", "vault_months"]
+    ["orders", "stock", "products", "vault_hours", "vault_state"]
   )
 })

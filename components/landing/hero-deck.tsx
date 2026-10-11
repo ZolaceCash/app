@@ -103,7 +103,7 @@ const CARDS: Card[] = [
     figure: "diamond",
     fill: "#26262e",
     ink: "#7a45f5",
-    title: "A token on Robinhood Chain, after the shop",
+    title: "A token on Robinhood Chain, rewarded by the hour",
     note: "Not audited",
     icon: TokenIcon,
     tone: "bg-graphite text-white",

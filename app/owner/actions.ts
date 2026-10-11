@@ -8,9 +8,9 @@ import type { FormState } from "@/components/owner/action-form"
 import { addStock, createProduct, markRefunded, parsePrice, updateProduct } from "@/lib/admin"
 import { isOwnerSecret, newSession, ownerEnabled } from "@/lib/owner"
 import { isOwner, OWNER_COOKIE, OWNER_PATH } from "@/lib/owner-session"
-import { parseUnitsExact, tokenConfig, vaultLive } from "@/lib/token"
-import { parseWallets } from "@/lib/vault"
-import { monthSheet, recordMonth } from "@/lib/vault-store"
+import { tokenConfig, vaultLive } from "@/lib/token"
+import { hourLabel } from "@/lib/vault"
+import { advance } from "@/lib/vault-store"
 
 // What the owner's screens can do. Each of these can be called by anyone who sends the right
 // request, with or without the screen, so each one checks the session itself before it acts.
@@ -98,25 +98,19 @@ export async function uploadCodes(_previous: FormState, form: FormData): Promise
   return { ok: `${result.added} code${result.added === 1 ? "" : "s"} added.` }
 }
 
-// The owner funded a month from their own wallet and records it. The list is worked out again
-// here, from the chain, and it is only kept if the vault's contract holds that very root and that
-// very amount: what the vault page lists is then what the contract pays.
-export async function monthFunded(_previous: FormState, form: FormData): Promise<FormState> {
+// Brings the vault's count up to the last full hour, now, instead of waiting for the server's own
+// round. It reads the chain and writes the count; it signs nothing and sends nothing.
+export async function countHours(): Promise<FormState> {
   if (!(await isOwner())) return SIGNED_OUT
-
-  const config = tokenConfig()
-  if (!vaultLive(config)) return { error: "The vault is switched off on this server." }
-  const pool = parseUnitsExact(text(form, "pool"), config.reward.decimals)
-  if (pool === null || pool === 0n) return { error: `The amount has to be in ${config.reward.symbol}, like 1.5.` }
-  const skip = parseWallets(text(form, "skip"))
-  if (skip === null) return { error: "One of the wallets left out is not an address." }
+  if (!vaultLive(tokenConfig())) return { error: "The vault is switched off on this server." }
 
   try {
-    const result = await recordMonth(await monthSheet(text(form, "month"), pool, skip))
-    if (!result.ok) return { error: result.error }
+    const result = await advance()
+    refresh()
+    if (result.hour === null) return { error: result.note ?? "The count could not start." }
+    const upTo = `Counted up to ${hourLabel(result.hour + 1)}.`
+    return { ok: result.behind > 0 ? `${upTo} ${result.behind} more hour${result.behind === 1 ? "" : "s"} to go: run it again.` : upTo }
   } catch (error) {
-    return { error: error instanceof Error ? firstLine(error.message) : "The month could not be worked out." }
+    return { error: error instanceof Error ? firstLine(error.message) : "The hours could not be counted." }
   }
-  refresh()
-  return { ok: "Recorded. The vault page now lists the month." }
 }

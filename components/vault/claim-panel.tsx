@@ -6,24 +6,26 @@ import { decodeFunctionResult, encodeFunctionData } from "viem"
 import { call, connect, mined, onNetwork, provider, send } from "@/components/vault/wallet"
 import { Button } from "@/components/ui/button"
 import { formatUnitsShort } from "@/lib/token"
-import { proofOf, VAULT_ABI } from "@/lib/vault"
+import { hourLabel, proofOf, VAULT_ABI } from "@/lib/vault"
 import { cn } from "@/lib/utils"
 
-// Where a holder takes their reward. The wallet's lines are found in the public list, in this
-// browser: the server is never asked about a wallet, so it does not learn who is looking. Whether
-// a line was already claimed is asked of the chain through the wallet, and a claim is a
+// Where a holder takes their reward. The wallet's line is found in the public list, in this
+// browser: the server is never asked about a wallet, so it does not learn who is looking. What
+// the wallet has already taken is asked of the chain through the wallet, and a claim is a
 // transaction the wallet sends itself.
 
-type Month = { period: string; id: number; list: [string, string][] }
 type Vault = {
   live: boolean
   chainId: number
   vault: `0x${string}`
   reward: { symbol: string; decimals: number }
-  months: Month[]
+  hour: number | null
+  root: `0x${string}` | null
+  signature: `0x${string}` | null
+  list: [string, string][]
 }
-// "unknown": there is no wallet in this browser to ask the chain whether the line was taken.
-type Mine = { month: Month; index: number; amount: bigint; state: "open" | "claimed" | "sending" | "failed" | "unknown" }
+// `taken` is null when there is no wallet in this browser to ask the chain what was taken.
+type Mine = { index: number; earned: bigint; taken: bigint | null }
 
 const FIELD =
   "w-full rounded-lg bg-secondary px-4 py-3 font-mono text-sm outline-none placeholder:text-muted-foreground/60 focus-visible:ring-3 focus-visible:ring-ring/40"
@@ -31,15 +33,17 @@ const FIELD =
 export function ClaimPanel({ live }: { live: boolean }) {
   const [wallet, setWallet] = useState("")
   const [vault, setVault] = useState<Vault | null>(null)
-  const [mine, setMine] = useState<Mine[] | null>(null)
+  // Undefined before a wallet was looked up; null when it is not on the list.
+  const [mine, setMine] = useState<Mine | null | undefined>(undefined)
   const [busy, setBusy] = useState(false)
+  const [sending, setSending] = useState(false)
   const [note, setNote] = useState<{ text: string; bad: boolean } | null>(null)
 
   async function useWallet() {
     setNote(null)
     const eth = provider()
     if (!eth) {
-      setNote({ text: "No wallet was found in this browser. Type the wallet's address to see what is waiting for it.", bad: true })
+      setNote({ text: "No wallet was found in this browser. Type the wallet's address to see what it has earned.", bad: true })
       return
     }
     try {
@@ -53,7 +57,7 @@ export function ClaimPanel({ live }: { live: boolean }) {
     }
   }
 
-  // Finds the wallet's lines in every funded month, and asks the chain which were taken.
+  // Finds the wallet's line in the list, and asks the chain what it has taken so far.
   async function look(address: string) {
     if (!/^0x[0-9a-fA-F]{40}$/.test(address)) {
       setNote({ text: "That is not a wallet address.", bad: true })
@@ -62,30 +66,27 @@ export function ClaimPanel({ live }: { live: boolean }) {
     setBusy(true)
     setNote(null)
     try {
-      const response = await fetch("/api/vault/months", { cache: "no-store" })
+      const response = await fetch("/api/vault/list", { cache: "no-store" })
       const body = (await response.json()) as Vault
       setVault(body)
       const who = address.toLowerCase()
-      const found: Mine[] = []
-      for (const month of body.months ?? []) {
-        const index = month.list.findIndex(([listed]) => listed.toLowerCase() === who)
-        if (index < 0) continue
-        found.push({ month, index, amount: BigInt(month.list[index][1]), state: "open" })
+      const index = (body.list ?? []).findIndex(([listed]) => listed.toLowerCase() === who)
+      if (index < 0) {
+        setMine(null)
+        return
       }
 
+      let taken: bigint | null = null
       const eth = provider()
-      if (!eth) for (const line of found) line.state = "unknown"
       if (eth && body.live) {
-        for (const line of found) {
-          const answer = await call(
-            eth,
-            body.vault,
-            encodeFunctionData({ abi: VAULT_ABI, functionName: "hasClaimed", args: [line.month.id, address as `0x${string}`] })
-          ).catch(() => null)
-          if (answer && decodeFunctionResult({ abi: VAULT_ABI, functionName: "hasClaimed", data: answer })) line.state = "claimed"
-        }
+        const answer = await call(
+          eth,
+          body.vault,
+          encodeFunctionData({ abi: VAULT_ABI, functionName: "claimed", args: [address as `0x${string}`] })
+        ).catch(() => null)
+        if (answer) taken = decodeFunctionResult({ abi: VAULT_ABI, functionName: "claimed", data: answer })
       }
-      setMine(found)
+      setMine({ index, earned: BigInt(body.list[index][1]), taken })
     } catch {
       setNote({ text: "The list could not be loaded. Try again.", bad: true })
     } finally {
@@ -93,41 +94,42 @@ export function ClaimPanel({ live }: { live: boolean }) {
     }
   }
 
-  async function claim(line: Mine) {
+  async function claim() {
     const eth = provider()
-    if (!eth || !vault) {
+    if (!eth || !vault || !mine || vault.hour === null || !vault.root || !vault.signature) {
       setNote({ text: "A claim is a transaction, so it needs a wallet in this browser.", bad: true })
       return
     }
-    const mark = (state: Mine["state"]) =>
-      setMine((all) => (all ?? []).map((other) => (other.month.id === line.month.id ? { ...other, state } : other)))
-    mark("sending")
+    setSending(true)
     setNote(null)
     try {
       await onNetwork(eth, vault.chainId)
       const from = (await connect(eth)) ?? wallet
-      const lines = line.month.list.map(([listed, amount]) => ({ wallet: listed as `0x${string}`, amount: BigInt(amount) }))
+      const lines = vault.list.map(([listed, amount]) => ({ wallet: listed as `0x${string}`, amount: BigInt(amount) }))
       const data = encodeFunctionData({
         abi: VAULT_ABI,
         functionName: "claim",
-        args: [line.month.id, wallet as `0x${string}`, line.amount, proofOf(line.month.id, lines, line.index)],
+        args: [wallet as `0x${string}`, mine.earned, BigInt(vault.hour), vault.root, vault.signature, proofOf(lines, mine.index)],
       })
       const hash = await send(eth, from, vault.vault, data)
       const done = await mined(eth, hash)
-      mark(done ? "claimed" : "failed")
+      if (done) setMine({ ...mine, taken: mine.earned })
       setNote(
         done
           ? { text: `Claimed. The ${vault.reward.symbol} is in the wallet.`, bad: false }
           : { text: "The transaction did not go through. Nothing was claimed.", bad: true }
       )
     } catch {
-      mark("open")
       setNote({ text: "Nothing was sent, so nothing was claimed.", bad: true })
+    } finally {
+      setSending(false)
     }
   }
 
   const symbol = vault?.reward?.symbol ?? "NVDA"
   const decimals = vault?.reward?.decimals ?? 18
+  const show = (units: bigint) => `${formatUnitsShort(units, decimals, 9)} ${symbol}`
+  const waiting = mine && mine.taken !== null ? mine.earned - mine.taken : null
 
   return (
     <div>
@@ -149,7 +151,7 @@ export function ClaimPanel({ live }: { live: boolean }) {
           </span>
         </label>
         <Button type="button" size="lg" disabled={!/^0x[0-9a-fA-F]{40}$/.test(wallet)} onClick={() => look(wallet)}>
-          {busy ? "Looking" : "See what is waiting"}
+          {busy ? "Looking" : "See what it has earned"}
         </Button>
       </fieldset>
 
@@ -157,38 +159,46 @@ export function ClaimPanel({ live }: { live: boolean }) {
         {note?.text}
       </p>
 
-      {mine ? (
-        mine.length === 0 ? (
-          <p className="mt-2 rounded-lg bg-secondary px-5 py-4 leading-relaxed text-muted-foreground">
-            This wallet is on no month&apos;s list. A wallet is listed for a month when it held the minimum from the
-            first block of the month to the last.
+      {mine === null ? (
+        <p className="mt-2 rounded-lg bg-secondary px-5 py-4 leading-relaxed text-muted-foreground">
+          This wallet has earned nothing so far. A wallet earns an hour when it held the minimum from the first block
+          of that hour to the last, and the list is made after each hour ends.
+        </p>
+      ) : mine && vault ? (
+        <div className="mt-2 rounded-lg bg-secondary px-5 py-4">
+          <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-3">
+            <div>
+              <dt className="label-mono text-muted-foreground">Earned so far</dt>
+              <dd className="mt-1 font-mono text-sm font-medium break-all">{show(mine.earned)}</dd>
+            </div>
+            <div>
+              <dt className="label-mono text-muted-foreground">Taken</dt>
+              <dd className="mt-1 font-mono text-sm font-medium break-all">{mine.taken === null ? "Unknown" : show(mine.taken)}</dd>
+            </div>
+            <div>
+              <dt className="label-mono text-muted-foreground">To claim</dt>
+              <dd className="mt-1 font-mono text-sm font-medium break-all">{waiting === null ? "Unknown" : show(waiting)}</dd>
+            </div>
+          </dl>
+          <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
+            {waiting === null ? (
+              <span className="label-mono text-muted-foreground">Open this page with the wallet to claim</span>
+            ) : !vault.signature ? (
+              <span className="label-mono text-muted-foreground">The list is not signed yet, so it cannot be claimed</span>
+            ) : waiting === 0n ? (
+              <span className="label-mono rounded-md bg-foreground/10 px-2.5 py-1.5">All claimed</span>
+            ) : (
+              <Button type="button" disabled={sending} onClick={claim}>
+                {sending ? "Waiting for the wallet" : "Claim"}
+              </Button>
+            )}
+            {vault.hour !== null ? <span className="label-mono text-muted-foreground">Counted up to {hourLabel(vault.hour + 1)}</span> : null}
+          </div>
+          <p className="mt-4 text-sm leading-snug text-muted-foreground">
+            A claim costs the network&apos;s fee, whatever its size. What is earned stays waiting, so claiming now and
+            then costs less than claiming every hour.
           </p>
-        ) : (
-          <ul className="mt-2 space-y-1.5">
-            {mine.map((line) => (
-              <li
-                key={line.month.id}
-                className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3 rounded-lg bg-secondary px-5 py-4"
-              >
-                <span>
-                  <span className="label-mono block text-muted-foreground">{line.month.period}</span>
-                  <span className="mt-1 block font-mono text-xl font-medium tracking-[-0.03em]">
-                    {formatUnitsShort(line.amount, decimals)} {symbol}
-                  </span>
-                </span>
-                {line.state === "claimed" ? (
-                  <span className="label-mono rounded-md bg-foreground/10 px-2.5 py-1.5">Claimed</span>
-                ) : line.state === "unknown" ? (
-                  <span className="label-mono text-muted-foreground">Open this page with the wallet to claim</span>
-                ) : (
-                  <Button type="button" disabled={line.state === "sending"} onClick={() => claim(line)}>
-                    {line.state === "sending" ? "Waiting for the wallet" : line.state === "failed" ? "Try again" : "Claim"}
-                  </Button>
-                )}
-              </li>
-            ))}
-          </ul>
-        )
+        </div>
       ) : null}
     </div>
   )

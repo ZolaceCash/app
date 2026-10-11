@@ -6,11 +6,17 @@
 //
 // Read at request time, not at build time: the same build serves before and after the launch.
 
-// A wallet has to hold this many tokens for a whole month to be on that month's list. The
-// owner's number (11 Oct 2026).
+// A wallet has to hold this many tokens through a whole hour to earn that hour. It is also one
+// lot: twice as many earns twice as much. The owner's number (11 Oct 2026).
 export const MINIMUM_TOKENS = 3_000_000n
 export const TOKEN_DECIMALS = 18
 export const MINIMUM_UNITS = MINIMUM_TOKENS * 10n ** BigInt(TOKEN_DECIMALS)
+
+// What one lot earns in an hour at the most, in dollar cents: 0.01 USD for every 3,000,000
+// tokens held. The owner's number (12 Oct 2026), and a ceiling, not a promise: an hour pays less
+// when the vault holds less. The vault's contract carries it as a rate in the reward's own units,
+// which the owner sets from a price.
+export const HOURLY_CENTS = 1n
 
 // What holders are paid in: the NVDA stock token on Robinhood Chain, as the owner named it
 // (11 Oct 2026), written the way an asset on a chain is written (CAIP-19). The name and the
@@ -33,6 +39,9 @@ export type TokenConfig = {
   vault: `0x${string}` | null
   // Null when the reward asset is not on the token's network: the two have to be on one chain.
   reward: Reward | null
+  // Addresses that never earn, as the owner names them (VAULT_SKIP): contracts that hold the
+  // token and could never claim, such as the pool it trades in.
+  skip: `0x${string}`[]
 }
 
 const address = (value: string | undefined) => {
@@ -60,6 +69,10 @@ export function tokenConfig(): TokenConfig {
     rpcUrl: (process.env.TOKEN_RPC_URL ?? "").trim() || "https://rpc.mainnet.chain.robinhood.com",
     deployBlock: /^\d+$/.test(deployBlock) ? BigInt(deployBlock) : 0n,
     vault: address(process.env.VAULT_ADDRESS),
+    skip: (process.env.VAULT_SKIP ?? "")
+      .split(/[\s,;]+/)
+      .filter((word) => ADDRESS.test(word))
+      .map((word) => word.toLowerCase() as `0x${string}`),
     reward:
       asset && asset.chainId === chainId
         ? {
@@ -97,7 +110,7 @@ export const explorerUrl = (chainId: number, address: string) =>
 // TOKEN_ADDRESS changes all of them at once and none is left saying the opposite.
 export function tokenStatement(config: TokenConfig) {
   if (!config.address) {
-    return "There is no token today and no contract address. It will not launch before an audit and a legal review, and neither has been done. Anything offered under this name today is not from this project."
+    return "There is no token today and no contract address. No audit and no legal review has been done. Anything offered under this name today is not from this project."
   }
   const reward = vaultLive(config)
     ? "The vault that pays its holders is open."

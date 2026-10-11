@@ -87,10 +87,10 @@ export const STAGES: Stage[] = [
     title: "The token",
     status: "gated",
     work: [
-      "A token on Robinhood Chain that takes a fee on each transfer",
-      "A monthly reward in NVDA, a stock token on the same chain, for wallets holding at least 3,000,000 tokens, bought with that fee and a share of each order",
-      "Built ahead of it and switched off: the vault, a contract holders claim from, with its page and the owner's monthly list",
+      "A token on Robinhood Chain, made through a launchpad there",
+      "A reward in NVDA, a stock token on the same chain, for wallets holding at least 3,000,000 tokens: at most 0.01 USD an hour for every 3,000,000 held, paid from the creator fee on trades",
+      "The vault, a contract holders claim from, with its page and the hourly list the server signs",
     ],
-    doneWhen: "The token and the vault run on the chain, audited and reviewed. Neither check has been done.",
+    doneWhen: "The vault runs on the chain, audited, with a legal review done. Neither check has been done.",
   },
 ]

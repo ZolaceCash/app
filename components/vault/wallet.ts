@@ -1,6 +1,6 @@
 // Talking to a wallet in the browser, directly (EIP-1193). No connection service sits between
 // the site and the wallet, so nobody else learns which wallet is here. Used by the two places that
-// need a wallet: a holder claiming, and the owner funding a month.
+// need a wallet: a holder claiming, and the owner funding the vault.
 
 export type Provider = { request: (call: { method: string; params?: unknown[] }) => Promise<unknown> }
 

@@ -85,6 +85,11 @@ const heard = chain.failed ? `no answer: ${chain.failed}` : `the endpoint answer
 if (vault) line(got === want, `the token's network (${want})`, heard)
 else note(`the token's network (${want})`, `${got === want ? "reachable" : heard}. Not needed until VAULT_ADDRESS is set`)
 if (!vault) note("VAULT_ADDRESS", "empty: the reward is switched off")
+else {
+  // The key is checked for its shape only. It is never printed.
+  const key = (process.env.VAULT_SIGNER_KEY ?? "").trim()
+  line(/^0x[0-9a-fA-F]{64}$/.test(key), "VAULT_SIGNER_KEY", key ? (/^0x[0-9a-fA-F]{64}$/.test(key) ? "set" : "not a key: 0x and 64 hex digits") : "empty: no list is signed, so nobody can claim")
+}
 
 console.log(bad ? `\n${bad} thing(s) to fix before taking orders.` : "\nAll of it answers.")
 process.exit(bad ? 1 : 0)

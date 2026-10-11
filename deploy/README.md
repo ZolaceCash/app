@@ -228,18 +228,33 @@ they say the token is on the chain, not audited and not reviewed; they never say
 the line and restarting takes it back. `TOKEN_CHAIN_ID` is 4663 for Robinhood Chain.
 
 The vault (the holders' reward) is a second switch and can come later: it stays closed, and the owner's
-payout screen stays switched off, until `VAULT_ADDRESS` is set as well (`CONTRACT.md`). Then also set
-`TOKEN_DEPLOY_BLOCK` to the block the token was deployed in.
+payout screen stays switched off, until `VAULT_ADDRESS` is set as well (`CONTRACT.md`, "The hourly vault").
+In order:
 
-Counting a month of holdings reads the token's transfers back to its first block. The public endpoint was
-tried on 11 Oct 2026: it serves old blocks and old transfers, at most 10,000 transfers or 10,000,000 blocks
-per request, and it answers "too many requests" when asked quickly. The site cuts a stretch in two when it
-is too large and waits when it is asked to, so the public endpoint works for a token with a modest history
-and gets slow for a busy one. A provider's endpoint in `TOKEN_RPC_URL` avoids the waiting. Old balances (an
-archive) are not needed: the count is made from transfers alone.
+1. Make a signing key, on your own machine, in the project folder: `node deploy/vault-key.mjs`. It prints
+   the key and the address it signs as. The key is a secret.
+2. Deploy `contracts/src/ZolaceVault.sol` from the owner's wallet (`contracts/deploy/ZolaceVault.flat.sol`
+   is the same contract in one file, for a browser compiler: 0.8.34, EVM version cancun, optimizer on, 200
+   runs). Its five values: the owner's wallet, the reward token (NVDA), 333, the signer's address from
+   step 1, and 0 for the rate.
+3. Set `VAULT_ADDRESS`, `VAULT_SIGNER_KEY` and `TOKEN_DEPLOY_BLOCK` (the block the token was made in) in
+   `.env`, and restart the app.
+4. On `/owner/payout`: check that the server's key and the vault's signer are the same, set the rate from
+   NVDA's price, and put NVDA in. All three are sent from the owner's wallet in that browser.
 
-The site only reads the chain. It holds no key for it: a month is funded from the owner's own wallet, in the
-browser, on `/owner/payout`, and a holder claims from theirs on `/vault`. Both need a wallet in that browser.
+The server counts each hour by itself, a few minutes after it ends, and signs the list. It reads a few
+dozen blocks and three stretches of transfers an hour, which the public endpoint serves; when that endpoint
+answers "too many requests" the count waits and tries again, and a provider's endpoint in `TOKEN_RPC_URL`
+avoids the waiting. The first count reads the token's transfers back to `TOKEN_DEPLOY_BLOCK`.
+
+The server sends nothing to the chain. It holds one key for it, the signing key: that key holds no funds
+and needs no ETH, and its address should never be sent anything. Whoever has the key could sign a list of
+their own, so it is in `.env` and nowhere else, and the vault should hold no more than a week or two
+needs. If the key may have leaked: make a new one, set it, and name its address as the signer on
+`/owner/payout`. Every list the old key signed stops counting at once.
+
+Addresses that hold the token and could never claim (a pool, a locker) go into `VAULT_SKIP`, apart by
+commas. The curve of a token made on Pons is left out already.
 
 ## Updating
 

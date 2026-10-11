@@ -7,14 +7,15 @@ import { TokenAddressShort, TokenStatus } from "@/components/site/token-status"
 const FACTS = [
   { name: "Chain", value: "Robinhood Chain" },
   { name: "Holder reward", value: "NVDA, claimed from a contract" },
-  { name: "Minimum to be listed", value: "3,000,000 tokens" },
-  { name: "Paid from", value: "A fee on transfers, a share of orders" },
+  { name: "Minimum to earn", value: "3,000,000 tokens, all hour" },
+  { name: "An hour pays", value: "At most 0.01 USD per 3,000,000" },
+  { name: "Paid from", value: "The creator fee on trades" },
   { name: "On the chain", value: "Holdings, transfers and every claim" },
   { name: "Checks", value: "No audit, no legal review" },
 ]
 
-// The one deep-indigo block on the page: the token and the reward to its holders, which come
-// after the shop. Both are on a public chain, and the block says so. Whether there is a token
+// The one deep-indigo block on the page: the token and the reward to its holders. Both are on a
+// public chain, and the block says so. Whether there is a token
 // today, and at which address, is not written here: it comes from TOKEN_ADDRESS (token-status.tsx).
 export function Token() {
   return (
@@ -29,13 +30,15 @@ export function Token() {
                 The token
               </DotLabel>
               <h2 className="mt-6 text-4xl leading-[1.02] font-medium tracking-[-0.04em] text-balance md:text-5xl">
-                The shop first. A token with a <span className="text-brand">monthly reward</span> after it.
+                A token whose holders earn <span className="text-brand">by the hour</span>.
               </h2>
               <p className="mt-6 max-w-md leading-relaxed text-pretty text-white/70">
-                The plan: wallets holding at least 3,000,000 tokens all month share a reward in
-                NVDA, a stock token on the same chain, bought with a fee on each transfer of the
-                token and a share of each order in the shop, and claimed from a contract. All of
-                it is public on the chain: who holds the token, and what each wallet claims.
+                A wallet holding at least 3,000,000 tokens through a whole hour earns that hour: at
+                most 0.01 USD for every 3,000,000 it holds, in NVDA, a stock token on the same chain.
+                It is paid from the fee the
+                launchpad pays the token&apos;s creator on trades, and claimed from a contract. No hour
+                is promised, and all of it is public on the chain: who holds the token, and what
+                each wallet claims.
               </p>
               <div className="mt-4 max-w-md">
                 <TokenStatus tone="navy" />

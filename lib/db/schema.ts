@@ -72,22 +72,43 @@ export const orders = sqliteTable("orders", {
   closedAt: integer("closed_at"),
 })
 
-// The vault (lib/vault.ts): one row per month the owner funded in the vault's contract, with the
-// list that month's root stands for. All of it is public on the token's chain or follows from it,
-// and nothing here is about a buyer.
-export const vaultMonths = sqliteTable("vault_months", {
-  // The month, as "2026-10".
-  period: text("period").primaryKey(),
+// The vault (lib/vault.ts): one row per hour the site counted, with who held how many lots through
+// it and what the hour paid. All of it is public on the token's chain or follows from it, and
+// nothing here is about a buyer.
+export const vaultHours = sqliteTable("vault_hours", {
+  // The hour by its number: hours since 1970, in UTC.
+  hour: integer("hour").primaryKey(),
   fromBlock: integer("from_block").notNull(),
   toBlock: integer("to_block").notNull(),
-  // The root of the month's list, as the vault's contract holds it.
-  root: text("root").notNull(),
-  // What was put in for the month, in the reward's smallest units. Text: too large for a number.
+  // The wallets that held the minimum through the whole hour, each with how many lots of it.
+  wallets: text("wallets").notNull(),
+  // What one lot earned for the hour, in the reward's smallest units. Text: too large for a number.
+  each: text("each").notNull(),
+  // Everything that had been put into the vault by the end of the hour.
+  funded: text("funded").notNull(),
+  // Everything all wallets had earned by the end of the hour.
   total: text("total").notNull(),
-  wallets: integer("wallets").notNull(),
-  // The list itself: each wallet with its part. A holder's proof is worked out from it.
-  list: text("list").notNull(),
-  recordedAt: integer("recorded_at").notNull(),
+  // The root of the list as it stood after the hour. Empty while nobody has earned anything.
+  root: text("root"),
+  countedAt: integer("counted_at").notNull(),
+})
+
+// Where the counting stands: one row, carried from hour to hour so that an hour is counted from
+// that hour's transfers alone.
+export const vaultState = sqliteTable("vault_state", {
+  id: integer("id").primaryKey(),
+  // The vault this count belongs to. Another vault starts another count.
+  vault: text("vault").notNull(),
+  // The last hour counted, and the last block of it.
+  hour: integer("hour").notNull(),
+  block: integer("block").notNull(),
+  // Every wallet's balance of the token at that block.
+  balances: text("balances").notNull(),
+  // The list: everything each wallet has earned since the vault began.
+  earned: text("earned").notNull(),
+  funded: text("funded").notNull(),
+  // The vault's rate, each time it was set.
+  rates: text("rates").notNull(),
 })
 
 export type Product = typeof products.$inferSelect

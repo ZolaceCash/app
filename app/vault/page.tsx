@@ -7,53 +7,56 @@ import { PillLink } from "@/components/site/primitives";
 import { Reveal } from "@/components/site/reveal";
 import { Button } from "@/components/ui/button";
 import { ClaimPanel } from "@/components/vault/claim-panel";
-import { formatTokens, formatUnitsShort, MINIMUM_UNITS, tokenConfig, vaultLive } from "@/lib/token";
-import { listMonths, type FundedMonth } from "@/lib/vault-store";
+import { formatTokens, formatUnitsShort, HOURLY_CENTS, MINIMUM_UNITS, tokenConfig, vaultLive } from "@/lib/token";
+import { hourLabel } from "@/lib/vault";
+import { published, recentHours, type CountedHour, type Published } from "@/lib/vault-store";
 
 export const metadata: Metadata = {
   title: "The vault",
   description:
-    "How holders of the Zolace token are rewarded: a monthly list, funded in NVDA on Robinhood Chain, claimed from a contract by the wallet.",
+    "How holders of the Zolace token are rewarded: an hourly list, paid in NVDA on Robinhood Chain, claimed from a contract by the wallet.",
 };
 
 const MINIMUM = formatTokens(MINIMUM_UNITS);
+const HOURLY = `${(Number(HOURLY_CENTS) / 100).toFixed(2)} USD`;
 
 const RULES = [
   {
-    name: "Who is on a list",
-    body: `A wallet that held at least ${MINIMUM} tokens from the first block of a calendar month to the last. There is nothing to sign up for.`,
+    name: "Who earns an hour",
+    body: `A wallet that held at least ${MINIMUM} tokens from the first block of the hour to the last. There is nothing to sign up for.`,
   },
   {
-    name: "What counts",
-    body: "The lowest balance the wallet had in that month. Dipping under the minimum at any time puts it out for the month.",
+    name: "What an hour pays",
+    body: `At most ${HOURLY} for every ${MINIMUM} tokens held through it. Twice as many earns twice that; what is over a whole multiple earns nothing.`,
   },
   {
-    name: "How it is split",
-    body: "By that lowest balance, among the wallets that count. The project's own wallets take no part.",
+    name: "Where it comes from",
+    body: "The fee the launchpad pays the token's creator on trades. The owner puts it into the vault as NVDA. An hour pays less, or nothing, when the vault holds less.",
   },
   {
-    name: "What is paid",
-    body: "NVDA, Robinhood's stock token for NVIDIA, on the chain the token is on. The wallet claims it from the vault's contract.",
+    name: "How it is taken",
+    body: "In NVDA, Robinhood's stock token for NVIDIA, on the chain the token is on. What a wallet has earned waits in the vault until the wallet claims it.",
   },
 ];
 
 const SHOWN = [
   "A claim is a transaction on a public chain. The wallet, the amount and the time stay there for anyone to read.",
-  "Each month's whole list is public: every wallet on it and its part. That is what lets anyone check it.",
+  "The whole list is public: every wallet that has earned anything, and how much. That is what lets anyone check it.",
   "This page looks a wallet up in that list inside your browser. The server is not asked about a wallet.",
   "The network your wallet talks to sees what it reads and what it sends, as with any transaction.",
 ];
 
 const RESTS_ON = [
-  "The contract pays what a month's list says and nothing else. The owner cannot take a funded month back or change it. The contract has not been audited.",
-  "The list is worked out by the owner from the token's transfers. Anyone can repeat the count, but nothing on the chain does it for them.",
-  "How much goes in is the owner's decision each month. No amount is promised, and no month is.",
+  `${HOURLY} an hour for every ${MINIMUM} tokens is a ceiling, not a promise. It is set in NVDA at a price the owner types in, so it drifts as that price moves, and no hour is owed.`,
+  "The list is worked out by this site from the token's transfers and signed with a key the server holds. Anyone can repeat the count, but nothing on the chain does it for them.",
+  "The contract checks the signature, never pays the same earnings twice, and never pays all wallets together more than the rate allows for the whole supply. It does not check that the list is right. It has not been audited.",
+  "Whoever held the server's signing key, or the owner's key, could sign a list of their own within that limit. What sits in the vault is not a holder's until it is claimed.",
   "NVDA is Robinhood's token, not this project's. Robinhood describes it as a tokenised debt security and does not offer it in every country. No legal review of handing it to holders has been done.",
 ];
 
-// The vault is a contract that holds each month's reward and pays it to the wallets on that
-// month's list. The top of the page is the same for everyone and is built once; whether the vault
-// is open, and which months were funded, is read on each request.
+// The vault is a contract that holds the reward and pays each wallet what the hourly list says it
+// has earned. The top of the page is the same for everyone and is built once; whether the vault is
+// open, and which hours were counted, is read on each request.
 export default function Vault() {
   return (
     <PageShell>
@@ -63,9 +66,9 @@ export default function Vault() {
         title="How holders are rewarded, and what it rests on."
         facts={["A contract on Robinhood Chain", "Paid in NVDA", "Not an offer"]}
       >
-        Once a month the owner puts a reward into the vault&apos;s contract, with the list of wallets
-        that held the minimum all month. A wallet on the list claims its part itself. All of it is
-        public on the chain.
+        A wallet that holds {MINIMUM} tokens through a whole hour earns that hour: at most {HOURLY},
+        in NVDA, for every {MINIMUM} it holds. What it has earned waits in the vault&apos;s contract, and the wallet claims it itself,
+        whenever it likes. All of it is public on the chain.
       </PageHead>
 
       <ul className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
@@ -98,7 +101,7 @@ export default function Vault() {
       </div>
 
       <Suspense fallback={<div aria-busy className="mt-2.5 h-40 cut rounded-3xl bg-card" />}>
-        <Funded />
+        <Counted />
       </Suspense>
     </PageShell>
   );
@@ -157,8 +160,8 @@ async function Claim() {
         <p className="mt-6 max-w-xl rounded-xl bg-accent p-5 leading-relaxed text-foreground/85">
           <span className="label-mono mb-2 block text-accent-foreground">Not open</span>
           {config.address
-            ? "The vault's contract is not deployed, so there is nothing to claim. This panel opens when it is. No month has been funded and none is promised."
-            : "There is no token and no vault yet, so there is nothing to hold and nothing to claim. This panel opens when both contracts exist. Anything offered under this name today is not from this project."}
+            ? "The vault's contract is not deployed, so nothing is earned and there is nothing to claim. This panel opens when it is. No hour is promised."
+            : "There is no token and no vault yet, so there is nothing to hold and nothing to claim. This panel opens when both exist. Anything offered under this name today is not from this project."}
         </p>
       )}
 
@@ -171,47 +174,65 @@ async function Claim() {
 
 const short = (hash: string) => `${hash.slice(0, 10)}…${hash.slice(-8)}`;
 
-async function Funded() {
+async function Counted() {
   await connection();
   const config = tokenConfig();
-  let months: FundedMonth[] = [];
+  let list: Published | null = null;
+  let hours: CountedHour[] = [];
   if (vaultLive(config)) {
     try {
-      months = await listMonths();
+      [list, hours] = await Promise.all([published(), recentHours(12)]);
     } catch {
-      months = [];
+      hours = [];
     }
   }
   const symbol = config.reward?.symbol ?? "NVDA";
   const decimals = config.reward?.decimals ?? 18;
+  const amount = (units: string) => `${formatUnitsShort(BigInt(units), decimals, 9)} ${symbol}`;
 
   return (
     <div className="mt-2.5 cut rounded-3xl bg-card p-6 md:p-8">
       <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-        <h2 className="text-2xl font-medium tracking-[-0.035em]">Months funded</h2>
+        <h2 className="text-2xl font-medium tracking-[-0.035em]">Hours counted</h2>
         <p className="max-w-md text-sm leading-snug text-muted-foreground">
-          One line per month, recorded only once the contract holds this root and this amount.
+          One line per hour: how many wallets held the minimum through it, how many lots of {MINIMUM} they
+          held between them, and what each lot earned.
         </p>
       </div>
 
-      {months.length === 0 ? (
-        <p className="mt-6 rounded-lg bg-secondary px-5 py-4 text-muted-foreground">No month has been funded.</p>
+      {list ? (
+        <dl className="mt-6 grid gap-1.5 sm:grid-cols-3">
+          {(
+            [
+              ["Put into the vault", amount(list.funded)],
+              ["Earned by holders", amount(list.total)],
+              ["Wallets on the list", String(list.list.length)],
+            ] as const
+          ).map(([name, value]) => (
+            <div key={name} className="rounded-lg bg-secondary px-4 py-3.5">
+              <dt className="label-mono text-muted-foreground">{name}</dt>
+              <dd className="mt-3 font-mono text-sm font-medium break-all">{value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
+
+      {hours.length === 0 ? (
+        <p className="mt-6 rounded-lg bg-secondary px-5 py-4 text-muted-foreground">No hour has been counted.</p>
       ) : (
         <ul className="mt-6 space-y-1.5">
-          {months.map((month) => (
+          {hours.map((entry) => (
             <li
-              key={month.period}
-              className="grid grid-cols-2 items-center gap-x-6 gap-y-2 rounded-lg bg-secondary px-5 py-3.5 md:grid-cols-[6rem_minmax(0,1fr)_7rem_minmax(0,1fr)]"
+              key={entry.hour}
+              className="grid grid-cols-2 items-center gap-x-6 gap-y-2 rounded-lg bg-secondary px-5 py-3.5 md:grid-cols-[11rem_9rem_minmax(0,1fr)_minmax(0,1fr)]"
             >
-              <span className="font-mono text-sm text-brand">{month.period}</span>
-              <span className="font-mono text-sm">
-                {formatUnitsShort(BigInt(month.total), decimals)} {symbol}
-              </span>
+              <span className="font-mono text-sm text-brand">{hourLabel(entry.hour)}</span>
               <span className="label-mono text-muted-foreground">
-                {month.wallets} wallet{month.wallets === 1 ? "" : "s"}
+                {entry.wallets.length} wallet{entry.wallets.length === 1 ? "" : "s"}, {entry.lots} lot{entry.lots === 1 ? "" : "s"}
               </span>
-              <span className="font-mono text-xs text-muted-foreground md:text-right" title={month.root}>
-                root {short(month.root)} · blocks {month.fromBlock} to {month.toBlock}
+              <span className="font-mono text-sm">{amount(entry.each)} a lot</span>
+              <span className="font-mono text-xs text-muted-foreground md:text-right" title={entry.root ?? undefined}>
+                {entry.root ? `root ${short(entry.root)} · ` : ""}blocks {entry.fromBlock} to {entry.toBlock}
               </span>
             </li>
           ))}
@@ -225,9 +246,9 @@ async function Funded() {
         <PillLink href="/whitepaper#token" variant="outline">
           The whitepaper on it
         </PillLink>
-        {months.length > 0 ? (
+        {list ? (
           <Button asChild variant="outline">
-            <a href="/api/vault/months">Every list, as data</a>
+            <a href="/api/vault/list">The whole list, as data</a>
           </Button>
         ) : null}
       </div>

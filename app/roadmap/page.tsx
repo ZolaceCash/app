@@ -41,7 +41,7 @@ export default function Roadmap() {
         figure="rings"
         label="Roadmap"
         title="Six stages, and the test that ends each."
-        facts={["No dates", "One stage at a time", "The shop before the token"]}
+        facts={["No dates", "One stage at a time", "The token apart from the shop"]}
       >
         A stage is finished when its test passes, not when a date arrives. The first one decides
         how the rest is built, so nothing after it is promised in weeks.

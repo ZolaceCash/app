@@ -5,10 +5,10 @@ import type { Section } from "@/lib/content"
 // total privacy, claim an audit or a legal review, call the token private, or read as an offer of
 // a token.
 export const WHITEPAPER = {
-  version: "Draft 0.6",
-  date: "11 October 2026",
+  version: "Draft 0.7",
+  date: "12 October 2026",
   abstract:
-    "Zolace is a shop for digital goods that asks for no account. A buyer picks an item priced in dollars, pays in shielded Zcash to an address made for that one order, and opens the item in the browser. The server holds a viewing key and nothing that can move funds. A token is planned for after the shop, on Robinhood Chain, and its holders are rewarded in NVDA, a stock token on that chain, claimed from a contract. This paper describes the design, what the server can and cannot learn, the order in which it will be built, and what is still open.",
+    "Zolace is a shop for digital goods that asks for no account. A buyer picks an item priced in dollars, pays in shielded Zcash to an address made for that one order, and opens the item in the browser. The server holds a viewing key and nothing that can move funds. The token is on Robinhood Chain and apart from the shop: its holders earn by the hour in NVDA, a stock token on that chain, claimed from a contract. This paper describes the design, what the server can and cannot learn, the order in which it will be built, and what is still open.",
 }
 
 export const WHITEPAPER_SECTIONS: Section[] = [
@@ -140,40 +140,43 @@ export const WHITEPAPER_SECTIONS: Section[] = [
     heading: "The token",
     blocks: [
       {
-        p: "A token is planned for after the shop, on Robinhood Chain. Orders are not paid on that chain: they are shielded ZEC. The token, the reward to its holders and the contract that pays it are all on the public chain.",
+        p: "The token is on Robinhood Chain. Orders are not paid on that chain: they are shielded ZEC. The token, the reward to its holders and the contract that pays it are all on the public chain.",
       },
       {
         rows: [
-          ["Supply", "1,000,000,000 tokens, minted once. No function mints more"],
-          ["Transfer fee", "The token takes a fee each time it is transferred: 1% at most, and it can be lowered, never raised. The fee goes to the reward"],
-          ["Share of orders", "A share of each order in the shop is set aside for the reward"],
-          ["Holder reward", "NVDA, Robinhood's stock token for NVIDIA on the same chain, put into a contract by the owner once a month"],
-          ["Minimum", "A wallet has to hold at least 3,000,000 tokens to be on a month's list, which is 0.3% of the supply"],
-          ["Counting", "A wallet counts with the lowest balance it had in the month, and the reward is split by that balance among the wallets that qualify"],
-          ["Claiming", "A wallet on the list takes its part from the contract itself. Nothing is sent to it"],
+          ["Contract", "A plain token made through Pons, a launchpad on Robinhood Chain. It is the launchpad's contract, not one this project wrote"],
+          ["Supply", "1,000,000,000 tokens, minted once. No function mints more. A holder can burn their own"],
+          ["Transfer fee", "None. The launchpad takes a fee on trades, in the asset the token trades against, and pays part of it to the token's creator"],
+          ["Holder reward", "NVDA, Robinhood's stock token for NVIDIA on the same chain, bought with that creator fee and put into a contract by the owner"],
+          ["Minimum", "A wallet has to hold at least 3,000,000 tokens through a whole hour to earn that hour"],
+          ["Counting", "A wallet counts with the lowest balance it had in the hour, and earns at most 0.01 USD an hour for every 3,000,000 tokens of it: twice as many earns twice that"],
+          ["Claiming", "A wallet takes what it has earned from the contract itself, whenever it likes. Nothing is sent to it"],
         ],
       },
       {
-        p: "The contract that pays is the vault. Once a month is over, the owner works out the list of wallets and their parts from the token's transfers and funds the month: the reward goes into the contract together with one hash that stands for the list. A wallet proves its line against that hash and the contract pays it. A month is funded once. The owner cannot change it or take it back, and a part nobody claims stays there.",
+        p: "The contract that pays is the vault. After each hour the site works out, from the token's transfers, what every wallet has earned since the vault began, and signs one hash that stands for that list. A wallet proves its line against the hash, and the contract pays what the wallet has earned and not yet taken. The contract checks three things: that the list is signed, that nothing is paid twice, and that all wallets together are never paid more than the rate allows for the whole supply over the hours the vault has run.",
       },
       {
-        p: "Both contracts are small on purpose. The token's owner can lower the fee, change where the fee goes and name addresses that pay none. Nobody can mint, stop transfers, block a wallet or move another wallet's tokens, because no such function exists. The vault's owner can fund a month and do nothing else to it.",
+        p: "0.01 USD an hour for every 3,000,000 tokens is a ceiling, not a promise. The contract carries it as a rate in NVDA that the owner sets from NVDA's price, and an hour pays it only while the vault holds enough for all the tokens that count. When it does not, what is left is shared evenly, and then hours pay nothing until more is put in.",
       },
       {
-        p: "The owner funds the vault from their own wallet. The server holds a viewing key for the shop and no key for this chain, so it can neither fund a month nor claim from one. The transfer fee is taken in the token and the shop's share is in ZEC; the owner exchanges both for NVDA by hand, and how much goes into a month is the owner's decision.",
+        p: "The token has no owner. Nobody can mint, stop transfers, block a wallet or move another wallet's tokens, because no such function exists. The vault's owner can set the rate and name the signer, and cannot take anything out: no function withdraws.",
       },
       {
-        p: "An earlier draft paid holders in shielded ZEC, by hand, so that a payout would show nobody. This draft replaces that with a reward on the token's own chain. What it gains: a contract holds the reward, and anyone can check what went in and what was claimed. What it costs: every claim shows its wallet and its amount and stays on the chain, and the list is still worked out by the owner, off the chain.",
+        p: "The owner puts the reward into the vault from their own wallet, by a plain transfer. The server holds a viewing key for the shop and one key for this chain: the key that signs the hourly list. That key holds no funds and sends no transaction. It is still a power: whoever held it, or the owner's key, could sign a list of their own, and the contract would pay it, up to that limit for all wallets together. So what sits in the vault is not a holder's until it is claimed, and the owner keeps the vault to what the coming days need.",
       },
       {
-        p: "Nothing on the token's side is private. Who holds it, every transfer, the fee taken, each month's list and each claim are public on Robinhood Chain. Buying in the shop needs no token and no wallet on that chain.",
+        p: "Earlier drafts paid holders once a month from a list the owner put on the chain, and before that in shielded ZEC, by hand. This draft pays by the hour and lets a wallet claim at any time. What it gains: nobody waits for the owner. What it costs: the list is no longer fixed on the chain before it is paid, and the server holds a key whose signature the contract trusts.",
+      },
+      {
+        p: "Nothing on the token's side is private. Who holds it, every transfer, the whole list and each claim are public on Robinhood Chain. Buying in the shop needs no token and no wallet on that chain.",
       },
       {
         p: "NVDA is not this project's token. Robinhood issues it and describes it as a tokenised debt security, not a share, and it restricts where the token may be offered. Nothing here is endorsed by Robinhood or by NVIDIA, and whether a holder may be handed NVDA where they live has not been reviewed.",
       },
       { token: true },
       {
-        open: "Two contracts have been written and tested, the token and the vault. Neither has been audited, and no legal review has been done. The numbers above can still change before deployment. How much goes into a month, the share of an order that goes to the reward, and who receives the supply at the start are not decided. Nothing in this paper is an offer.",
+        open: "The vault's contract has been written and tested. It has not been audited, and no legal review has been done of the token, of the reward or of handing holders NVDA. The token's own contract is the launchpad's: it was not written here and not audited here. No hour and no amount is promised. Whether a share of the shop's orders is added to the reward is not decided. Nothing in this paper is an offer.",
       },
     ],
   },
@@ -185,8 +188,8 @@ export const WHITEPAPER_SECTIONS: Section[] = [
         rows: [
           ["Law", "Rules on paying with crypto assets, on privacy coins, on selling vouchers or gift cards without identity checks, on tokens that pay holders from fees or from a shop's takings, and on handing people a tokenised security differ by country and can forbid parts of this"],
           ["Chain", "The token depends on one chain that one company launched. Its sequencer leaves out transactions tied to sanctioned addresses. Which countries are shut out has not been checked"],
-          ["Token", "A token that takes a fee on every transfer does not work everywhere a plain token does. Where it does on this chain has not been checked"],
-          ["Reward", "The contract pays what a month's list says, but the owner works out the list and chooses the amount. The vault's contract has not been audited. NVDA is another company's token, with that company's rules and a price that moves"],
+          ["Token", "The token's contract and the contracts it trades on are the launchpad's. They are not this project's and were not audited here"],
+          ["Reward", "The contract pays against a list the server signs. It caps what all wallets together can be paid, but it does not check the list, and whoever holds the signing key or the owner's key decides who is on it. The vault's contract has not been audited. NVDA is another company's token, with that company's rules and a price that moves"],
           ["Suppliers", "Many suppliers forbid resale. Each item's terms have to be read before it is listed"],
           ["Price", "ZEC can move while a price is held"],
           ["Engine", "The payment engine is a patched copy of an outside project, run by the shop, and reads the chain through a block explorer run by others. Behind a network upgrade it misses payments without an error"],
@@ -213,7 +216,7 @@ export const WHITEPAPER_SECTIONS: Section[] = [
           "How many days a finished order is kept.",
           "The support channel for refunds, which will need no email.",
           "The first goods on the shelf.",
-          "How much goes into a month, the share of an order that goes to the reward, and who receives the token's supply at the start.",
+          "Whether a share of the shop's orders is added to the holders' reward.",
         ],
       },
       { p: "The roadmap lists the stages in order. A stage ends when its test passes, not on a date." },

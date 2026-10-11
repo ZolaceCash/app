@@ -1,17 +1,16 @@
 import type { Metadata } from "next";
 
-import { monthFunded } from "@/app/owner/actions";
+import { countHours } from "@/app/owner/actions";
 import { ActionForm } from "@/components/owner/action-form";
-import { Field, OwnerFrame, Panel } from "@/components/owner/frame";
-import { FundPanel } from "@/components/owner/fund-panel";
-import { CopyButton } from "@/components/site/copy-button";
-import { Button } from "@/components/ui/button";
+import { OwnerFrame, Panel } from "@/components/owner/frame";
+import { FundVault, NameSigner, SetRate } from "@/components/owner/vault-tools";
 import { listRefundsDue } from "@/lib/admin";
 import { requireOwner } from "@/lib/owner-session";
-import { formatTokens, formatUnitsShort, MINIMUM_UNITS, parseUnitsExact, tokenConfig, vaultLive } from "@/lib/token";
-import { lastMonth, parseWallets } from "@/lib/vault";
-import { fundedMonth } from "@/lib/vault-chain";
-import { listMonths, monthSheet, type Sheet } from "@/lib/vault-store";
+import { formatTokens, formatUnitsShort, HOURLY_CENTS, MINIMUM_UNITS, tokenConfig, vaultLive } from "@/lib/token";
+import { hourLabel } from "@/lib/vault";
+import { contractsAmong, neverEarn, vaultNow } from "@/lib/vault-chain";
+import { signerAddress } from "@/lib/vault-sign";
+import { hoursBehind, published, recentHours, type CountedHour, type Published } from "@/lib/vault-store";
 
 export const metadata: Metadata = { title: "Payout" };
 
@@ -20,256 +19,233 @@ export const metadata: Metadata = { title: "Payout" };
 export const instant = false;
 
 const short = (wallet: string) => `${wallet.slice(0, 8)}…${wallet.slice(-6)}`;
+const DOLLARS = `${(Number(HOURLY_CENTS) / 100).toFixed(2)} USD`;
 
-export default async function OwnerPayout({ searchParams }: PageProps<"/owner/payout">) {
+export default async function OwnerPayout() {
   await requireOwner();
-  const params = await searchParams;
   const config = tokenConfig();
   const live = vaultLive(config);
-  const [due, recorded] = await Promise.all([listRefundsDue(), live ? listMonths() : []]);
+  const due = await listRefundsDue();
 
   const symbol = config.reward?.symbol ?? "NVDA";
   const decimals = config.reward?.decimals ?? 18;
-  const amount = (units: bigint) => `${formatUnitsShort(units, decimals)} ${symbol}`;
+  const amount = (units: bigint, places = 6) => `${formatUnitsShort(units, decimals, places)} ${symbol}`;
 
-  const asked = typeof params.month === "string";
-  const month = typeof params.month === "string" ? params.month : lastMonth();
-  const pool = typeof params.pool === "string" ? params.pool : "";
-  const skip = typeof params.skip === "string" ? params.skip : "";
-
-  // The list is worked out when the owner asks for a month, from the chain as it is now.
-  let sheet: Sheet | null = null;
-  let onChain: Awaited<ReturnType<typeof fundedMonth>> | null = null;
+  // The count as the site keeps it, and the contract as the chain has it. Either can fail on its
+  // own: a chain that does not answer must not hide the count.
+  let list: Published | null = null;
+  let hours: CountedHour[] = [];
+  let chain: Awaited<ReturnType<typeof vaultNow>> | null = null;
+  let left: string[] = [];
+  let contracts = new Set<string>();
   let problem: string | null = null;
-  if (asked && live) {
-    const units = parseUnitsExact(pool, decimals);
-    const left = parseWallets(skip);
-    if (units === null || units === 0n) problem = `The amount has to be in ${symbol}, like 1.5.`;
-    else if (left === null) problem = "One of the wallets to leave out is not an address.";
-    else {
-      try {
-        sheet = await monthSheet(month, units, left);
-        onChain = await fundedMonth(sheet.id);
-      } catch (error) {
-        sheet = null;
-        problem = error instanceof Error ? error.message.split("\n")[0] : "The month could not be worked out.";
-      }
+  if (live) {
+    try {
+      [list, hours] = await Promise.all([published(), recentHours(24)]);
+    } catch {
+      problem = "The count could not be read from the database.";
+    }
+    try {
+      [chain, left] = await Promise.all([vaultNow(), neverEarn()]);
+      contracts = await contractsAmong((hours[0]?.wallets ?? []).map(([wallet]) => wallet as `0x${string}`));
+    } catch (error) {
+      problem = error instanceof Error ? error.message.split("\n")[0] : "The chain did not answer.";
     }
   }
-  const already = recorded.some((entry) => entry.period === month);
-  // The contract holds a month for good. If it holds this one, it has to be this very list.
-  const same =
-    sheet !== null && onChain !== null && sheet.root !== null && onChain.root.toLowerCase() === sheet.root.toLowerCase() && onChain.total === sheet.total;
+
+  const key = signerAddress();
+  const signs = key !== null && chain !== null && chain.signer.toLowerCase() === key.toLowerCase();
+  const last = hours[0] ?? null;
+  const behind = list ? hoursBehind(list.hour) : 0;
+  const unearned = list ? BigInt(list.funded) - BigInt(list.total) : 0n;
+  // How long what is in the vault lasts, if the lots of the last hour keep being held at this rate.
+  const perHour = chain && last ? chain.rate * BigInt(last.lots) : 0n;
+  const count = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+  const lasts = perHour > 0n ? Number(unearned / perHour) : null;
 
   const how = [
-    `Pick a month that is over and say how much ${symbol} goes in. The amount is yours to decide: what the token's fee and the shop's share bought.`,
-    "The list shows each wallet that held the minimum all month, and its part by lowest balance. Leave out a contract that could never claim, such as an exchange pool.",
-    "Fund the month from the wallet that owns the vault. The server sends nothing: it has no key that can. A funded month cannot be changed or taken back.",
-    "Then record the month. It is kept only if the contract holds the same root and the same amount, and holders can claim from then on.",
+    `A wallet earns by the lot. ${formatTokens(MINIMUM_UNITS)} tokens held through a whole hour is one lot and earns at most ${DOLLARS} for that hour, in ${symbol}. Twice as many is two lots and earns twice that.`,
+    `The rate is in ${symbol}, not in dollars. Set it again when the price of ${symbol} has moved, or a lot earns more or less than ${DOLLARS} an hour.`,
+    "An hour pays the rate only while the vault holds enough for every lot. When it does not, what is left is shared evenly, and then hours pay nothing until you put more in.",
+    "What you put in cannot be taken out again. Keep the vault to what a week or two needs: whoever held this server's signing key could sign a list of their own, and the contract only caps what all wallets together can take.",
+    "After each hour the server counts it and signs the list. Holders claim from their own wallets whenever they like. The server sends nothing to the chain.",
   ];
 
   return (
     <OwnerFrame at="/owner/payout" title="Payout" due={due.length}>
       <div className="grid items-start gap-2.5 lg:grid-cols-[minmax(0,1fr)_21rem]">
         <div className="space-y-2.5">
-          {live ? (
-            <Panel>
-              <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-                <h2 className="text-2xl font-medium tracking-[-0.035em]">A month&apos;s list</h2>
-                <p className="label-mono text-muted-foreground">Paid in {symbol}</p>
-              </div>
-              <form method="get" action="/owner/payout" className="mt-6 space-y-4">
-                <div className="grid gap-4 sm:grid-cols-[11rem_minmax(0,1fr)]">
-                  <Field label="Month" name="month" type="month" defaultValue={month} required />
-                  <Field
-                    label={`${symbol} to share`}
-                    name="pool"
-                    inputMode="decimal"
-                    placeholder="1.5"
-                    defaultValue={pool}
-                    required
-                  />
-                </div>
-                <label className="block">
-                  <span className="label-mono text-muted-foreground">Wallets to leave out</span>
-                  <textarea
-                    name="skip"
-                    rows={2}
-                    defaultValue={skip}
-                    placeholder="0x…  one per line. The token's owner, its fee collector and the vault are left out already."
-                    spellCheck={false}
-                    className="mt-2 w-full rounded-lg bg-secondary px-4 py-3 font-mono text-sm outline-none placeholder:text-muted-foreground/60 focus-visible:ring-3 focus-visible:ring-ring/40"
-                  />
-                </label>
-                <Button type="submit" className="h-11">
-                  Work it out
-                </Button>
-              </form>
-              {problem ? (
-                <p role="alert" className="mt-4 text-sm leading-snug text-destructive">
-                  {problem}
-                </p>
-              ) : null}
-            </Panel>
-          ) : (
+          {!live ? (
             <Panel>
               <p className="label-mono text-muted-foreground">Switched off</p>
               <p className="mt-4 leading-relaxed">
-                There is no token or no vault, so there is no month to work out. This screen turns on when{" "}
+                There is no token or no vault, so there is no hour to count. This screen turns on when{" "}
                 <span className="font-mono text-sm text-brand">TOKEN_ADDRESS</span> and{" "}
                 <span className="font-mono text-sm text-brand">VAULT_ADDRESS</span> are set where the server runs,
                 and the reward is on the same network as the token.
               </p>
             </Panel>
-          )}
+          ) : (
+            <>
+              <Panel>
+                <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+                  <h2 className="text-2xl font-medium tracking-[-0.035em]">The vault now</h2>
+                  <p className="label-mono text-muted-foreground">Paid in {symbol}</p>
+                </div>
+                {problem ? (
+                  <p role="alert" className="mt-4 text-sm leading-snug text-destructive">
+                    {problem}
+                  </p>
+                ) : null}
+                <dl className="mt-6 grid grid-cols-2 gap-1.5 md:grid-cols-3">
+                  {(
+                    [
+                      ["Counted up to", list ? hourLabel(list.hour + 1) : "Not started"],
+                      ["Hours behind", String(behind)],
+                      ["Earning last hour", last ? `${count(last.wallets.length, "wallet")}, ${count(last.lots, "lot")}` : "None"],
+                      ["Put in so far", list ? amount(BigInt(list.funded)) : amount(0n)],
+                      ["Earned so far", list ? amount(BigInt(list.total)) : amount(0n)],
+                      ["Not earned yet", amount(unearned)],
+                      ["Taken by holders", chain ? amount(chain.taken) : "Unknown"],
+                      ["In the vault", chain ? amount(chain.holds) : "Unknown"],
+                      ["Lasts", lasts === null ? "Unknown" : `${lasts} hour${lasts === 1 ? "" : "s"}`],
+                    ] as const
+                  ).map(([name, value]) => (
+                    <div key={name} className="rounded-lg bg-secondary px-4 py-3.5">
+                      <dt className="label-mono text-muted-foreground">{name}</dt>
+                      <dd className="mt-3 font-mono text-sm font-medium tracking-[-0.02em] break-words">{value}</dd>
+                    </div>
+                  ))}
+                </dl>
+                <ActionForm action={countHours} label="Count the hours now" busyLabel="Reading the chain" variant="secondary" className="mt-6" />
+              </Panel>
 
-          {sheet && live ? (
-            <Panel>
-              <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-                <h2 className="text-2xl font-medium tracking-[-0.035em]">{sheet.period}</h2>
-                <p className="label-mono text-muted-foreground">
-                  blocks {String(sheet.fromBlock)} to {String(sheet.toBlock)}
-                </p>
-              </div>
-              <dl className="mt-6 grid grid-cols-2 gap-1.5 md:grid-cols-4">
-                {(
-                  [
-                    ["Wallets ever", String(sheet.holders)],
-                    ["On the list", String(sheet.lines.length)],
-                    ["Goes in", amount(sheet.total)],
-                    ["Left by rounding", `${sheet.left} unit${sheet.left === 1n ? "" : "s"}`],
-                  ] as const
-                ).map(([name, value]) => (
-                  <div key={name} className="rounded-lg bg-secondary px-4 py-3.5">
-                    <dt className="label-mono text-muted-foreground">{name}</dt>
-                    <dd className="mt-3 font-mono text-lg font-medium tracking-[-0.03em]">{value}</dd>
+              <Panel>
+                <h2 className="text-2xl font-medium tracking-[-0.035em]">Who signs the list</h2>
+                {key === null ? (
+                  <p role="alert" className="mt-4 rounded-lg bg-destructive/15 px-5 py-4 text-sm leading-relaxed text-destructive">
+                    This server has no signing key, so no list is signed and nobody can claim. Set{" "}
+                    <span className="font-mono">VAULT_SIGNER_KEY</span> where the server runs.
+                  </p>
+                ) : (
+                  <>
+                    <dl className="mt-6 grid gap-1.5 sm:grid-cols-2">
+                      <div className="rounded-lg bg-secondary px-4 py-3">
+                        <dt className="label-mono text-muted-foreground">This server&apos;s key signs as</dt>
+                        <dd className="mt-1.5 font-mono text-xs break-all">{key}</dd>
+                      </div>
+                      <div className="rounded-lg bg-secondary px-4 py-3">
+                        <dt className="label-mono text-muted-foreground">The vault takes lists from</dt>
+                        <dd className="mt-1.5 font-mono text-xs break-all">{chain ? chain.signer : "Unknown"}</dd>
+                      </div>
+                    </dl>
+                    {chain === null ? null : signs ? (
+                      <p className="mt-4 text-sm leading-snug text-muted-foreground">They are the same: holders can claim.</p>
+                    ) : (
+                      <div className="mt-4 space-y-3">
+                        <p role="alert" className="text-sm leading-snug text-destructive">
+                          They differ, so the vault refuses every list this server signs and nobody can claim.
+                        </p>
+                        <NameSigner chainId={config.chainId} vault={config.vault} signer={key} />
+                      </div>
+                    )}
+                  </>
+                )}
+              </Panel>
+
+              <div className="grid gap-2.5 md:grid-cols-2">
+                <Panel>
+                  <h2 className="text-2xl font-medium tracking-[-0.035em]">The rate</h2>
+                  <p className="mt-3 text-sm leading-snug text-muted-foreground">
+                    Now: {chain ? `${formatUnitsShort(chain.rate, decimals, decimals)} ${symbol} an hour for each lot of ${formatTokens(MINIMUM_UNITS)} tokens` : "unknown"}.
+                    {chain && chain.rate === 0n ? " At a rate of nothing no hour pays." : ""}
+                  </p>
+                  <div className="mt-6">
+                    <SetRate chainId={config.chainId} vault={config.vault} symbol={symbol} decimals={decimals} cents={HOURLY_CENTS.toString()} />
                   </div>
-                ))}
-              </dl>
+                </Panel>
+                <Panel>
+                  <h2 className="text-2xl font-medium tracking-[-0.035em]">Put {symbol} in</h2>
+                  <p className="mt-3 text-sm leading-snug text-muted-foreground">
+                    A plain transfer to the vault&apos;s address. It cannot be taken back out.
+                  </p>
+                  <div className="mt-6">
+                    <FundVault chainId={config.chainId} vault={config.vault} reward={config.reward.address} symbol={symbol} decimals={decimals} />
+                  </div>
+                </Panel>
+              </div>
 
-              {sheet.lines.length === 0 || sheet.root === null ? (
-                <p className="mt-6 rounded-lg bg-secondary px-5 py-4 text-muted-foreground">
-                  No wallet held {formatTokens(MINIMUM_UNITS)} tokens for the whole month. There is nothing to fund.
+              <Panel>
+                <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+                  <h2 className="text-2xl font-medium tracking-[-0.035em]">Earning in the last hour counted</h2>
+                  <p className="label-mono text-muted-foreground">{last ? hourLabel(last.hour) : ""}</p>
+                </div>
+                {!last || last.wallets.length === 0 ? (
+                  <p className="mt-6 rounded-lg bg-secondary px-5 py-4 text-muted-foreground">
+                    No wallet held {formatTokens(MINIMUM_UNITS)} tokens through that hour.
+                  </p>
+                ) : (
+                  <>
+                    <p className="mt-3 text-sm leading-snug text-muted-foreground">
+                      Each lot earned {amount(BigInt(last.each), decimals)} for it.
+                    </p>
+                    <ul className="mt-4 space-y-1.5">
+                      {last.wallets.map(([wallet, lots]) => (
+                        <li
+                          key={wallet}
+                          className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 rounded-lg bg-secondary px-5 py-3"
+                        >
+                          <span className="font-mono text-xs break-all text-brand">
+                            {wallet}
+                            {contracts.has(wallet) ? (
+                              <span className="label-mono ml-2 rounded bg-destructive/20 px-1.5 py-0.5 text-destructive">a contract</span>
+                            ) : null}
+                          </span>
+                          <span className="label-mono text-muted-foreground">{count(lots, "lot")}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    {last.wallets.some(([wallet]) => contracts.has(wallet)) ? (
+                      <p className="mt-3 text-sm leading-snug text-muted-foreground">
+                        A contract is paid only if someone sends its claim, and a pool or a bridge never spends what it
+                        is paid. Add it to <span className="font-mono">VAULT_SKIP</span> unless you know it can use the
+                        reward. That changes the hours still to come, not the ones counted.
+                      </p>
+                    ) : null}
+                  </>
+                )}
+                <p className="mt-4 text-sm leading-snug text-muted-foreground">
+                  Never earning: {left.length > 0 ? left.map(short).join(", ") : "unknown"}
                 </p>
-              ) : (
-                <>
+              </Panel>
+
+              <Panel>
+                <h2 className="text-2xl font-medium tracking-[-0.035em]">Hours counted</h2>
+                {hours.length === 0 ? (
+                  <p className="mt-6 rounded-lg bg-secondary px-5 py-4 text-muted-foreground">None yet.</p>
+                ) : (
                   <ul className="mt-6 space-y-1.5">
-                    {sheet.lines.map((line) => (
+                    {hours.map((entry) => (
                       <li
-                        key={line.wallet}
-                        className="grid grid-cols-1 items-baseline gap-x-6 gap-y-1 rounded-lg bg-secondary px-5 py-3.5 sm:grid-cols-[minmax(0,1fr)_auto_auto]"
+                        key={entry.hour}
+                        className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 rounded-lg bg-secondary px-5 py-3"
                       >
-                        <span className="font-mono text-xs break-all text-brand">
-                          {line.wallet}
-                          {line.contract ? (
-                            <span className="label-mono ml-2 rounded bg-destructive/20 px-1.5 py-0.5 text-destructive">
-                              a contract
-                            </span>
-                          ) : null}
+                        <span className="font-mono text-sm text-brand">{hourLabel(entry.hour)}</span>
+                        <span className="label-mono text-muted-foreground">
+                          {count(entry.wallets.length, "wallet")}, {count(entry.lots, "lot")}
                         </span>
-                        <span className="label-mono text-muted-foreground">lowest {formatTokens(line.lowest)}</span>
-                        <span className="font-mono text-sm font-medium">{amount(line.amount)}</span>
+                        <span className="font-mono text-sm">{amount(BigInt(entry.each), decimals)} a lot</span>
                       </li>
                     ))}
                   </ul>
-                  {sheet.lines.some((line) => line.contract) ? (
-                    <p className="mt-3 text-sm leading-snug text-muted-foreground">
-                      A contract is paid only if someone sends its claim, and a pool or a bridge never spends what it is
-                      paid. Leave it out unless you know it can use the reward.
-                    </p>
-                  ) : null}
-
-                  <div className="mt-6 rounded-lg bg-secondary px-5 py-4">
-                    <p className="label-mono text-muted-foreground">The root of this list</p>
-                    <p className="mt-2 font-mono text-xs break-all">{sheet.root}</p>
-                  </div>
-                  <div className="mt-3 flex flex-wrap items-center gap-3">
-                    <CopyButton
-                      text={sheet.lines.map((line) => `${line.wallet},${line.amount}`).join("\n")}
-                      variant="secondary"
-                    >
-                      Copy as wallet,units
-                    </CopyButton>
-                    <p className="text-sm leading-snug text-muted-foreground">
-                      Left out: {sheet.skipped.map(short).join(", ")}
-                    </p>
-                  </div>
-
-                  {already ? (
-                    <p className="mt-6 rounded-lg bg-accent px-5 py-4 text-sm leading-relaxed">
-                      This month is funded and recorded. Holders can claim it.
-                      {onChain && !same
-                        ? ` It was funded with ${amount(onChain.total)}: the list above is not the one the contract holds.`
-                        : null}
-                    </p>
-                  ) : onChain?.funded && !same ? (
-                    <p role="alert" className="mt-6 rounded-lg bg-destructive/15 px-5 py-4 text-sm leading-relaxed text-destructive">
-                      The contract already holds this month with another list: {amount(onChain.total)} under root{" "}
-                      {short(onChain.root)}. A month is funded once. Enter the amount and the wallets left out as they
-                      were then, to record it.
-                    </p>
-                  ) : (
-                    <div className="mt-6 space-y-6">
-                      {onChain?.funded ? (
-                        <p className="rounded-lg bg-accent px-5 py-4 text-sm leading-relaxed">
-                          The contract holds this month with this very list. It only has to be recorded.
-                        </p>
-                      ) : (
-                        <div>
-                          <p className="label-mono text-muted-foreground">1. Fund the month</p>
-                          <div className="mt-3">
-                            <FundPanel
-                              chainId={config.chainId}
-                              vault={config.vault}
-                              reward={config.reward.address}
-                              symbol={symbol}
-                              id={sheet.id}
-                              root={sheet.root}
-                              total={sheet.total.toString()}
-                            />
-                          </div>
-                        </div>
-                      )}
-                      <div>
-                        <p className="label-mono text-muted-foreground">{onChain?.funded ? "Record the month" : "2. Record the month"}</p>
-                        <ActionForm action={monthFunded} label="Record the month" busyLabel="Checking the contract" variant="secondary" className="mt-3">
-                          <input type="hidden" name="month" value={sheet.period} />
-                          <input type="hidden" name="pool" value={pool} />
-                          <input type="hidden" name="skip" value={skip} />
-                        </ActionForm>
-                      </div>
-                    </div>
-                  )}
-                </>
-              )}
-            </Panel>
-          ) : null}
-
-          <Panel>
-            <h2 className="text-2xl font-medium tracking-[-0.035em]">Months recorded</h2>
-            {recorded.length === 0 ? (
-              <p className="mt-6 rounded-lg bg-secondary px-5 py-4 text-muted-foreground">None yet.</p>
-            ) : (
-              <ul className="mt-6 space-y-1.5">
-                {recorded.map((entry) => (
-                  <li
-                    key={entry.period}
-                    className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1 rounded-lg bg-secondary px-5 py-3.5"
-                  >
-                    <span className="font-mono text-sm text-brand">{entry.period}</span>
-                    <span className="font-mono text-sm">{amount(BigInt(entry.total))}</span>
-                    <span className="label-mono text-muted-foreground">
-                      {entry.wallets} wallet{entry.wallets === 1 ? "" : "s"}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Panel>
+                )}
+              </Panel>
+            </>
+          )}
         </div>
 
         <Panel className="bg-ice text-ink lg:sticky lg:top-24">
-          <p className="label-mono">How a month goes</p>
+          <p className="label-mono">How it goes</p>
           <ol className="mt-6 space-y-4 leading-snug">
             {how.map((line, index) => (
               <li key={line} className="flex gap-3">

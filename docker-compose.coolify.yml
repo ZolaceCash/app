@@ -36,6 +36,9 @@ services:
       TOKEN_DEPLOY_BLOCK: ${TOKEN_DEPLOY_BLOCK:-0}
       # The reward for holders. Switched off while VAULT_ADDRESS is empty.
       VAULT_ADDRESS: ${VAULT_ADDRESS:-}
+      # SECRET: signs the hourly list. It holds no funds and sends nothing.
+      VAULT_SIGNER_KEY: ${VAULT_SIGNER_KEY:-}
+      VAULT_SKIP: ${VAULT_SKIP:-}
       REWARD_ASSET: ${REWARD_ASSET:-eip155:4663/erc20:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec}
       REWARD_SYMBOL: ${REWARD_SYMBOL:-NVDA}
       REWARD_DECIMALS: ${REWARD_DECIMALS:-18}
