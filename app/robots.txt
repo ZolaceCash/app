@@ -1,0 +1,5 @@
+User-Agent: *
+Allow: /
+Disallow: /o/
+Disallow: /owner
+Disallow: /api/

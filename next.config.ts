@@ -5,6 +5,8 @@ const nextConfig: NextConfig = {
   // build asks for it: on Windows it needs symlinks, which an ordinary local build should not.
   output: process.env.BUILD_STANDALONE ? "standalone" : undefined,
   cacheComponents: true,
+  // No header that names the framework: it helps nobody who should be helped.
+  poweredByHeader: false,
   // The database migrations are read from disk when the database is first opened (lib/db), not
   // imported, so a build would leave them out of a deployed server without this.
   outputFileTracingIncludes: { "/*": ["./drizzle/**/*"] },
