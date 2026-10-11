@@ -7,6 +7,7 @@ import { ZecIcon } from "@/components/site/chain-icons"
 import { CopyButton } from "@/components/site/copy-button"
 import { DotLabel, PillLink } from "@/components/site/primitives"
 import { Button } from "@/components/ui/button"
+import { LATE_MS } from "@/lib/order-times"
 import type { OrderView as Order } from "@/lib/orders"
 import { formatZec } from "@/lib/price"
 import { openSealed } from "@/lib/seal"
@@ -37,7 +38,14 @@ export function OrderView({ id }: { id: string }) {
   const [item, setItem] = useState<{ text: string } | { failed: true } | null>(null)
 
   const order = loaded && "order" in loaded ? loaded.order : null
-  const finished = order?.state === "delivered" || order?.state === "expired" || order?.state === "refunded"
+  // Nothing more is expected for these, so the page stops asking by itself. A real order that
+  // expired is asked about for a while longer: a payment may come late, and is then owed back.
+  // (Opening the page again always asks once more.)
+  const finished =
+    order?.state === "delivered" ||
+    order?.state === "refunded" ||
+    order?.state === "owed" ||
+    (order?.state === "expired" && (order.network === "stand-in" || order.now > order.expiresAt + LATE_MS))
 
   useEffect(() => {
     if (finished) return
@@ -100,18 +108,24 @@ export function OrderView({ id }: { id: string }) {
 
   const left = Math.max(0, Math.round((order.expiresAt - (now + loaded.skew)) / 1000))
   const clock = `${String(Math.floor(left / 60)).padStart(2, "0")}:${String(left % 60).padStart(2, "0")}`
-  // How far along the four steps the order is.
-  // A paid order that was not delivered stops at "Confirmed": that step is as far as it got.
-  const at = { waiting: 0, seen: 1, confirmed: 2, delivered: 4, expired: -1, refunded: 2 }[order.state]
+  // How far along the four steps the order is. An order that is owed a refund stops at the step
+  // its payment reached: nowhere if too little came, "Seen" if it came too late, "Confirmed" if
+  // it was paid in full and there was nothing to hand over.
+  const stopped = order.owedWhy === "no-item" ? 2 : order.owedWhy === "late" ? 1 : 0
+  const at = { waiting: 0, underpaid: 0, seen: 1, confirmed: 2, delivered: 4, expired: -1, owed: stopped, refunded: stopped }[
+    order.state
+  ]
   const title = {
     waiting: "Waiting for your payment",
-    seen: order.confirmations > 0 ? "Confirming your payment" : "Payment seen",
-    // An order rests here only when it was paid and there was nothing to hand over.
-    confirmed: "Paid, but the item could not be handed over",
+    underpaid: "Part of the amount arrived",
+    seen: "Payment seen",
+    confirmed: "Confirming your payment",
     delivered: "Your item",
     expired: "This order expired",
+    owed: "A refund is owed to you",
     refunded: "This order was refunded",
   }[order.state]
+  const missing = Math.max(0, order.zat - order.receivedZat)
 
   return (
     <div className="enter">
@@ -123,10 +137,12 @@ export function OrderView({ id }: { id: string }) {
         <h1 className="mt-5 text-4xl leading-[1.02] font-medium tracking-[-0.04em] text-balance md:text-6xl">
           {title}
         </h1>
-        {order.test ? (
+        {order.network !== "mainnet" ? (
           <p className="label-mono mt-6 inline-flex items-center gap-2.5 rounded-md bg-secondary py-2 pr-3.5 pl-3">
             <span aria-hidden className="live-dot size-1.5 rounded-full bg-signal" />
-            Test order: no money moves and the item is made up
+            {order.network === "testnet"
+              ? "Zcash test network: these coins are worth nothing"
+              : "Test order: no money moves and the item is made up"}
           </p>
         ) : null}
       </div>
@@ -181,24 +197,43 @@ export function OrderView({ id }: { id: string }) {
 
         {/* What to do now, or the item. */}
         <div className="cut rounded-3xl bg-card p-6 md:p-8">
-          {order.state === "waiting" ? (
+          {order.state === "waiting" || order.state === "underpaid" ? (
             <>
-              <p className="label-mono text-muted-foreground">Send exactly</p>
+              <p className="label-mono text-muted-foreground">
+                {order.state === "underpaid" ? "Send the rest" : "Send exactly"}
+              </p>
               <p className="mt-4 flex items-center gap-3 font-mono text-4xl font-medium tracking-[-0.04em] md:text-5xl">
                 <ZecIcon className="size-9 shrink-0 text-brand" />
-                {formatZec(order.zat)}
+                {formatZec(order.state === "underpaid" ? missing : order.zat)}
               </p>
+              {order.state === "underpaid" ? (
+                <p className="mt-4 leading-relaxed text-muted-foreground">
+                  {formatZec(order.receivedZat)} ZEC arrived of {formatZec(order.zat)}. Send the rest to the same
+                  address before the price lock runs out. If it does not arrive in time, what you sent is owed
+                  back to you.
+                </p>
+              ) : null}
               <dl className="mt-8 space-y-1.5">
                 <Row name="Item">{order.product}</Row>
                 <Row name="Price">{dollars(order.priceCents)}</Row>
                 <Row name="Price held for">
                   <span className="text-brand tabular-nums">{clock}</span>
                 </Row>
-                <Row name="Network">Zcash, shielded</Row>
+                <Row name="Network">{order.network === "testnet" ? "Zcash test network, shielded" : "Zcash, shielded"}</Row>
                 <Row name="To">
                   <span className="break-all">{order.address}</span>
                 </Row>
               </dl>
+              {order.test ? null : (
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <CopyButton text={order.address} variant="secondary">
+                    Copy the address
+                  </CopyButton>
+                  <CopyButton text={formatZec(order.state === "underpaid" ? missing : order.zat)} variant="secondary">
+                    Copy the amount
+                  </CopyButton>
+                </div>
+              )}
               {order.test ? (
                 <div className="mt-6 rounded-xl bg-accent p-5">
                   <p className="leading-relaxed text-foreground/85">
@@ -213,7 +248,7 @@ export function OrderView({ id }: { id: string }) {
             </>
           ) : null}
 
-          {order.state === "seen" ? (
+          {order.state === "seen" || order.state === "confirmed" ? (
             <>
               <p className="label-mono text-muted-foreground">Confirmations</p>
               <p className="mt-4 flex items-baseline gap-2">
@@ -262,6 +297,14 @@ export function OrderView({ id }: { id: string }) {
                     Opened in this browser, with the secret from the link. The server keeps a
                     sealed copy it cannot read.
                   </p>
+                  {order.owedZat > 0 ? (
+                    <Warning title={order.refunded ? "The excess was sent back." : "You paid more than the price."}>
+                      {formatZec(order.receivedZat)} ZEC arrived for a price of {formatZec(order.zat)}.{" "}
+                      {order.refunded
+                        ? `${formatZec(order.owedZat)} ZEC was sent back by hand, less the network's fee.`
+                        : `${formatZec(order.owedZat)} ZEC is owed back to you. Refunds are made by hand, less the network's fee. Keep this link: it is how the order is found.`}
+                    </Warning>
+                  ) : null}
                 </>
               ) : item ? (
                 <Warning title="This link cannot open the item.">
@@ -274,17 +317,22 @@ export function OrderView({ id }: { id: string }) {
             </>
           ) : null}
 
-          {order.state === "confirmed" ? (
-            <Warning title="A refund is owed to you.">
-              Your payment was confirmed, but there was no item left to hand over. Refunds are
-              made by hand, to an address you give. Keep this link: it is how the order is found.
+          {order.state === "owed" ? (
+            <Warning title={`${formatZec(order.owedZat)} ZEC is owed back to you.`}>
+              {order.owedWhy === "short"
+                ? `Only ${formatZec(order.receivedZat)} ZEC of ${formatZec(order.zat)} arrived before the price lock ran out, so nothing was handed over.`
+                : order.owedWhy === "late"
+                  ? "Your payment arrived after the price lock ran out. The item had gone back on the shelf, so nothing was handed over."
+                  : "Your payment was confirmed, but there was no item left to hand over."}{" "}
+              Refunds are made by hand, to an address you give, less the network&apos;s fee. Keep this link: it
+              is how the order is found.
             </Warning>
           ) : null}
 
           {order.state === "refunded" ? (
             <p className="leading-relaxed text-muted-foreground">
-              The item could not be handed over, and the payment was sent back by hand to the
-              address that was given for it. Nothing more happens with this order.
+              Nothing was handed over, and the payment was sent back by hand to the address that was
+              given for it, less the network&apos;s fee. Nothing more happens with this order.
             </p>
           ) : null}
 
@@ -292,7 +340,10 @@ export function OrderView({ id }: { id: string }) {
             <>
               <p className="leading-relaxed text-muted-foreground">
                 The price was held for 15 minutes and no payment was seen in that time. The item
-                went back on the shelf. Nothing was charged.
+                went back on the shelf.{" "}
+                {order.network === "stand-in"
+                  ? "Nothing was charged."
+                  : "If you did send a payment, it is not lost: once it arrives it is shown on this page and is owed back to you."}
               </p>
               <PillLink href="/shop" size="lg" arrow className="mt-6">
                 Start a new order

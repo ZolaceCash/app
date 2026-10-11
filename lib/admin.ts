@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, isNull, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gt, isNull, sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/lib/db"
 import type { Order, Product } from "@/lib/db/schema"
@@ -17,7 +17,11 @@ export type OwnerOrder = {
   test: boolean
   priceCents: number
   zat: number
+  // What arrived, and what of it is owed back.
+  receivedZat: number
+  owedZat: number
   createdAt: number
+  expiresAt: number
   seenAt: number | null
   closedAt: number | null
 }
@@ -29,14 +33,17 @@ const orderColumns = {
   test: orders.test,
   priceCents: orders.priceCents,
   zat: orders.zat,
+  receivedZat: orders.receivedZat,
+  owedZat: orders.owedZat,
   createdAt: orders.createdAt,
+  expiresAt: orders.expiresAt,
   seenAt: orders.seenAt,
   closedAt: orders.closedAt,
 }
 
 // The newest orders. Overdue ones are closed first, so none is shown as waiting after its time.
 export async function listOrders(now = Date.now(), limit = 200): Promise<OwnerOrder[]> {
-  await sweep(now)
+  await sweep(now, true)
   const db = await getDb()
   return db
     .select(orderColumns)
@@ -55,15 +62,18 @@ export async function countOrders(): Promise<Partial<Record<Order["state"], numb
   return Object.fromEntries(rows.map((row) => [row.state, row.count]))
 }
 
-// Orders that were paid and could not be delivered. An order rests in "confirmed" only then
-// (lib/orders.ts, deliver), so that state is the refund queue. Oldest first: they waited longest.
-export async function listRefundsDue(): Promise<OwnerOrder[]> {
+// Orders that are owed something back and have not been sent it: paid and nothing handed over
+// (too little, too late, or no item left), or delivered with more than the price paid. Overdue
+// orders are moved along first, so a late payment nobody looked at is on the queue too. Oldest
+// first: they waited longest.
+export async function listRefundsDue(now = Date.now()): Promise<OwnerOrder[]> {
+  await sweep(now, true)
   const db = await getDb()
   return db
     .select(orderColumns)
     .from(orders)
     .leftJoin(products, eq(orders.productId, products.id))
-    .where(eq(orders.state, "confirmed"))
+    .where(and(gt(orders.owedZat, 0), isNull(orders.refundedAt)))
     .orderBy(asc(orders.seenAt))
 }
 
@@ -73,8 +83,9 @@ export async function markRefunded(id: string, now = Date.now()) {
   const db = await getDb()
   const done = await db
     .update(orders)
-    .set({ state: "refunded", closedAt: now })
-    .where(and(eq(orders.id, id), eq(orders.state, "confirmed")))
+    // An order that was delivered and overpaid stays delivered: only the excess went back.
+    .set({ refundedAt: now, state: sql`case when ${orders.state} = 'owed' then 'refunded' else ${orders.state} end`, closedAt: sql`coalesce(${orders.closedAt}, ${now})` })
+    .where(and(eq(orders.id, id), gt(orders.owedZat, 0), isNull(orders.refundedAt)))
     .returning({ stockId: orders.stockId })
   if (done.length === 0) return false
   // What was set aside for it had nothing in it: drop the empty row.

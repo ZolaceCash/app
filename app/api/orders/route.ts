@@ -5,7 +5,8 @@ const MESSAGE = {
   "no-product": "That item is not on the shelf.",
   "no-stock": "That item has just run out.",
   "no-price": "There is no ZEC price right now. One of the two price sources did not answer.",
-  "price-disagree": "The two price sources differ by more than 2%, so no price is quoted. Try again shortly.",
+  "price-disagree": "The price sources differ by more than 2%, so no price is quoted. Try again shortly.",
+  "no-engine": "Payments cannot be watched right now, so no order is started. Nothing was charged. Try again shortly.",
 } as const;
 
 // Starts an order. The body carries what the buyer's browser made: the public key to seal the

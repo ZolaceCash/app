@@ -215,7 +215,8 @@ test("a paid order with nothing to hand over joins the refund queue until the ow
 
   assert.ok(await orders.payTestOrder(id, placed + MINUTE))
   const stuck = await orders.readOrder(id, placed + 5 * MINUTE)
-  assert.equal(stuck?.state, "confirmed")
+  assert.equal(stuck?.state, "owed")
+  assert.equal(stuck?.owedWhy, "no-item")
   assert.equal(stuck?.sealed, null)
 
   const queue = await admin.listRefundsDue()

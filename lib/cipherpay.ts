@@ -1,0 +1,123 @@
+import type { Invoice, Opened, PaymentEngine, Seen } from "@/lib/payment"
+import { MAX_GAP } from "@/lib/price"
+
+// CipherPay as the payment engine (engine/cipherpay/, and PLAN.md "Stage 0"). It runs beside the
+// site, on the same server and reachable from nowhere else. It is given a viewing key, makes one
+// address per invoice from it, and reports what arrives there. It cannot spend, and neither can
+// anything here: this file only asks it for an address and reads what it saw.
+//
+// Three things about it that this file works around or passes on:
+// - It prices an invoice itself, from one source. The site's rule is two sources within 2% of each
+//   other, so the engine's rate is held against the site's own, and an order is refused when the
+//   two are further apart than that.
+// - It calls a payment confirmed after one block and reports no depth. The site waits for three,
+//   so the depth is asked of the chain explorer the engine itself reads from.
+// - It stops watching an invoice when the invoice expires, and it never looks at one again once it
+//   is confirmed. A payment after that, or a second one, is not seen by anything here: only the
+//   owner's wallet shows it.
+
+type Config = { url: string; key: string; network: "testnet" | "mainnet"; scanUrl: string }
+
+// A unified address starts with this on each network. An engine set up for the other network
+// would hand out addresses the site then describes wrongly: refused before any order is made.
+const PREFIX = { mainnet: "u1", testnet: "utest1" } as const
+
+const TIMEOUT_MS = 8000
+// The engine's health is asked at most this often: a burst of checkouts is not a burst of calls.
+const HEALTH_FRESH_MS = 10_000
+let health: { at: number; url: string; ok: boolean } | null = null
+
+// For the tests: the next question about the engine's health is really asked.
+export const forgetHealth = () => void (health = null)
+
+async function ask(url: string, init?: RequestInit): Promise<{ status: number; body: Record<string, unknown> | null } | null> {
+  try {
+    const response = await fetch(url, { ...init, signal: AbortSignal.timeout(TIMEOUT_MS), cache: "no-store" })
+    const body = (await response.json().catch(() => null)) as Record<string, unknown> | null
+    return { status: response.status, body }
+  } catch {
+    return null
+  }
+}
+
+const STATE: Record<string, Seen["state"]> = {
+  pending: "waiting",
+  underpaid: "underpaid",
+  detected: "seen",
+  confirmed: "confirmed",
+  expired: "expired",
+}
+
+export function cipherpay(config: Config): PaymentEngine {
+  const authorised = { Authorization: `Bearer ${config.key}`, "Content-Type": "application/json" }
+
+  return {
+    network: config.network,
+
+    async open({ priceCents, usdPerZec }): Promise<Opened> {
+      // Only the amount goes to the engine: not the item, not the order's own name.
+      const made = await ask(`${config.url}/api/invoices`, {
+        method: "POST",
+        headers: authorised,
+        body: JSON.stringify({ amount: priceCents / 100, currency: "USD" }),
+      })
+      const body = made?.body
+      if (!made || made.status >= 300 || !body) return { ok: false, reason: "unavailable" }
+
+      const ref = body.invoice_id
+      const address = body.payment_address
+      const priceZec = Number(body.price_zec)
+      const rate = Number(body.zec_rate)
+      if (typeof ref !== "string" || typeof address !== "string" || !(priceZec > 0) || !(rate > 0)) {
+        return { ok: false, reason: "unavailable" }
+      }
+
+      const cancel = () => ask(`${config.url}/api/invoices/${ref}/cancel`, { method: "POST", headers: authorised })
+      if (!address.startsWith(PREFIX[config.network])) {
+        await cancel()
+        return { ok: false, reason: "unavailable" }
+      }
+      if (Math.abs(rate - usdPerZec) / Math.min(rate, usdPerZec) > MAX_GAP) {
+        await cancel()
+        return { ok: false, reason: "price-disagree" }
+      }
+      // The engine keeps the same number: the amount in ZEC, to the nearest zatoshi.
+      return { ok: true, ref, address, zat: Math.round(priceZec * 100_000_000) }
+    },
+
+    async look(invoice: Invoice): Promise<Seen | null> {
+      if (!invoice.ref) return null
+      const answer = await ask(`${config.url}/api/invoices/${invoice.ref}/status`)
+      const body = answer?.body
+      if (!answer || answer.status !== 200 || !body) return null
+
+      const state = STATE[String(body.status)]
+      if (!state) return null
+      const txid = typeof body.detected_txid === "string" ? body.detected_txid : null
+      const receivedZat = Number(body.received_zatoshis)
+
+      let confirmations = 0
+      if (state === "confirmed") {
+        // In a block, by the engine's word. How deep is asked of the explorer; without an answer
+        // it counts as one, and the order waits rather than being handed over early.
+        confirmations = 1
+        if (txid && config.scanUrl) {
+          const depth = Number((await ask(`${config.scanUrl}/api/tx/${txid}`))?.body?.confirmations)
+          if (Number.isSafeInteger(depth) && depth > 1) confirmations = depth
+        }
+      }
+      return { state, receivedZat: Number.isSafeInteger(receivedZat) && receivedZat > 0 ? receivedZat : 0, txid, confirmations }
+    },
+
+    async healthy() {
+      const now = Date.now()
+      if (health && health.url === config.url && now - health.at < HEALTH_FRESH_MS) return health.ok
+      const answer = await ask(`${config.url}/api/health`)
+      // "degraded" is the engine catching up by a few blocks: it still sees payments. "unhealthy"
+      // is a scanner that fell behind or a database it cannot read, answered with an error.
+      const ok = answer?.status === 200 && answer.body?.status !== "unhealthy"
+      health = { at: now, url: config.url, ok }
+      return ok
+    },
+  }
+}

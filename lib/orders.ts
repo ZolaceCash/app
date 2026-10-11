@@ -1,23 +1,34 @@
-import { and, eq, inArray, lt, sql } from "drizzle-orm"
+import { and, eq, gt, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/lib/db"
 import type { Order } from "@/lib/db/schema"
-import { CONFIRMATIONS_NEEDED, engine } from "@/lib/payment"
-import { quoteZec, toZat } from "@/lib/price"
+import { LOCK_MS } from "@/lib/order-times"
+import { CONFIRMATIONS_NEEDED, engine, FEE_ZAT, type Network, type Seen } from "@/lib/payment"
+import { quoteZec } from "@/lib/price"
 import { sealTo, type PublicKey, type Sealed, type Wrapped } from "@/lib/seal"
 
 const { orders, products, stock } = schema
 
-// PLAN.md: the price is locked for 15 minutes.
-export const LOCK_MS = 15 * 60 * 1000
+export { LOCK_MS }
 
 // PLAN.md says orders are deleted "some days" after they are done and leaves the number open.
 // Seven is a placeholder until the owner fixes it; ORDER_RETENTION_DAYS overrides it.
 const RETENTION_MS = Number(process.env.ORDER_RETENTION_DAYS ?? 7) * 24 * 60 * 60 * 1000
 
+// How long after its price lock an order is still watched for money: a payment that comes late, or
+// a second one. Whatever arrives in that time is found and owed back. The payment engine has to
+// watch an invoice at least as long (its INVOICE_EXPIRY_MINUTES, engine/cipherpay/). Seven days
+// unless PAYMENT_WATCH_HOURS says otherwise, and never longer than an order is kept: a payment
+// to an order that was already deleted could not be matched to anything.
+export function watchMs() {
+  const hours = Number(process.env.PAYMENT_WATCH_HOURS ?? "")
+  const asked = (Number.isFinite(hours) && hours > 0 ? hours : 7 * 24) * 60 * 60 * 1000
+  return Math.min(asked, RETENTION_MS)
+}
+
 export type CreateResult =
   | { ok: true; id: string }
-  | { ok: false; reason: "no-product" | "no-stock" | "no-price" | "price-disagree" }
+  | { ok: false; reason: "no-product" | "no-stock" | "no-price" | "price-disagree" | "no-engine" }
 
 function newId() {
   const bytes = globalThis.crypto.getRandomValues(new Uint8Array(16))
@@ -40,12 +51,18 @@ export async function createOrder(input: {
 }): Promise<CreateResult> {
   const db = await getDb()
   const now = input.now ?? Date.now()
+  const pay = engine()
 
   const [product] = await db
     .select()
     .from(products)
     .where(and(eq(products.slug, input.slug), eq(products.active, true)))
   if (!product) return { ok: false, reason: "no-product" }
+  // A made-up item is never sold for real money.
+  if (product.kind === "test" && pay.network === "mainnet") return { ok: false, reason: "no-product" }
+
+  // An engine that cannot be trusted to see a payment takes no order: a buyer would pay into silence.
+  if (!(await pay.healthy())) return { ok: false, reason: "no-engine" }
 
   const quote = await quoteZec(now)
   if (!quote.ok) return { ok: false, reason: quote.reason === "disagree" ? "price-disagree" : "no-price" }
@@ -54,7 +71,6 @@ export async function createOrder(input: {
   await sweep(now)
 
   const id = newId()
-  const address = await engine.createAddress(id)
 
   // Set an item aside for this order: a fresh made-up code for a test product, otherwise one
   // free code from the stock, claimed only if nobody else took it in the meantime.
@@ -80,17 +96,25 @@ export async function createOrder(input: {
     stockId = claimed[0].id
   }
 
+  // Only now is an address asked for: an order that found no item has cost the engine nothing.
+  const opened = await pay.open({ orderId: id, priceCents: product.priceCents, usdPerZec: quote.usdPerZec })
+  if (!opened.ok) {
+    await releaseStock({ stockId, productId: product.id })
+    return { ok: false, reason: opened.reason === "price-disagree" ? "price-disagree" : "no-engine" }
+  }
+
   await db.insert(orders).values({
     id,
     productId: product.id,
     stockId,
     state: "waiting",
     priceCents: product.priceCents,
-    zat: toZat(product.priceCents, quote.usdPerZec),
-    address,
+    zat: opened.zat,
+    address: opened.address,
+    engineRef: opened.ref,
     publicKey: JSON.stringify(input.publicKey),
     wrappedKey: JSON.stringify(input.wrappedKey),
-    test: engine.test,
+    test: pay.network === "stand-in",
     createdAt: now,
     expiresAt: now + LOCK_MS,
   })
@@ -110,44 +134,141 @@ export async function payTestOrder(id: string, now = Date.now()) {
   return updated.length > 0
 }
 
-// Moves an order along as far as time and the payment engine allow, and returns it.
-// Called whenever an order is read, so nothing has to run in the background.
-async function advance(order: Order, now: number): Promise<Order> {
+const OPEN = ["waiting", "underpaid"] as const
+const PAID = ["seen", "confirmed"] as const
+
+// Moves an order along as far as time and the payment engine allow, and returns it with how many
+// blocks deep its payment is. Called whenever an order is read, so nothing has to run in the
+// background.
+//
+// The rule it keeps: the item is handed over for the whole amount, seen by the engine before the
+// price lock ran out. Anything else that arrives (too little, too late) is owed back, and so is
+// what was paid above the price.
+async function advance(order: Order, now: number): Promise<{ order: Order; confirmations: number }> {
   const db = await getDb()
+  const isOpen = order.state === "waiting" || order.state === "underpaid"
+  const isPaid = order.state === "seen" || order.state === "confirmed"
+  // A real order that is over is still looked at for a while: a payment may come late, and a
+  // buyer may pay twice.
+  const lateWatch =
+    (order.state === "expired" || order.state === "owed" || order.state === "delivered") &&
+    order.engineRef !== null &&
+    order.refundedAt === null &&
+    now <= order.expiresAt + watchMs()
 
-  if (order.state === "waiting" && now > order.expiresAt) {
-    const expired = await db
-      .update(orders)
-      .set({ state: "expired", closedAt: now })
-      .where(and(eq(orders.id, order.id), eq(orders.state, "waiting")))
-      .returning()
-    if (expired.length > 0) {
-      await releaseStock(order)
-      return expired[0]
-    }
-  }
-
-  if (order.state === "seen" || order.state === "confirmed") {
-    const depth = await engine.confirmations(
-      { orderId: order.id, address: order.address, zat: order.zat, seenAt: order.seenAt },
+  let seen: Seen | null = null
+  if (isOpen || isPaid || lateWatch) {
+    seen = await engine().look(
+      { orderId: order.id, ref: order.engineRef, address: order.address, zat: order.zat, seenAt: order.seenAt, txid: order.txid },
       now
     )
-    if (depth >= CONFIRMATIONS_NEEDED) return deliver(order, now)
+  }
+  const arrived = seen ? Math.max(seen.receivedZat, order.receivedZat) : order.receivedZat
+  const inFull = seen !== null && (seen.state === "seen" || seen.state === "confirmed")
+
+  if (isOpen) {
+    // Paid in full before the lock was found to have run out: the order goes on, however long
+    // ago that was. The engine saw it in time, and that is what counts.
+    if (inFull && seen) {
+      const [moved] = await db
+        .update(orders)
+        .set({ state: "seen", seenAt: order.seenAt ?? now, receivedZat: arrived, txid: seen.txid })
+        .where(and(eq(orders.id, order.id), inArray(orders.state, [...OPEN])))
+        .returning()
+      if (moved) return advance(moved, now)
+    } else if (now > order.expiresAt && (seen !== null || order.engineRef === null || now > order.expiresAt + watchMs())) {
+      // The lock ran out. With nothing arrived the order simply ends; with part of the amount
+      // arrived, that part is owed back. An order whose engine did not answer is left open
+      // until it does: closing it unseen could hand a paid-for code to someone else.
+      const [closed] = await db
+        .update(orders)
+        .set(
+          arrived > 0
+            ? { state: "owed", receivedZat: arrived, owedZat: arrived, txid: seen?.txid ?? order.txid, seenAt: order.seenAt ?? now }
+            : { state: "expired", closedAt: now }
+        )
+        .where(and(eq(orders.id, order.id), inArray(orders.state, [...OPEN])))
+        .returning()
+      if (closed) {
+        await releaseStock(order)
+        return { order: closed, confirmations: 0 }
+      }
+    } else if (seen?.state === "underpaid" && (order.state !== "underpaid" || arrived !== order.receivedZat)) {
+      const [part] = await db
+        .update(orders)
+        .set({ state: "underpaid", receivedZat: arrived, txid: seen.txid, seenAt: order.seenAt ?? now })
+        .where(and(eq(orders.id, order.id), inArray(orders.state, [...OPEN])))
+        .returning()
+      if (part) return { order: part, confirmations: 0 }
+    }
+    return { order, confirmations: 0 }
   }
 
-  return order
+  if (isPaid) {
+    const depth = seen?.confirmations ?? 0
+    if (depth >= CONFIRMATIONS_NEEDED) return { order: await deliver({ ...order, receivedZat: arrived }, now), confirmations: CONFIRMATIONS_NEEDED }
+    if (depth > 0 && order.state === "seen") {
+      const [inBlock] = await db
+        .update(orders)
+        .set({ state: "confirmed", receivedZat: arrived })
+        .where(and(eq(orders.id, order.id), eq(orders.state, "seen")))
+        .returning()
+      if (inBlock) return { order: inBlock, confirmations: depth }
+    }
+    return { order, confirmations: depth }
+  }
+
+  // Handed over already, and more has arrived since (a second payment): the excess is owed back.
+  if (lateWatch && order.state === "delivered") {
+    const excess = arrived - order.zat
+    if (arrived > order.receivedZat) {
+      const [more] = await db
+        .update(orders)
+        .set({ receivedZat: arrived, owedZat: excess > FEE_ZAT ? excess : 0 })
+        .where(and(eq(orders.id, order.id), eq(orders.state, "delivered"), isNull(orders.refundedAt)))
+        .returning()
+      if (more) return { order: more, confirmations: CONFIRMATIONS_NEEDED }
+    }
+    return { order, confirmations: CONFIRMATIONS_NEEDED }
+  }
+
+  // Too late for the item: the stock went back on the shelf when the order expired. What arrived
+  // since is owed back, and a later payment adds to it.
+  if (lateWatch && arrived > order.owedZat) {
+    const [late] = await db
+      .update(orders)
+      .set({ state: "owed", receivedZat: arrived, owedZat: arrived, txid: seen?.txid ?? order.txid, seenAt: order.seenAt ?? now, closedAt: null })
+      .where(and(eq(orders.id, order.id), inArray(orders.state, ["expired", "owed"]), isNull(orders.refundedAt)))
+      .returning()
+    if (late) return { order: late, confirmations: 0 }
+  }
+
+  return { order, confirmations: order.state === "delivered" ? CONFIRMATIONS_NEEDED : 0 }
 }
 
-// Closes every order whose price lock ran out. An order is otherwise only moved along when it is
-// read, so a buyer who walked away would keep a code off the shelf for good.
-export async function sweep(now = Date.now()) {
+// Moves along every order that only time can move: those whose price lock ran out. An order is
+// otherwise only moved when it is read, so a buyer who walked away would keep a code off the shelf
+// for good.
+//
+// With `late`, it also asks the engine about every real order that is over and still watched, so
+// that a payment that came late, or twice, is found even if the buyer never opened the order
+// again. That is one question to the engine per such order, so it is done where the owner looks
+// (the orders and refunds screens), not on every visit to the shop.
+export async function sweep(now = Date.now(), late = false) {
   const db = await getDb()
-  const overdue = await db
+  const overdue = and(inArray(orders.state, [...OPEN]), lt(orders.expiresAt, now))
+  const watched = and(
+    inArray(orders.state, ["expired", "owed", "delivered"]),
+    isNotNull(orders.engineRef),
+    isNull(orders.refundedAt),
+    gt(orders.expiresAt, now - watchMs())
+  )
+  const due = await db
     .select()
     .from(orders)
-    .where(and(eq(orders.state, "waiting"), lt(orders.expiresAt, now)))
-  for (const order of overdue) await advance(order, now)
-  return overdue.length
+    .where(late ? or(overdue, watched) : overdue)
+  for (const order of due) await advance(order, now)
+  return due.length
 }
 
 // Seals the item to the buyer's key, then forgets the readable copy in the same step.
@@ -157,23 +278,34 @@ async function deliver(order: Order, now: number): Promise<Order> {
     ? await db.select().from(stock).where(eq(stock.id, order.stockId))
     : []
 
-  // Paid, but there is nothing to hand over: the order stays "confirmed" and is owed a refund.
+  // Paid, but there is nothing to hand over: all of it is owed back.
   if (!item?.payload) {
     const [stuck] = await db
       .update(orders)
-      .set({ state: "confirmed" })
-      .where(eq(orders.id, order.id))
+      .set({ state: "owed", receivedZat: order.receivedZat, owedZat: order.receivedZat })
+      .where(and(eq(orders.id, order.id), inArray(orders.state, [...PAID])))
       .returning()
-    return stuck
+    if (stuck) return stuck
+    const [current] = await db.select().from(orders).where(eq(orders.id, order.id))
+    return current
   }
 
   const sealed = await sealTo(JSON.parse(order.publicKey) as PublicKey, item.payload)
+  // More than the price arrived: the excess is owed back, when it is enough to send at all.
+  const excess = order.receivedZat - order.zat
 
   return db.transaction(async (tx) => {
     const done = await tx
       .update(orders)
-      .set({ state: "delivered", sealed: JSON.stringify(sealed), deliveredAt: now, closedAt: now })
-      .where(and(eq(orders.id, order.id), inArray(orders.state, ["seen", "confirmed"])))
+      .set({
+        state: "delivered",
+        sealed: JSON.stringify(sealed),
+        deliveredAt: now,
+        closedAt: now,
+        receivedZat: order.receivedZat,
+        owedZat: excess > FEE_ZAT ? excess : 0,
+      })
+      .where(and(eq(orders.id, order.id), inArray(orders.state, [...PAID])))
       .returning()
     // Another request delivered it first: return what it stored.
     if (done.length === 0) {
@@ -185,7 +317,7 @@ async function deliver(order: Order, now: number): Promise<Order> {
   })
 }
 
-async function releaseStock(order: Order) {
+async function releaseStock(order: Pick<Order, "stockId" | "productId">) {
   if (!order.stockId) return
   const db = await getDb()
   const [product] = await db.select().from(products).where(eq(products.id, order.productId))
@@ -197,14 +329,30 @@ async function releaseStock(order: Order) {
 }
 
 // Orders that finished or expired long enough ago are deleted, with what was kept for them.
+// Never one that is still owed a refund: it stays until the owner has sent it.
 async function purge(now: number) {
   const db = await getDb()
   const old = await db
     .delete(orders)
-    .where(lt(orders.closedAt, now - RETENTION_MS))
+    .where(and(lt(orders.closedAt, now - RETENTION_MS), or(eq(orders.owedZat, 0), isNotNull(orders.refundedAt))))
     .returning({ stockId: orders.stockId })
   const ids = old.map((row) => row.stockId).filter((id): id is number => id !== null)
   if (ids.length > 0) await db.delete(stock).where(and(inArray(stock.id, ids), eq(stock.state, "given")))
+}
+
+// Why an order is owed something back, from what is stored about it.
+// short: less than the price arrived in time. late: it arrived after the price lock ran out.
+// no-item: paid in full and in time, and there was nothing left to hand over. excess: delivered,
+// and more than the price was paid.
+export type OwedWhy = "short" | "late" | "no-item" | "excess"
+
+export function owedWhy(order: Pick<Order, "state" | "owedZat" | "receivedZat" | "zat" | "seenAt" | "expiresAt">): OwedWhy | null {
+  if (order.owedZat <= 0) return null
+  if (order.state === "delivered") return "excess"
+  // The engine takes a payment as full from 99.5% of the price (its own allowance for rounding).
+  if (order.receivedZat < Math.floor(order.zat * 0.995)) return "short"
+  if (order.seenAt !== null && order.seenAt > order.expiresAt) return "late"
+  return "no-item"
 }
 
 // What the order page is shown. No readable item is ever in here: only the sealed copy.
@@ -212,9 +360,16 @@ export type OrderView = {
   id: string
   state: Order["state"]
   test: boolean
+  // Which money this order is about: none (the stand-in), test coins, or real ZEC.
+  network: Network
   product: string
   priceCents: number
   zat: number
+  // What has arrived so far, and what of it is owed back.
+  receivedZat: number
+  owedZat: number
+  owedWhy: OwedWhy | null
+  refunded: boolean
   address: string
   createdAt: number
   expiresAt: number
@@ -230,23 +385,22 @@ export async function readOrder(id: string, now = Date.now()): Promise<OrderView
   const [found] = await db.select().from(orders).where(eq(orders.id, id))
   if (!found) return null
 
-  const order = await advance(found, now)
+  const { order, confirmations } = await advance(found, now)
   const [product] = await db.select().from(products).where(eq(products.id, order.productId))
-  const confirmations =
-    order.state === "delivered"
-      ? CONFIRMATIONS_NEEDED
-      : await engine.confirmations(
-          { orderId: order.id, address: order.address, zat: order.zat, seenAt: order.seenAt },
-          now
-        )
 
   return {
     id: order.id,
     state: order.state,
     test: order.test,
+    // An order says what it was paid in by its address, whatever the server is set to today.
+    network: order.test ? "stand-in" : order.address.startsWith("utest") ? "testnet" : "mainnet",
     product: product?.name ?? "Item",
     priceCents: order.priceCents,
     zat: order.zat,
+    receivedZat: order.receivedZat,
+    owedZat: order.owedZat,
+    owedWhy: owedWhy(order),
+    refunded: order.refundedAt !== null,
     address: order.address,
     createdAt: order.createdAt,
     expiresAt: order.expiresAt,
@@ -264,7 +418,11 @@ export type ShelfItem = { slug: string; name: string; blurb: string; priceCents:
 export async function listItems(now = Date.now()): Promise<ShelfItem[]> {
   const db = await getDb()
   await sweep(now)
-  const rows = await db.select().from(products).where(eq(products.active, true))
+  // A made-up item is not shown where real money is taken: it could only be refused.
+  const real = engine().network === "mainnet"
+  const rows = (await db.select().from(products).where(eq(products.active, true))).filter(
+    (row) => !(real && row.kind === "test")
+  )
   const free = await db
     .select({ productId: stock.productId, count: sql<number>`count(*)` })
     .from(stock)

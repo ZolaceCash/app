@@ -33,13 +33,30 @@ export const orders = sqliteTable("orders", {
     .notNull()
     .references(() => products.id),
   stockId: integer("stock_id"),
-  // "confirmed" is where an order rests when it was paid and there was nothing to hand over: it
-  // is owed a refund. "refunded" is that order after the owner sent the refund.
-  state: text("state", { enum: ["waiting", "seen", "confirmed", "delivered", "expired", "refunded"] }).notNull(),
+  // waiting: nothing has arrived. underpaid: part of the amount has. seen: all of it, not yet in
+  // a block. confirmed: in a block, not yet deep enough to hand the item over. delivered.
+  // expired: the price lock ran out and nothing arrived. owed: money arrived and nothing was
+  // handed over (too little, too late, or no item left), so it is owed back. refunded: that order
+  // after the owner sent the refund.
+  state: text("state", {
+    enum: ["waiting", "underpaid", "seen", "confirmed", "delivered", "expired", "owed", "refunded"],
+  }).notNull(),
   priceCents: integer("price_cents").notNull(),
-  // The amount owed in zatoshi (1 ZEC = 100,000,000), fixed when the price was locked.
+  // The amount to pay in zatoshi (1 ZEC = 100,000,000), fixed when the price was locked.
   zat: integer("zat").notNull(),
   address: text("address").notNull(),
+  // The payment engine's own name for this order's invoice. Null for an order against the stand-in.
+  engineRef: text("engine_ref"),
+  // What the payment engine saw arrive at the address, in zatoshi.
+  receivedZat: integer("received_zat").notNull().default(0),
+  // The transaction the payment engine saw. The payment is shielded: its id shows no sender, no
+  // receiver and no amount.
+  txid: text("txid"),
+  // What is owed back to the buyer, in zatoshi: all of it when nothing was handed over, the
+  // excess when too much was paid.
+  owedZat: integer("owed_zat").notNull().default(0),
+  // When the owner said the refund was sent.
+  refundedAt: integer("refunded_at"),
   // The public half of a key pair the buyer's browser made. The item is sealed to it.
   publicKey: text("public_key").notNull(),
   // The private half, locked with the secret part of the link, which the server never receives.

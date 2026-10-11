@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 import { dollars, OwnerFrame, Panel, when } from "@/components/owner/frame";
 import { ZecIcon } from "@/components/site/chain-icons";
-import { countOrders, listOrders } from "@/lib/admin";
+import { countOrders, listOrders, listRefundsDue } from "@/lib/admin";
 import type { Order } from "@/lib/db/schema";
 import { requireOwner } from "@/lib/owner-session";
 import { formatZec } from "@/lib/price";
@@ -10,18 +10,28 @@ import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = { title: "Orders · Owner" };
 
-// An order that rests in "confirmed" was paid and not delivered, so the owner reads it as what
-// it means: a refund is due.
+// The states the owner counts at a glance. "Owed" is an order that was paid and not delivered: a
+// refund is due. (A delivered order that was overpaid is owed its excess too: the Refunds screen
+// lists both, and the number on its tab counts both.)
 const STATES: { state: Order["state"]; name: string }[] = [
   { state: "waiting", name: "Waiting" },
   { state: "seen", name: "Seen" },
-  { state: "confirmed", name: "Refund due" },
+  { state: "owed", name: "Refund due" },
   { state: "delivered", name: "Delivered" },
   { state: "expired", name: "Expired" },
   { state: "refunded", name: "Refunded" },
 ];
 
-const NAME = Object.fromEntries(STATES.map((entry) => [entry.state, entry.name])) as Record<Order["state"], string>;
+const NAME: Record<Order["state"], string> = {
+  waiting: "Waiting",
+  underpaid: "Underpaid",
+  seen: "Seen",
+  confirmed: "Confirming",
+  delivered: "Delivered",
+  expired: "Expired",
+  owed: "Refund due",
+  refunded: "Refunded",
+};
 
 // Who is asking is read from the request before any row of this screen is read, so someone who
 // is not signed in is sent to the sign-in page and is shown nothing of it. (A built site answers
@@ -30,10 +40,10 @@ export const instant = false;
 
 export default async function OwnerOrders() {
   await requireOwner();
-  const [orders, counts] = await Promise.all([listOrders(), countOrders()]);
+  const [orders, counts, due] = await Promise.all([listOrders(), countOrders(), listRefundsDue()]);
 
   return (
-    <OwnerFrame at="/owner" title="Orders" due={counts.confirmed ?? 0}>
+    <OwnerFrame at="/owner" title="Orders" due={due.length}>
       <ul className="grid grid-cols-2 gap-2.5 md:grid-cols-3 lg:grid-cols-6">
         {STATES.map(({ state, name }) => (
           <li key={state} className="cut rounded-3xl bg-card p-5">
@@ -41,7 +51,7 @@ export default async function OwnerOrders() {
             <p
               className={cn(
                 "mt-6 font-mono text-4xl font-medium tracking-[-0.04em]",
-                state === "confirmed" && (counts.confirmed ?? 0) > 0 && "text-destructive"
+                state === "owed" && (counts.owed ?? 0) > 0 && "text-destructive"
               )}
             >
               {counts[state] ?? 0}
@@ -74,7 +84,7 @@ export default async function OwnerOrders() {
                   {order.test ? <span className="label-mono ml-2 text-muted-foreground">Test</span> : null}
                 </span>
                 <span
-                  className={cn("label-mono", order.state === "confirmed" ? "text-destructive" : "text-muted-foreground")}
+                  className={cn("label-mono", order.state === "owed" ? "text-destructive" : "text-muted-foreground")}
                 >
                   {NAME[order.state]}
                 </span>

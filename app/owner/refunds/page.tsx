@@ -6,17 +6,26 @@ import { ActionForm } from "@/components/owner/action-form";
 import { dollars, OwnerFrame, Panel, when } from "@/components/owner/frame";
 import { ZecIcon } from "@/components/site/chain-icons";
 import { listRefundsDue } from "@/lib/admin";
+import { owedWhy, type OwedWhy } from "@/lib/orders";
 import { requireOwner } from "@/lib/owner-session";
 import { formatZec } from "@/lib/price";
 
 export const metadata: Metadata = { title: "Refunds" };
 
 const HOW = [
-  "An order lands here when it was paid and there was nothing to hand over.",
+  "An order lands here when money arrived that the shop may not keep: too little, too late, with no item left to hand over, or more than the price.",
+  "Check each one in your own wallet before sending anything back. The amount here is what the payment engine saw.",
   "The buyer gives an address to refund to. A shielded payment names no sender, so it cannot simply be sent back.",
   "You send the refund from your own wallet. The server cannot: it holds no key that can spend.",
   "Taking an order off the queue only records that you did. It moves no money.",
 ];
+
+const WHY: Record<OwedWhy, string> = {
+  short: "Less than the price arrived before the price lock ran out. Nothing was handed over.",
+  late: "The payment arrived after the price lock ran out. Nothing was handed over.",
+  "no-item": "Paid in full and in time, and there was nothing left to hand over.",
+  excess: "The item was handed over. More than the price was paid: only the excess is owed.",
+};
 
 // Who is asking is read from the request before any row of this screen is read, so someone who
 // is not signed in is sent to the sign-in page and is shown nothing of it. (A built site answers
@@ -47,11 +56,15 @@ export default async function OwnerRefunds() {
                   <Row name="Order">
                     <span className="break-all">{order.id}</span>
                   </Row>
-                  <Row name="Paid">
-                    <span className="inline-flex flex-wrap items-center gap-1.5">
-                      <ZecIcon className="size-3.5 text-brand" />
-                      {formatZec(order.zat)} ZEC, for {dollars(order.priceCents)} at the time
+                  <Row name="Owed back">
+                    <span className="inline-flex flex-wrap items-center gap-1.5 text-destructive">
+                      <ZecIcon className="size-3.5" />
+                      {formatZec(order.owedZat)} ZEC
                     </span>
+                  </Row>
+                  <Row name="Why">{WHY[owedWhy(order) ?? "no-item"]}</Row>
+                  <Row name="Arrived">
+                    {formatZec(order.receivedZat)} ZEC, for a price of {formatZec(order.zat)} ZEC ({dollars(order.priceCents)} at the time)
                   </Row>
                   <Row name="Payment seen">{when(order.seenAt)}</Row>
                   {order.test ? <Row name="Kind">A test order. No money was paid, so none is owed.</Row> : null}
