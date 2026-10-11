@@ -9,10 +9,28 @@ import { PageShell } from "@/components/site/page-shell";
 import { DotLabel, PillLink } from "@/components/site/primitives";
 import { getItem, type ShelfItem } from "@/lib/orders";
 
-export const metadata: Metadata = {
+const FALLBACK: Metadata = {
   title: "An item",
   description: "One item on the shelf at Zolace: its price, how it is paid and how it reaches you.",
 };
+
+// A link to an item is shown with the item's own name and price where it is shared. The picture
+// beside it is opengraph-image.tsx. An item that is not on sale gets the plain words.
+export async function generateMetadata({ params }: PageProps<"/shop/[slug]">): Promise<Metadata> {
+  const { slug } = await params;
+  const item = slug.length <= 60 ? await getItem(slug).catch(() => null) : null;
+  if (!item) return FALLBACK;
+
+  const title = `${item.name}, ${dollars(item.priceCents)}`;
+  const description = [item.blurb, "No account: the order gets a link, and the item opens in your browser."]
+    .filter(Boolean)
+    .join(" ");
+  return {
+    title,
+    description,
+    openGraph: { siteName: "Zolace", type: "website", title, description, url: `/shop/${item.slug}` },
+  };
+}
 
 // An item is read from the database, so it is not known before the request. The page waits for
 // it instead of showing a frame first, and an item that is not there gets the not-found page.
