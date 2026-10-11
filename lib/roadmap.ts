@@ -88,7 +88,8 @@ export const STAGES: Stage[] = [
     status: "gated",
     work: [
       "A token on Robinhood Chain that takes a fee on each transfer",
-      "A payout in shielded ZEC for wallets holding at least 3,000,000 tokens, paid from that fee and from a share of each order",
+      "A monthly reward in NVDA, a stock token on the same chain, for wallets holding at least 3,000,000 tokens, bought with that fee and a share of each order",
+      "Built ahead of it and switched off: the vault, a contract holders claim from, with its page and the owner's monthly list",
     ],
     doneWhen: "Not started before an audit and a legal review. Neither has been done.",
   },

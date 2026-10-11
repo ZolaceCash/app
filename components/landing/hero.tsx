@@ -2,7 +2,7 @@ import type { ComponentType, CSSProperties } from "react"
 
 import { HeroDeck } from "@/components/landing/hero-deck"
 import { ZecIcon } from "@/components/site/chain-icons"
-import { ContractAddress } from "@/components/site/contract-address"
+import { TokenAddress } from "@/components/site/token-address"
 import { KeyIcon, NoAccountIcon, PriceLockIcon } from "@/components/site/icons"
 import { Container, PillLink } from "@/components/site/primitives"
 import { Reveal } from "@/components/site/reveal"
@@ -59,7 +59,7 @@ export function Hero() {
                 How it works
               </PillLink>
             </div>
-            <ContractAddress />
+            <TokenAddress />
           </div>
         </div>
 

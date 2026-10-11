@@ -90,6 +90,14 @@ server {
     proxy_pass http://zolace_app;
   }
 
+  # The vault's lists. Public and the same for everyone, but each answer carries every funded
+  # month whole, so it is not handed out without a limit.
+  location /api/vault/ {
+    limit_req zone=orders burst=10 nodelay;
+    limit_req_status 429;
+    proxy_pass http://zolace_app;
+  }
+
   location / {
     proxy_pass http://zolace_app;
   }

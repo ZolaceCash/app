@@ -1,6 +1,6 @@
 import { getTableColumns } from "drizzle-orm"
 
-import { orders, products, stock } from "./db/schema"
+import { orders, products, stock, vaultMonths } from "./db/schema"
 
 // What each stored column is, in the reader's words. The page at /proof lists every column of
 // every table from the schema and takes its text from here, so the page cannot leave one out:
@@ -31,6 +31,16 @@ const NOTES: Record<string, Record<string, string>> = {
     state: "Free, set aside for an order, or handed over.",
     order_id: "The order it was set aside for.",
   },
+  vault_months: {
+    period: "A month whose reward the owner put into the vault.",
+    from_block: "The first block of that month on the token's chain.",
+    to_block: "The last block of that month on the token's chain.",
+    root: "The one hash that stands for the month's list. The vault's contract holds the same one.",
+    total: "What was put in for the month, in the reward token.",
+    wallets: "How many wallets are on the month's list.",
+    list: "The list itself: each wallet with its part. Public: it follows from the token's transfers, and each claim shows its wallet and amount on the chain.",
+    recorded_at: "When the owner recorded the month.",
+  },
   products: {
     id: "A number for the item.",
     slug: "The item's name in links.",
@@ -60,6 +70,12 @@ const TABLES = [
     title: "Products",
     about: "What is on sale. Nothing here is about a buyer.",
     table: products,
+  },
+  {
+    name: "vault_months",
+    title: "Vault months",
+    about: "One row per month the owner funded for holders of the token. Empty until there is a token. Nothing here is about a buyer.",
+    table: vaultMonths,
   },
 ]
 

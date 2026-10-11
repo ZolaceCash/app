@@ -55,5 +55,23 @@ export const orders = sqliteTable("orders", {
   closedAt: integer("closed_at"),
 })
 
+// The vault (lib/vault.ts): one row per month the owner funded in the vault's contract, with the
+// list that month's root stands for. All of it is public on the token's chain or follows from it,
+// and nothing here is about a buyer.
+export const vaultMonths = sqliteTable("vault_months", {
+  // The month, as "2026-10".
+  period: text("period").primaryKey(),
+  fromBlock: integer("from_block").notNull(),
+  toBlock: integer("to_block").notNull(),
+  // The root of the month's list, as the vault's contract holds it.
+  root: text("root").notNull(),
+  // What was put in for the month, in the reward's smallest units. Text: too large for a number.
+  total: text("total").notNull(),
+  wallets: integer("wallets").notNull(),
+  // The list itself: each wallet with its part. A holder's proof is worked out from it.
+  list: text("list").notNull(),
+  recordedAt: integer("recorded_at").notNull(),
+})
+
 export type Product = typeof products.$inferSelect
 export type Order = typeof orders.$inferSelect

@@ -4,7 +4,8 @@ A shop for digital goods that needs no account and is paid in shielded Zcash. Th
 
 **This is a preview.** Only test orders run: the payment is a button and the items are made up. No real
 payment is taken and nothing real is sold. Nothing here has been audited and no legal review has been done.
-A token is planned; none exists, and nothing in this repository is an offer of one.
+A token is planned, with a monthly reward for its holders paid in NVDA from a contract; none exists, and
+nothing in this repository is an offer of one.
 
 ## How an order works
 
@@ -21,8 +22,8 @@ stores at `/proof`.
 | Path | What |
 | --- | --- |
 | `app/`, `components/`, `lib/` | The site: Next.js 16, SQLite through drizzle |
-| `tests/` | Tests of the order flow, the sealing of an item, the price rule and the owner's screens |
-| `contracts/` | The token contract and its tests. Written, not audited, not deployed (`CONTRACT.md`) |
+| `tests/` | Tests of the order flow, the sealing of an item, the price rule, the owner's screens and the vault's counting |
+| `contracts/` | The token and the vault its holders claim from, with their tests. Written, not audited, not deployed (`CONTRACT.md`) |
 | `engine/cipherpay/` | A patch and notes from trying a payment engine on Zcash testnet |
 | `Dockerfile`, `docker-compose.yml`, `deploy/` | Running it on one server (`deploy/README.md`) |
 
@@ -43,7 +44,7 @@ npm test
 The owner's screens at `/owner` are switched off until `OWNER_SECRET` is set to a secret of 32 characters or
 more, for example in `.env.local`.
 
-The token contract is a package of its own:
+The contracts are a package of their own:
 
 ```bash
 cd contracts && npm install && npm test

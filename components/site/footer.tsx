@@ -8,6 +8,7 @@ const LINKS = [
   { href: "/#privacy", label: "Privacy" },
   { href: "/#rules", label: "The rules" },
   { href: "/#token", label: "The token" },
+  { href: "/vault", label: "The vault" },
   { href: "/shop", label: "Browse the shelves" },
 ]
 

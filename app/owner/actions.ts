@@ -8,6 +8,9 @@ import type { FormState } from "@/components/owner/action-form"
 import { addStock, createProduct, markRefunded, parsePrice, updateProduct } from "@/lib/admin"
 import { isOwnerSecret, newSession, ownerEnabled } from "@/lib/owner"
 import { isOwner, OWNER_COOKIE, OWNER_PATH } from "@/lib/owner-session"
+import { parseUnitsExact, tokenConfig, vaultLive } from "@/lib/token"
+import { parseWallets } from "@/lib/vault"
+import { monthSheet, recordMonth } from "@/lib/vault-store"
 
 // What the owner's screens can do. Each of these can be called by anyone who sends the right
 // request, with or without the screen, so each one checks the session itself before it acts.
@@ -15,6 +18,9 @@ import { isOwner, OWNER_COOKIE, OWNER_PATH } from "@/lib/owner-session"
 const text = (form: FormData, name: string) => String(form.get(name) ?? "").trim()
 
 const SIGNED_OUT: FormState = { error: "You are signed out. Sign in again." }
+
+// An error from the chain can run to many lines: the first one says what went wrong.
+const firstLine = (message: string) => message.split("\n")[0]
 
 export async function signIn(_previous: FormState, form: FormData): Promise<FormState> {
   // Every attempt waits, right or wrong, so guessing is slow. No address is kept to do this.
@@ -90,4 +96,27 @@ export async function uploadCodes(_previous: FormState, form: FormData): Promise
   if (!result.ok) return { error: result.error }
   refresh()
   return { ok: `${result.added} code${result.added === 1 ? "" : "s"} added.` }
+}
+
+// The owner funded a month from their own wallet and records it. The list is worked out again
+// here, from the chain, and it is only kept if the vault's contract holds that very root and that
+// very amount: what the vault page lists is then what the contract pays.
+export async function monthFunded(_previous: FormState, form: FormData): Promise<FormState> {
+  if (!(await isOwner())) return SIGNED_OUT
+
+  const config = tokenConfig()
+  if (!vaultLive(config)) return { error: "The vault is switched off on this server." }
+  const pool = parseUnitsExact(text(form, "pool"), config.reward.decimals)
+  if (pool === null || pool === 0n) return { error: `The amount has to be in ${config.reward.symbol}, like 1.5.` }
+  const skip = parseWallets(text(form, "skip"))
+  if (skip === null) return { error: "One of the wallets left out is not an address." }
+
+  try {
+    const result = await recordMonth(await monthSheet(text(form, "month"), pool, skip))
+    if (!result.ok) return { error: result.error }
+  } catch (error) {
+    return { error: error instanceof Error ? firstLine(error.message) : "The month could not be worked out." }
+  }
+  refresh()
+  return { ok: "Recorded. The vault page now lists the month." }
 }

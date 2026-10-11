@@ -1,26 +1,36 @@
-# Zolace: the token contract
+# Zolace: the token and the vault
 
-The contract is written and tested (11 Oct 2026). It is NOT audited and NOT deployed, on testnet or anywhere.
-The token is stage 5 of PLAN.md and stays behind an audit and a legal review; neither has been done.
+Two contracts are written and tested (11 Oct 2026): the token, and the vault its holders claim a reward
+from. Neither is audited and neither is deployed, on testnet or anywhere. The token is stage 5 of the plan
+and stays behind an audit and a legal review; neither has been done.
 
-What the owner decided is in PLAN.md ("What it is"). The open choices were left to Claude ("decide what is
-best in your view, then build the contract") and are listed under "Choices made" with the reason for each.
-The owner can still change any of them before deployment; after it, most of them are fixed for good.
+The open choices were left to Claude ("decide what is best in your view, then build the contract") and are
+listed under "Choices made" with the reason for each. The owner can still change any of them before
+deployment; after it, most of them are fixed for good.
 
 ## What is on the chain
 
 Decided by the owner:
 
 - The token is on Robinhood Chain.
-- It takes a fee on each transfer. The fee goes to the payout.
-- The payout is shielded ZEC, sent by the owner. A wallet needs at least 3,000,000 tokens to be paid.
+- It takes a fee on each transfer. The fee goes to the reward.
+- A wallet needs at least 3,000,000 tokens to be rewarded.
+- The reward is NVDA, Robinhood's stock token for NVIDIA on the same chain:
+  `eip155:4663/erc20:0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec`. Read back from the chain on 11 Oct 2026:
+  name "NVIDIA • Robinhood Token", symbol NVDA, 18 decimals.
 
-What follows from that: one contract, the token. The payout is not on this chain, so there is no payout
-contract, no claim contract, no registry and no staking. Counting who holds 3,000,000 tokens is done from the
-chain's public data, off the chain. A holder's shielded address is given with a signature, off the chain.
+Before that day the reward was to be shielded ZEC, sent by the owner by hand, with no contract and nothing
+of a payout on any public chain. The owner replaced that. What changed with it:
 
-The less there is on the chain, the less there is to audit and the less a holder's payout can be read from
-it. That is the reason not to add a second contract, not only the cost.
+- There are two contracts now, the token and the vault. A contract holds each month's reward, and anyone
+  can read what went in and what was claimed.
+- Every claim is public for good: its wallet, its amount, its time. So is each month's whole list. The
+  reward borrows nothing from the privacy of the shop's payments, and no text may suggest it does.
+- Nothing is registered. A holder gives the site nothing; the old table of shielded addresses is gone.
+- NVDA is another company's security token. That is a legal question of its own (see "Risks").
+
+Counting who holds 3,000,000 tokens is still done off the chain, from the chain's public data. No staking
+and no registry: holding is enough.
 
 ## The chain
 
@@ -59,12 +69,26 @@ lint leave it alone.
 - `contracts/test/ZolaceToken.t.sol`: 28 tests, one claim each, two of them run on random inputs.
 - `contracts/test/ZolaceToken.invariant.t.sol`: random sequences of transfers and of the owner changing
   every rule the owner can change, with four things checked after each call.
+- `contracts/src/ZolaceVault.sol`: the vault. About a hundred lines on top of OpenZeppelin's `Ownable2Step`,
+  `SafeERC20` and `MerkleProof`.
+- `contracts/test/ZolaceVault.t.sol`: 20 tests, two of them run on random inputs, one of them held to the
+  same numbers as the site's own test.
+
+What was run on 11 Oct 2026, to see the pieces work together: both contracts and a stand-in for NVDA
+deployed on a local chain that started in August, six wallets holding through September (one dipping under
+the minimum and coming back, one buying in the month, one ending a single token under the line), and the
+site running from `docker-compose.yml` behind nginx. In a browser, with a stand-in wallet that passed
+requests to that chain: the owner's screen listed the two wallets that held throughout, 9 to 5 as they
+held; recording the month before it was funded was refused; the owner funded 14 from the owner's wallet and
+recorded it; each of the two wallets claimed its part on the vault page (9 and 5) and the vault was left
+with nothing; the three other wallets were told they were on no list; and no request to the site named a
+holder's wallet. Not run: anything on Robinhood Chain or its testnet, a real wallet, the real NVDA token.
 
 Commands: `npm run test:contract` from the project folder, or `npm test` and `npm run build` inside
 `contracts/` (after `npm install` there). No network is configured and there is no deploy script: deploying
 is step C2, and it needs the owner's wallet.
 
-The contract as it stands:
+The token as it stands:
 
 - Name "Zolace", symbol "ZOLACE", 18 decimals.
 - 1,000,000,000 tokens, minted once in the constructor to the owner's wallet. No function mints more, and
@@ -89,7 +113,7 @@ shown:
 
 Giving up ownership freezes the fee, the collector and the list as they are.
 
-What the tests prove (32 pass):
+What the token's tests prove (32 pass):
 
 - All balances together always equal the supply, and the supply never changes, whatever calls are made.
 - A transfer moves the amount less the fee to the receiver and exactly the fee to the fee collector, through
@@ -104,6 +128,36 @@ The tests were also turned against themselves: the contract was broken on purpos
 can go back up, a receiver paid in full on top of the fee, a fee-free receiver that is charged), and each
 time tests failed.
 
+### The vault
+
+- The constructor takes the owner's address and the reward token's address. The reward token cannot be
+  changed afterwards.
+- A month is a number like 202609. `fund(month, root, total)` is the owner's: it pulls `total` of the reward
+  from the owner's wallet into the contract and keeps `root`, one hash that stands for the month's list.
+- A month is funded once. It cannot be funded again, topped up, changed or taken back.
+- `claim(month, wallet, amount, proof)` pays `amount` to `wallet` if that line belongs under the month's
+  root and was not paid before. Anyone may send it; the reward only ever goes to the wallet on the list, so
+  a wallet that cannot send transactions itself can be claimed for.
+- A month never pays more than was put in for it, whatever its list says: a list that adds up to more
+  cannot reach another month's reward.
+- A reward token that keeps part of a transfer for itself is refused when a month is funded.
+
+| The vault's owner can | Cannot |
+| --- | --- |
+| Fund a month that has not been funded | Withdraw anything, ever |
+| Hand over ownership (two steps), or give it up | Change or cancel a funded month |
+| | Stop claims, block a wallet, or claim for itself |
+
+Giving up ownership ends funding and leaves every funded month claimable. A part nobody claims stays in the
+contract for good: there is no deadline and no sweep. That is the price of the owner having no way to take
+money out.
+
+What the vault's tests prove (20 pass): funding moves exactly the total in and only the owner can do it; a
+month cannot be funded twice or with nothing; a listed wallet gets exactly its part, once; another amount,
+another wallet, another month's proof or a made-up proof gets nothing; a list that promises more than went
+in cannot touch another month; and the contract hashes a list the way the site does
+(`tests/vault.test.ts` holds the site to the same two numbers).
+
 ## Choices made
 
 By Claude, at the owner's request, on 11 Oct 2026.
@@ -115,77 +169,87 @@ By Claude, at the owner's request, on 11 Oct 2026.
 | Fee | 1% at most, and it starts there | A fee on every transfer is already hard on exchanges and wallets; a low one does the least damage |
 | Can the fee change | Downward only | A holder can know the worst case for good. The owner keeps a way to lower or end it |
 | Which transfers pay | Every transfer | The owner's words. Telling trades from plain transfers needs a list of pools that somebody has to keep right |
-| How the fee becomes ZEC | It collects in the token; the owner sells it by hand | A swap inside a transfer ties the token to one exchange and is the usual place such tokens break |
+| How the fee becomes NVDA | It collects in the token; the owner sells it and buys NVDA by hand | A swap inside a transfer ties the token to one exchange and is the usual place such tokens break |
 | Upgradeable | No | What is deployed is what holders get, and the audit covers all of it |
 | Who holds the owner's key | A multisig if one is deployed on the chain, else a hardware wallet | The contract takes any address, so this is settled at deployment. Never a key on the server |
 | How the 3,000,000 are counted | The lowest balance a wallet had in the period | One counted block can be met by buying just before it and selling just after |
-| How the payout is split | By that lowest balance, among wallets that qualify and have registered | It is what PLAN.md read from the owner's words, and an equal share per wallet can be gamed by splitting tokens |
-| A wallet that qualifies and did not register | Gets nothing for that period; the period is split among those that did | There is no address to pay it to, and holding money back for it means keeping a ledger of debts |
+| How the reward is split | By that lowest balance, among wallets that qualify | An equal share per wallet can be gamed by splitting tokens |
+| How a holder is paid | The wallet claims from a contract, against a list hashed into one root | Sending to every wallet costs the owner gas per holder and needs a key that sends; a claim needs neither. The server never holds such a key |
+| Can the owner take a month back | No, not even what nobody claims | A way out for the owner is a way out for whoever takes the owner's key. Unclaimed reward staying put is the cost |
+| Who is left out | The token's owner, its fee collector, the vault, and whatever wallets the owner names | The project must not pay itself. A pool or a bridge holds other people's tokens and could never spend what it is paid |
 | A period | One calendar month, in UTC | Long enough that the lowest balance means something, short enough to wait for |
-| The line per period | Published | The blocks, the fee collected, the ZEC paid in total, the number of wallets. It names nobody |
+| The list per period | Published whole | It has to be: a wallet needs the list to prove its line, and anyone needs it to check the root |
 
 Not chosen, because it cannot be chosen from here:
 
-- The share of each order that goes to the payout. It depends on what the shop earns on each item, and no
-  item has a supplier or a price yet. The contract does not need it.
+- The share of each order that goes to the reward, and how much NVDA goes into a month. It depends on what
+  the shop earns on each item, and no item has a supplier or a price yet. The contracts do not need it.
 - Who gets the supply after it is minted to the owner's wallet (a sale, an exchange pool, anything kept
   back). That is where the legal review bites hardest, and it is the owner's to decide with that review.
 
 ## Counting the 3,000,000 tokens
 
-Not built. It happens off the chain, from data anyone can read, so anyone can do the same sum.
+Built (`lib/vault.ts`, `lib/vault-chain.ts`, `lib/vault-store.ts`), and used by the owner's screen at
+`/owner/payout`. It happens off the chain, from data anyone can read, so anyone can do the same sum.
 
-A script reads the token's `Transfer` events through an archive endpoint and rebuilds each wallet's balance
-over the month. A wallet counts with the lowest balance it had in that month; one that dipped under
-3,000,000 at any time is out for that month. A wallet's share of the payout is its lowest balance over the
-sum of the lowest balances of every wallet that qualifies and has registered.
+The site reads every `Transfer` event of the token, from the block the contract was deployed in, and
+rebuilds each wallet's balance over the month. It finds the month's first and last block by their times. A
+wallet counts with the lowest balance it had in that month; one that dipped under 3,000,000 at any time is
+out for that month, and one that arrived during the month started it with nothing. A wallet's part is its
+lowest balance over the sum of the lowest balances of every wallet that qualifies, rounded down to a whole
+unit of the reward, so a list never promises more than goes in.
 
 Tokens that sit in an exchange pool belong to the pool's address, not to the person who put them there. They
-do not count for that person. The fee collector and the owner's wallet are left out of the count.
+do not count for that person. The owner's screen marks a listed address that is a contract; the owner
+decides whether to leave it out.
 
-## Registering a shielded address
+## The vault on the site
 
-Not built.
+Built: `/vault` (`app/vault/page.tsx`, `components/vault/`), `/api/vault/months`, and the owner's screen. It
+is closed until `TOKEN_ADDRESS` and `VAULT_ADDRESS` are set where the server runs, and opens by itself when
+they are. The reward is `REWARD_ASSET`, NVDA by default; it has to be on the token's network.
 
-- The holder signs one typed message (EIP-712): the wallet, the shielded address, the time. A signature is
-  not a transaction: no gas, nothing on a chain.
-- The server checks that the signature is that wallet's. A wallet that is itself a contract is checked by
-  asking it (ERC-1271), which is a read.
-- Stored: the wallet, the shielded address, the signature, the time. A newer signature replaces the older
-  one; a signed request removes it. It is a new table, so `/proof` has to list every column of it, and the
-  test that guards that page fails until it does.
-- Only shielded addresses are accepted. A transparent Zcash address would put the payout in public.
-- The page that talks to a wallet is the only one that loads wallet code, and it talks to the wallet in the
-  browser directly. No connection service that sits between the site and the wallet: it would see every
-  holder who registers. A holder can also sign elsewhere and paste the signature.
-- What registering shows the server: that wallet, that shielded address, and the IP address of the request.
-  The site says so on the page.
+- The server only reads the chain. It has no key for it. The owner funds a month from the owner's wallet,
+  and a holder claims from theirs.
+- `/api/vault/months` gives every funded month with its whole list, the same answer for everyone. A
+  holder's browser finds its own line in it and builds its own proof, so the server is not asked about a
+  wallet and does not learn who looked.
+- Whether a line was already claimed is asked of the chain through the holder's wallet. The claim is a
+  transaction that wallet sends.
+- The page talks to the wallet in the browser directly. No connection service sits between the site and
+  the wallet: it would see every holder who claims.
+- A month is recorded on the site only if the vault's contract holds that very root and that very total.
+  What the page lists is then what the contract pays.
+- Stored: one row per funded month (`vault_months`): the month, its blocks, the root, the total, and the
+  list. `/proof` lists every column, and the test that guards that page fails if one is missing.
 
 ## A month, step by step
 
-All of it is the owner's work. The server can prepare the list; it signs and sends nothing.
+All of it is the owner's work. The server prepares the list; it signs and sends nothing.
 
-1. Close the month at one of this chain's blocks.
-2. The fee side: what the fee collector received is public. The owner sells it and turns it into ZEC. Where
-   that can be done was not checked, and wherever it is done, it ties the owner's wallet to that place.
-3. The shop side: the share of the month's orders, from the shop's own records. Nobody outside can check
-   it, because orders are shielded.
-4. From the chain and the registrations: which wallets qualify, and each one's share. This is the payout
-   list.
-5. The owner sends the list in shielded ZEC from the owner's own wallet. One Zcash transaction can pay
-   several addresses.
-6. The site publishes one line for the month.
+1. The month ends. Its first and last block are found by their times.
+2. The fee side: what the fee collector received is public. The owner sells it. Where that can be done was
+   not checked, and selling it is selling the token in public.
+3. The shop side: the share of the month's orders, in ZEC, from the shop's own records. Nobody outside can
+   check it, because orders are shielded.
+4. The owner buys NVDA with both. Whether the owner may buy and hold it, and where, is the owner's to
+   establish: Robinhood restricts where its stock tokens are offered.
+5. On `/owner/payout`: the month, the amount of NVDA, and any wallets to leave out. The screen shows the
+   list, the total and the root.
+6. The owner funds the month from the wallet that owns the vault: one transaction to let the vault take the
+   NVDA, one to hand over the root and the total.
+7. The owner records the month. The site checks the contract first. Holders can claim from then on.
 
 ## Order of work
 
 | Step | Work | Done when | State |
 | --- | --- | --- | --- |
 | C0 | The choices and the numbers | Every choice has an answer | Done, except the two under "Not chosen" |
-| C1 | The contract and its tests | The tests pass | Done: 32 pass |
-| C2 | Deploy on testnet (46630), verify on Blockscout, and try the token where it has to live: an exchange pool, a bridge | A transfer, a trade and a fee-free move all end with the right amounts | Needs the owner's testnet wallet |
-| C3 | The counting script and the registration page against testnet, and a practice payout on Zcash testnet | A practice month runs from the closing block to ZEC arriving | After stage 0 of PLAN.md: it needs a Zcash wallet too |
-| C4 | The audit, and the legal review | Both are done and what they found is fixed | Not started |
-| C5 | Deploy on mainnet with the owner's key, verify, set `TOKEN_ADDRESS` in `lib/token.ts` | The site shows the contract address | Not before C4 |
+| C1 | The contracts and their tests | The tests pass | Done: 52 pass, 32 for the token and 20 for the vault |
+| C2 | Deploy both on testnet (46630), verify on Blockscout, and try the token where it has to live: an exchange pool, a bridge | A transfer, a trade and a fee-free move all end with the right amounts | Needs the owner's testnet wallet |
+| C3 | The counting, the owner's screen and the vault page against testnet, with a test token standing in for NVDA | A practice month runs from the last block to a claim arriving in a wallet | Run against both contracts on a local chain, through the site in Docker (11 Oct 2026). Not yet on testnet, and never with a real wallet |
+| C4 | The audit of both contracts, and the legal review | Both are done and what they found is fixed | Not started |
+| C5 | Deploy on mainnet with the owner's key, verify, set `TOKEN_ADDRESS` and `VAULT_ADDRESS` where the server runs | The site shows the contract address and the vault opens | Not before C4 |
 
 The deploying key is the owner's and stays with the owner. It is never put in this repository, in an
 environment variable of the server, or anywhere the server can read.
@@ -194,24 +258,33 @@ environment variable of the server, or anywhere the server can read.
 
 1. A yes, or a change, to each line of "Choices made". The supply, the symbol and the ceiling of the fee
    cannot be changed after deployment.
-2. The share of each order that goes to the payout.
+2. The share of each order that goes to the reward, and how the amount of a month is decided.
 3. Who gets the supply at the start.
 4. For C2: a wallet on Robinhood Chain testnet, with testnet ETH.
 
 ## Risks of this part
 
-- The payout is not enforced by anything. The contract takes the fee; turning it into ZEC and sending it is
-  the owner's promise.
+- The contract enforces a month once it is funded. It does not enforce that a month is funded, how much
+  goes in, or that the list was counted right: those rest on the owner.
+- A wrong list cannot be corrected. A month funded with a mistake stays as it is; the only remedy is the
+  owner making it good in a later month.
+- A part that is never claimed stays in the vault for good.
+- NVDA is Robinhood's token. Its docs describe the stock tokens as tokenised debt securities issued by a
+  Robinhood company, not shares, and as not offered in a number of countries. Its contract was not read:
+  whether its issuer can freeze it, block an address or change its balances was not checked, and a vault
+  that holds a frozen token pays nothing. Its docs also describe a multiplier between the amount a contract
+  holds and the amount a wallet shows; the vault and the site count in the contract's own units.
+- Handing holders a security token, from a shop's takings and a token's fees, is more likely to be a
+  regulated activity than the plan was before. No legal review has been done.
 - A token with a fee on transfers is refused or mishandled by some exchanges, bridges and lending markets.
   What arrives is less than what was sent, and code that assumes otherwise breaks.
 - The chain's sequencer leaves out transactions tied to sanctioned addresses, and one company's council can
-  change the chain. A token whose holders are paid in a privacy coin sits on that chain at its operator's
-  tolerance. The chain's terms of service were not read.
-- Whoever holds the owner's key can redirect the fee and choose who pays none.
+  change the chain. The token, the vault and the reward all sit on that chain at its operator's tolerance.
+  The chain's terms of service were not read.
+- Whoever holds the token owner's key can redirect the fee and choose who pays none. Whoever holds the
+  vault owner's key can fund a month with any list, but cannot take out what is already in.
 - Selling the collected fee each month is selling the token in public.
-- A token that pays holders a share of fees and of a shop's takings can count as a regulated instrument, and
-  paying it out in a privacy coin adds to that. No legal review has been done.
-- The contract has been read by nobody but its author. Tests show what was thought of.
+- Both contracts have been read by nobody but their author. Tests show what was thought of.
 
 ## Not checked
 
@@ -221,5 +294,7 @@ environment variable of the server, or anywhere the server can read.
 - Whether Safe (or another multisig) is deployed on the chain.
 - How Uniswap on this chain treats a token with a fee on transfers, and which version it is.
 - Whether the symbol ZOLACE is in use elsewhere.
-- A way from ETH on this chain to ZEC, and what it costs.
+- The NVDA token's own contract: who controls it, and what they can do to a holder or to the vault.
+- Where the owner can buy NVDA, and whether the owner is allowed to.
+- A way from the collected fee and from ZEC to NVDA, and what it costs.
 - What an archive endpoint costs for the counting script.

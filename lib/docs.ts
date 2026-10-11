@@ -312,7 +312,7 @@ export const DOCS: Doc[] = [
             p: "Shielded ZEC hides who paid. It does not hide that an order was placed. If the IP address matters to you, that part is yours to handle: the shop cannot do it for you.",
           },
           {
-            p: "That list is for buying. The token is planned for later, and a holder who registers for its payout will tell the server one more thing: which shielded address belongs to which wallet.",
+            p: "That list is for buying. The token is planned for later and lives on a public chain: holding it, and claiming its reward from the vault, can be read by anyone there. It has nothing to do with an order, and the shop asks a holder for nothing.",
           },
         ],
       },
@@ -338,7 +338,7 @@ export const DOCS: Doc[] = [
   {
     slug: "the-token",
     title: "The token",
-    summary: "After the shop, on Robinhood Chain. Its holders are paid in shielded ZEC.",
+    summary: "After the shop, on Robinhood Chain. Its holders are rewarded in NVDA, claimed from a contract.",
     group: "Under the hood",
     sections: [
       {
@@ -350,11 +350,12 @@ export const DOCS: Doc[] = [
               ["Chain", "Robinhood Chain"],
               ["Supply", "1,000,000,000 tokens, minted once"],
               ["Transfer fee", "1% at most. It can be lowered, never raised"],
-              ["Holder payout", "Sent in shielded ZEC, once a month"],
-              ["Minimum to be paid", "3,000,000 tokens in the wallet"],
+              ["Holder reward", "NVDA, Robinhood's stock token for NVIDIA, once a month"],
+              ["How it is paid", "Claimed by the wallet from the vault's contract"],
+              ["Minimum to be listed", "3,000,000 tokens in the wallet, all month"],
               ["Paid from", "A fee on each transfer of the token, and a share of each order in the shop"],
               ["Before launch", "An audit and a legal review"],
-              ["Status", "Not live. A contract is written, not audited, not deployed"],
+              ["Status", "Not live. Two contracts are written, not audited, not deployed"],
             ],
           },
           { p: "The shop comes first. A token only makes sense once there is a shop whose orders have something to share." },
@@ -362,32 +363,33 @@ export const DOCS: Doc[] = [
       },
       {
         id: "holder-payout",
-        heading: "A payout for holders",
+        heading: "A reward for holders",
         blocks: [
-          { p: "The payout has two sources. The token takes a fee each time it is transferred, and a share of each order in the shop is set aside. It is paid out in shielded ZEC, the same way an order is paid." },
+          { p: "The reward has two sources. The token takes a fee each time it is transferred, and a share of each order in the shop is set aside. The owner uses both to buy NVDA, Robinhood's stock token for NVIDIA on Robinhood Chain, and puts it into the vault: a contract that holds each month's reward." },
           {
             list: [
-              "A wallet has to hold at least 3,000,000 tokens, which is 0.3% of the supply. A wallet under that gets no share.",
+              "A wallet has to hold at least 3,000,000 tokens, which is 0.3% of the supply. A wallet under that is on no list.",
               "What counts is the lowest balance the wallet had in the month. One that dipped under 3,000,000 at any time is out for that month.",
-              "The month's payout is split by that lowest balance, among the wallets that qualify and have registered.",
-              "The holder gives a shielded Zcash address and proves the wallet is theirs by signing a message with it. Signing is not a transaction: it costs nothing and puts nothing on a chain.",
-              "Each month the owner sends every registered wallet its share, from the owner's own wallet. The server holds no key that can send ZEC or tokens.",
-              "The shop's share is in ZEC already. The transfer fee is taken on Robinhood Chain, so the owner exchanges it for ZEC by hand.",
+              "The month's reward is split by that lowest balance, among the wallets that qualify. There is nothing to register.",
+              "Once a month is over, the owner works out the list from the token's transfers and puts the reward into the contract, with one hash that stands for the whole list.",
+              "A wallet on the list claims its part itself, on the vault page or straight from the contract. A part nobody claims stays in the contract: the owner cannot take a funded month back.",
+              "The server sends nothing and holds no key that could. The owner funds a month from the owner's wallet, and a holder claims from theirs.",
             ],
           },
-          { open: "These numbers are the plan's and can still change before the token is deployed. The share of an order that goes to the payout is not decided, and neither is who receives the supply at the start. The page where a wallet registers is not built." },
+          { open: "These numbers are the plan's and can still change before the token is deployed. How much goes into a month is not fixed and not promised. The share of an order that goes to the reward is not decided, and neither is who receives the supply at the start. The vault, page and contract, is built and closed: it opens when both contracts are deployed." },
         ],
       },
       {
         id: "public",
-        heading: "What is public, and what is not",
+        heading: "What is public",
         blocks: [
-          { p: "The token is on a public chain, so who holds it and every transfer, with the fee taken, can be read by anyone. Which wallets qualify in a month can be worked out by anyone from that. The payout is not on that chain. It is a shielded payment, which shows no sender, no receiver and no amount." },
+          { p: "All of the token's side is on a public chain. Who holds the token, every transfer with the fee taken, each month's list and every claim, with its wallet, its amount and its time, can be read by anyone and stays there. The reward is not private, and it borrows nothing from the privacy of a shielded payment." },
           {
             list: [
               "Buying in the shop needs no token and no wallet on that chain, and leaves nothing on it.",
-              "To be paid, a holder tells the shop one thing: which shielded address belongs to which wallet. The server stores that pair and asks for nothing else.",
-              "Nobody outside can check how much was paid out or to whom, and that includes holders. No contract enforces the payout: it rests on the owner sending it.",
+              "A holder tells the shop nothing. The vault page looks a wallet up in the public list inside the browser, and a claim goes from the wallet to the chain.",
+              "Anyone can check a month: the list can be worked out again from the token's transfers, and the contract shows what went in and what was claimed. What the shop took in cannot be checked from a chain, because orders are shielded.",
+              "NVDA is Robinhood's token, not this project's. Robinhood describes it as a tokenised debt security, not a share, and restricts where it may be offered. Whether a holder may be handed it has had no legal review.",
             ],
           },
         ],

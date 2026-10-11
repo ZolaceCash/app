@@ -11,6 +11,7 @@ const SCREENS = [
   { href: "/owner", name: "Orders" },
   { href: "/owner/refunds", name: "Refunds" },
   { href: "/owner/products", name: "Items" },
+  { href: "/owner/payout", name: "Payout" },
 ] as const
 
 // What every owner's screen shares: the site's frame, which screen this is, the way to the others,

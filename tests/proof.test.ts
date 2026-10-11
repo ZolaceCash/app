@@ -10,9 +10,9 @@ test("the /proof page explains every column the server stores", () => {
   assert.deepEqual(unexplained, [])
 })
 
-test("the /proof page covers the three tables", () => {
+test("the /proof page covers every table", () => {
   assert.deepEqual(
     STORED.map((table) => table.name),
-    ["orders", "stock", "products"]
+    ["orders", "stock", "products", "vault_months"]
   )
 })

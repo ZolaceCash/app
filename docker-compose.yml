@@ -15,8 +15,13 @@ services:
       # Without a .env the start already stops at DOMAIN below, with a message that says why.
       - path: .env
         required: false
+    environment:
+      # The database is local: one SQLite file on the volume below, opened by the site itself.
+      # There is no database server to run and no network between the site and its data. A
+      # DATABASE_URL in .env replaces this, for a hosted database.
+      DATABASE_URL: ${DATABASE_URL:-file:/app/data/zolace.db}
     volumes:
-      # The database: one SQLite file. It lives here, on this server, and nowhere else.
+      # Where that file lives. It stays on this server and outlives the container.
       - zolace-data:/app/data
     # Reached by nginx only. No port of the app is published on the host.
     expose:

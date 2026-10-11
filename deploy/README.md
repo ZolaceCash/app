@@ -49,7 +49,11 @@ chmod 600 .env
 | `CLOUDFLARE_API_TOKEN` | Secret. The token from step 4 above |
 | `OWNER_SECRET` | Secret. Opens `/owner`. 32 characters or more: `openssl rand -base64 48` |
 | `ORDER_RETENTION_DAYS` | Days an order is kept after it closes |
-| `DATABASE_URL`, `DATABASE_AUTH_TOKEN` | Only for a hosted database. Left out, the database is local |
+| `TOKEN_ADDRESS` | The token's contract address. Empty until there is a token |
+| `TOKEN_CHAIN_ID`, `TOKEN_RPC_URL`, `TOKEN_DEPLOY_BLOCK` | The token's network, where the site reads it, and the block the contract was deployed in |
+| `VAULT_ADDRESS` | The vault's contract address. Empty until it is deployed: the vault stays closed |
+| `REWARD_ASSET`, `REWARD_SYMBOL`, `REWARD_DECIMALS` | What holders are rewarded in. Set to NVDA on Robinhood Chain; it has to be on the token's network |
+| `DATABASE_URL`, `DATABASE_AUTH_TOKEN` | Only for a hosted database. Left out, the database is the local file |
 
 Fill it in, then:
 
@@ -66,7 +70,10 @@ The site makes its own tables and puts the three test items on the shelf the fir
 
 ## The database
 
-By default it is local: one SQLite file, `zolace.db`, on the `zolace-data` volume. Nothing else has to run.
+It is local, and Docker Compose sets it up: `docker-compose.yml` gives the site
+`DATABASE_URL=file:/app/data/zolace.db`, one SQLite file on the `zolace-data` volume. The site opens that
+file itself, so there is no database container and no network between the site and its data. Everything
+runs on the one server.
 
 ```bash
 # A copy of the database, written beside docker-compose.yml.
@@ -88,6 +95,24 @@ switched off. Changing it and restarting ends every session:
 ```bash
 docker compose up -d app
 ```
+
+## Switching the token on
+
+There is no token, so `TOKEN_ADDRESS` and `VAULT_ADDRESS` are empty: the home page shows the contract
+address as not available, the vault at `/vault` says it is not open, and the owner's payout screen says it
+is switched off. When the two contracts are deployed (`CONTRACT.md`), put the token's address, its network,
+the block it was deployed in and the vault's address into `.env` and restart the site. Nothing has to be
+built again:
+
+```bash
+docker compose up -d app
+```
+
+Counting a month of holdings reads old blocks. The public endpoint is rate limited and may not serve them:
+use a provider's archive endpoint for `TOKEN_RPC_URL`.
+
+The site only reads the chain. It holds no key for it: a month is funded from the owner's own wallet, in the
+browser, on `/owner/payout`, and a holder claims from theirs on `/vault`. Both need a wallet in that browser.
 
 ## Updating
 

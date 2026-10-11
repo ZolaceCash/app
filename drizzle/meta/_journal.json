@@ -15,6 +15,13 @@
       "when": 1791703316280,
       "tag": "0001_back_to_zec",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1791730087255,
+      "tag": "0002_clear_devos",
+      "breakpoints": true
     }
   ]
 }
