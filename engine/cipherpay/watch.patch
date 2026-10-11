@@ -1,0 +1,139 @@
+diff --git a/src/invoices/mod.rs b/src/invoices/mod.rs
+index c6a78f0..248177f 100644
+--- a/src/invoices/mod.rs
++++ b/src/invoices/mod.rs
+@@ -232,7 +232,7 @@ pub async fn mark_detected(
+         .format("%Y-%m-%dT%H:%M:%SZ")
+         .to_string();
+     let result = sqlx::query(
+-        "UPDATE invoices SET status = 'detected', detected_txid = ?, detected_at = ?, received_zatoshis = ?, expires_at = ?
++        "UPDATE invoices SET status = 'detected', detected_txid = ?, detected_at = ?, received_zatoshis = ?, expires_at = MAX(expires_at, ?)
+          WHERE id = ? AND status IN ('pending', 'underpaid')"
+     )
+     .bind(txid)
+@@ -347,7 +347,7 @@ pub async fn mark_underpaid(
+         .to_string();
+     sqlx::query(
+         "UPDATE invoices SET status = 'underpaid', received_zatoshis = ?, detected_txid = ?,
+-         detected_at = ?, expires_at = ?
++         detected_at = ?, expires_at = MAX(expires_at, ?)
+          WHERE id = ? AND status = 'pending'",
+     )
+     .bind(received_zatoshis)
+@@ -399,7 +399,7 @@ pub async fn record_payment(
+         .format("%Y-%m-%dT%H:%M:%SZ")
+         .to_string();
+     sqlx::query(
+-        "UPDATE invoices SET received_zatoshis = ?, expires_at = ?
++        "UPDATE invoices SET received_zatoshis = ?, expires_at = MAX(expires_at, ?)
+          WHERE id = ? AND status IN ('pending', 'underpaid')",
+     )
+     .bind(total)
+@@ -411,6 +411,42 @@ pub async fn record_payment(
+     Ok(total)
+ }
+ 
++/// A payment to an invoice that is already paid (detected or confirmed): a second payment, or
++/// one sent twice by a wallet. The invoice keeps its status; what arrived is added to
++/// `received_zatoshis`, once per transaction, so whoever reads the invoice sees the excess.
++/// Returns true when the transaction was new.
++pub async fn record_extra_payment(
++    pool: &SqlitePool,
++    invoice_id: &str,
++    txid: &str,
++    zatoshis: i64,
++) -> anyhow::Result<bool> {
++    let result = sqlx::query(
++        "INSERT OR IGNORE INTO invoice_payments (invoice_id, txid, zatoshis) VALUES (?, ?, ?)",
++    )
++    .bind(invoice_id)
++    .bind(txid)
++    .bind(zatoshis)
++    .execute(pool)
++    .await?;
++
++    if result.rows_affected() == 0 {
++        return Ok(false);
++    }
++
++    sqlx::query(
++        "UPDATE invoices SET received_zatoshis = received_zatoshis + ?
++         WHERE id = ? AND status IN ('detected', 'confirmed')",
++    )
++    .bind(zatoshis)
++    .bind(invoice_id)
++    .execute(pool)
++    .await?;
++
++    tracing::info!(invoice_id, txid, zatoshis, "Extra payment recorded on a paid invoice");
++    Ok(true)
++}
++
+ pub async fn update_refund_address(
+     pool: &SqlitePool,
+     invoice_id: &str,
+diff --git a/src/invoices/queries.rs b/src/invoices/queries.rs
+index f6a898d..d2471d2 100644
+--- a/src/invoices/queries.rs
++++ b/src/invoices/queries.rs
+@@ -86,11 +86,24 @@ pub async fn get_pending_invoices(pool: &SqlitePool) -> anyhow::Result<Vec<Invoi
+          subscription_id,
+          payment_link_id, is_donation, campaign_counted,
+          confirmed_rate, confirmed_fiat_amount
+-         FROM invoices WHERE status IN ('pending', 'underpaid', 'detected')
+-         AND expires_at > strftime('%Y-%m-%dT%H:%M:%SZ', 'now')"
++         FROM invoices WHERE (status IN ('pending', 'underpaid', 'detected')
++         AND expires_at > strftime('%Y-%m-%dT%H:%M:%SZ', 'now'))
++         OR (status = 'confirmed' AND confirmed_at > strftime('%Y-%m-%dT%H:%M:%SZ', 'now', ?))"
+     )
++    .bind(paid_watch_modifier())
+     .fetch_all(pool)
+     .await?;
+ 
+     Ok(rows)
+ }
++
++/// How long a confirmed invoice is still watched for more payments, as an SQLite time modifier.
++/// PAID_WATCH_HOURS, seven days when it is not set.
++fn paid_watch_modifier() -> String {
++    let hours = std::env::var("PAID_WATCH_HOURS")
++        .ok()
++        .and_then(|v| v.parse::<i64>().ok())
++        .filter(|h| *h > 0)
++        .unwrap_or(168);
++    format!("-{} hours", hours)
++}
+diff --git a/src/scanner/invoice_detection.rs b/src/scanner/invoice_detection.rs
+index f44996c..dc3ba70 100644
+--- a/src/scanner/invoice_detection.rs
++++ b/src/scanner/invoice_detection.rs
+@@ -84,6 +84,12 @@ pub(super) async fn apply_mempool_invoice_totals(
+             continue;
+         }
+ 
++        // Paid already: anything more is added to what the invoice received, once per transaction.
++        if invoice.status == "detected" || invoice.status == "confirmed" {
++            invoices::record_extra_payment(pool, invoice_id, txid, *tx_total).await?;
++            continue;
++        }
++
+         let new_received = if invoice.status == "underpaid" {
+             invoices::record_payment(pool, invoice_id, txid, *tx_total).await?
+         } else {
+diff --git a/src/scanner/mod.rs b/src/scanner/mod.rs
+index 4927bbf..8391790 100644
+--- a/src/scanner/mod.rs
++++ b/src/scanner/mod.rs
+@@ -696,6 +696,12 @@ async fn scan_blocks(
+                     continue;
+                 }
+ 
++                // Paid already: anything more is added to what the invoice received, once per transaction.
++                if invoice.status == "detected" || invoice.status == "confirmed" {
++                    invoices::record_extra_payment(pool, invoice_id, txid, *tx_total).await?;
++                    continue;
++                }
++
+                 let new_received = if invoice.status == "underpaid" {
+                     invoices::record_payment(pool, invoice_id, txid, *tx_total).await?
+                 } else {
