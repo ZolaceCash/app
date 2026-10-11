@@ -3,6 +3,10 @@ import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core"
 // Everything the server stores. The public page at /proof is drawn from this file (lib/proof.ts
 // explains each column), so a column added here shows up there, or the test for it fails.
 
+// The shelves of the shop, by the name in their link (lib/catalog.ts has what each one is).
+export const SHELF_SLUGS = ["vouchers", "licences", "gift-cards", "ai-credit", "esim", "gift-links"] as const
+export type ShelfSlug = (typeof SHELF_SLUGS)[number]
+
 export const products = sqliteTable("products", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   slug: text("slug").notNull().unique(),
@@ -14,6 +18,8 @@ export const products = sqliteTable("products", {
   kind: text("kind", { enum: ["test", "stock", "supplier"] }).notNull(),
   // For a "supplier" item: which of the supplier's packages it is.
   supplierRef: text("supplier_ref"),
+  // Which shelf the item stands on, as the owner chose. Null: on none, it is only in the list of items.
+  shelf: text("shelf", { enum: SHELF_SLUGS }),
   active: integer("active", { mode: "boolean" }).notNull().default(true),
 })
 

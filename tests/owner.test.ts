@@ -132,6 +132,30 @@ test("a new item starts off the shelf and goes on it when the owner says so", as
   assert.equal(item?.left, 0)
 })
 
+test("an item stands on the shelf the owner chose, and stays there until told otherwise", async () => {
+  assert.equal(admin.parseShelf("esim"), "esim")
+  assert.equal(admin.parseShelf(""), null)
+  assert.equal(admin.parseShelf("no-such-shelf"), undefined)
+
+  const input = { name: "Data plan", blurb: "", priceCents: 599 }
+  assert.deepEqual(await admin.createProduct({ ...input, slug: "data-plan", shelf: "esim" }), { ok: true })
+  const [product] = (await admin.listProducts()).filter((row) => row.slug === "data-plan")
+  assert.equal(product.shelf, "esim")
+
+  // Saving without naming a shelf leaves it where it is.
+  assert.deepEqual(await admin.updateProduct(product.id, { ...input, active: true }), { ok: true })
+  assert.equal((await orders.getItem("data-plan", later()))?.shelf, "esim")
+
+  assert.deepEqual(await admin.updateProduct(product.id, { ...input, active: true, shelf: null }), { ok: true })
+  assert.equal((await orders.getItem("data-plan", later()))?.shelf, null)
+
+  // A shelf that is not one of the six is refused, whatever the form sent.
+  const wrong = "attic" as unknown as "esim"
+  assert.equal((await admin.createProduct({ ...input, slug: "data-plan-2", shelf: wrong })).ok, false)
+  assert.equal((await admin.updateProduct(product.id, { ...input, active: true, shelf: wrong })).ok, false)
+  assert.equal((await admin.updateProduct(product.id, { ...input, active: false })).ok, true)
+})
+
 test("an item that cannot be right is refused", async () => {
   const input = { name: "Item", blurb: "", priceCents: 500 }
   assert.equal((await admin.createProduct({ ...input, slug: "Has Spaces" })).ok, false)

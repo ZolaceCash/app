@@ -5,6 +5,7 @@ import { addItem, saveItem, uploadCodes } from "@/app/owner/actions";
 import { ActionForm } from "@/components/owner/action-form";
 import { dollars, Field, OwnerFrame, Panel } from "@/components/owner/frame";
 import { listProducts, listRefundsDue, MAX_CODES_AT_ONCE } from "@/lib/admin";
+import { SHELVES } from "@/lib/catalog";
 import { requireOwner } from "@/lib/owner-session";
 import { shopMode } from "@/lib/shop-mode";
 import { balanceCents, supplierOn, wholesaleCents } from "@/lib/supplier";
@@ -54,6 +55,28 @@ async function Supplied({ product }: { product: { supplierRef: string | null; pr
         you more than its price, while the balance does not cover it, or where only test orders are taken.
       </p>
     </>
+  );
+}
+
+// Which shelf of the shop an item stands on. The shop marks a shelf as on sale while an item on
+// it can be ordered; an item on none is still in the list of items.
+function ShelfField({ value }: { value: string | null }) {
+  return (
+    <label className="block">
+      <span className="label-mono text-muted-foreground">Shelf</span>
+      <select
+        name="shelf"
+        defaultValue={value ?? ""}
+        className="mt-2 h-11 w-full rounded-lg bg-secondary px-4 font-mono text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/40"
+      >
+        <option value="">On none</option>
+        {SHELVES.map((shelf) => (
+          <option key={shelf.slug} value={shelf.slug}>
+            {shelf.name}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }
 
@@ -129,6 +152,7 @@ export default async function OwnerProducts() {
                   />
                 </div>
                 <Field label="One line about it" name="blurb" defaultValue={product.blurb} maxLength={200} />
+                <ShelfField value={product.shelf} />
                 <label className="flex items-center gap-3 leading-snug">
                   <input
                     type="checkbox"
@@ -190,6 +214,7 @@ export default async function OwnerProducts() {
             />
             <Field label="Price in dollars" name="price" inputMode="decimal" placeholder="12.50" required />
             <Field label="One line about it" name="blurb" maxLength={200} />
+            <ShelfField value={null} />
             <Field
               label="Supplier's package (optional)"
               name="supplierRef"

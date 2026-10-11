@@ -57,6 +57,13 @@
       "when": 1791747786913,
       "tag": "0007_moaning_raider",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1791751409233,
+      "tag": "0008_cultured_raider",
+      "breakpoints": true
     }
   ]
 }

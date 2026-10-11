@@ -109,6 +109,15 @@ function Item({ item }: { item: ShelfItem }) {
           <span className="label-mono mb-2 block text-foreground">{shopWords().noteLabel}</span>
           {shopWords().note}
         </p>
+
+        {item.shelf === "esim" ? (
+          <p className="mt-2.5 max-w-xl rounded-xl bg-secondary p-5 text-sm leading-relaxed text-muted-foreground">
+            <span className="label-mono mb-2 block text-foreground">Before you buy an eSIM</span>
+            Your phone has to take an eSIM and must not be locked to a carrier. Dial *#06#: if the
+            answer lists an EID, it takes one. Treat the QR code as good for one install, on one
+            phone.
+          </p>
+        ) : null}
       </div>
 
       <ol className="space-y-2.5">

@@ -67,6 +67,7 @@ const NOTES: Record<string, Record<string, string>> = {
     price_cents: "The price in dollars.",
     kind: "Whether the item is a test item, comes from uploaded stock, or is made by a supplier when it is paid for.",
     supplier_ref: "For an item a supplier makes: which of the supplier's packages it is.",
+    shelf: "Which of the shop's six shelves the item stands on, if the owner put it on one.",
     active: "Whether the item is on the shelf.",
   },
 }

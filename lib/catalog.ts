@@ -1,11 +1,12 @@
 import type { ComponentType } from "react"
 
 import { GiftIcon, KeyIcon, PhoneIcon, SendIcon, ShelfIcon, SparkIcon } from "@/components/site/icons"
+import type { ShelfSlug } from "@/lib/db/schema"
 
 // The kinds of goods the shop is planned to carry. These are shelves, not products: nothing has a
-// price or stock until the owner uploads the first codes (see PLAN.md, "How an item is handed over").
+// price or stock until the owner puts an item on it (see PLAN.md, "How an item is handed over").
 export type Shelf = {
-  slug: string
+  slug: ShelfSlug
   name: string
   blurb: string
   // "stock": a code the owner uploaded. "supplier": made by a supplier when the order is paid.

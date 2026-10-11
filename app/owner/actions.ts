@@ -5,7 +5,7 @@ import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
 
 import type { FormState } from "@/components/owner/action-form"
-import { addStock, createProduct, markRefunded, parsePrice, updateProduct } from "@/lib/admin"
+import { addStock, createProduct, markRefunded, parsePrice, parseShelf, updateProduct } from "@/lib/admin"
 import { isOwnerSecret, newSession, ownerEnabled } from "@/lib/owner"
 import { isOwner, OWNER_COOKIE, OWNER_PATH } from "@/lib/owner-session"
 import { tokenConfig, vaultLive } from "@/lib/token"
@@ -63,11 +63,15 @@ export async function addItem(_previous: FormState, form: FormData): Promise<For
   const priceCents = parsePrice(text(form, "price"))
   if (priceCents === null) return { error: "The price has to be an amount in dollars, like 12 or 12.50." }
 
+  const shelf = parseShelf(text(form, "shelf"))
+  if (shelf === undefined) return { error: "There is no such shelf." }
+
   const result = await createProduct({
     slug: text(form, "slug"),
     name: text(form, "name"),
     blurb: text(form, "blurb"),
     priceCents,
+    shelf,
     supplierRef: text(form, "supplierRef"),
   })
   if (!result.ok) return { error: result.error }
@@ -84,10 +88,14 @@ export async function saveItem(_previous: FormState, form: FormData): Promise<Fo
   const priceCents = parsePrice(text(form, "price"))
   if (priceCents === null) return { error: "The price has to be an amount in dollars, like 12 or 12.50." }
 
+  const shelf = parseShelf(text(form, "shelf"))
+  if (shelf === undefined) return { error: "There is no such shelf." }
+
   const result = await updateProduct(Number(text(form, "id")), {
     name: text(form, "name"),
     blurb: text(form, "blurb"),
     priceCents,
+    shelf,
     active: form.get("active") === "yes",
   })
   if (!result.ok) return { error: result.error }

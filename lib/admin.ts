@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gt, isNull, sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/lib/db"
-import type { Order, Product } from "@/lib/db/schema"
+import { SHELF_SLUGS, type Order, type Product, type ShelfSlug } from "@/lib/db/schema"
 import { sweep } from "@/lib/orders"
 
 const { orders, products, stock } = schema
@@ -113,7 +113,14 @@ export async function listProducts(): Promise<OwnerProduct[]> {
   })
 }
 
-export type ProductInput = { name: string; blurb: string; priceCents: number }
+// `shelf`: null takes the item off every shelf; left out, the shelf stays as it is.
+export type ProductInput = { name: string; blurb: string; priceCents: number; shelf?: ShelfSlug | null }
+
+// A shelf as a form sends it: one of the shelves, or nothing for "on none". Undefined when it is neither.
+export function parseShelf(text: string): ShelfSlug | null | undefined {
+  if (text === "") return null
+  return (SHELF_SLUGS as readonly string[]).includes(text) ? (text as ShelfSlug) : undefined
+}
 
 const SLUG = /^[a-z0-9]+(-[a-z0-9]+)*$/
 
@@ -128,6 +135,7 @@ function checkProduct(input: ProductInput) {
   if (input.name.length < 1 || input.name.length > 80) return "The name has to be 1 to 80 characters."
   if (input.blurb.length > 200) return "The line about the item has to be 200 characters or fewer."
   if (!Number.isSafeInteger(input.priceCents) || input.priceCents <= 0) return "The price has to be more than zero."
+  if (input.shelf != null && !(SHELF_SLUGS as readonly string[]).includes(input.shelf)) return "There is no such shelf."
   return null
 }
 
@@ -157,6 +165,7 @@ export async function createProduct(input: ProductInput & { slug: string; suppli
       priceCents: input.priceCents,
       kind: supplierRef ? "supplier" : "stock",
       supplierRef: supplierRef || null,
+      shelf: input.shelf ?? null,
       active: false,
     })
     .onConflictDoNothing({ target: products.slug })
@@ -171,7 +180,13 @@ export async function updateProduct(id: number, input: ProductInput & { active: 
   const db = await getDb()
   const changed = await db
     .update(products)
-    .set({ name: input.name, blurb: input.blurb, priceCents: input.priceCents, active: input.active })
+    .set({
+      name: input.name,
+      blurb: input.blurb,
+      priceCents: input.priceCents,
+      active: input.active,
+      ...(input.shelf === undefined ? {} : { shelf: input.shelf }),
+    })
     .where(eq(products.id, id))
     .returning({ id: products.id })
   return changed.length > 0 ? { ok: true } : { ok: false, error: "There is no such item." }

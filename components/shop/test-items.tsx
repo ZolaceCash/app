@@ -2,8 +2,9 @@ import Link from "next/link"
 import { connection } from "next/server"
 
 import { BuyButton } from "@/components/shop/buy-button"
+import { itemsNow } from "@/components/shop/items-now"
 import { ZecIcon } from "@/components/site/chain-icons"
-import { listItems, type ShelfItem } from "@/lib/orders"
+import type { ShelfItem } from "@/lib/orders"
 import { shopWords } from "@/lib/shop-mode"
 
 const dollars = (cents: number) => `$${(cents / 100).toFixed(2)}`
@@ -16,7 +17,7 @@ export async function TestItems() {
   // Without a database the rest of the site still stands; this part says what is missing.
   let items: ShelfItem[]
   try {
-    items = await listItems()
+    items = await itemsNow()
   } catch {
     return (
       <p className="cut rounded-3xl bg-card p-6 leading-relaxed text-muted-foreground">
@@ -35,7 +36,7 @@ export async function TestItems() {
   }
 
   return (
-    <ul className="grid gap-2.5 md:grid-cols-3">
+    <ul id="on-sale" className="grid scroll-mt-24 gap-2.5 md:grid-cols-3">
       {items.map((item, index) => (
         <li key={item.slug} className="flex flex-col cut rounded-3xl bg-card p-6">
           <div className="label-mono flex items-center justify-between text-muted-foreground">

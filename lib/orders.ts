@@ -1,7 +1,7 @@
 import { and, eq, gt, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/lib/db"
-import type { Order } from "@/lib/db/schema"
+import type { Order, ShelfSlug } from "@/lib/db/schema"
 import { LOCK_MS } from "@/lib/order-times"
 import { CONFIRMATIONS_NEEDED, engine, FEE_ZAT, type Network, type Seen } from "@/lib/payment"
 import { quoteZec } from "@/lib/price"
@@ -517,7 +517,16 @@ export async function setRefundAddress(id: string, text: string): Promise<Addres
   return kept.length > 0 ? { ok: true, refundTo: maskAddress(address) } : { ok: false, reason: "nothing-owed" }
 }
 
-export type ShelfItem = { slug: string; name: string; blurb: string; priceCents: number; kind: "test" | "stock" | "supplier"; left: number | null }
+export type ShelfItem = {
+  slug: string
+  name: string
+  blurb: string
+  priceCents: number
+  kind: "test" | "stock" | "supplier"
+  left: number | null
+  // The shelf it stands on, if the owner put it on one.
+  shelf: ShelfSlug | null
+}
 
 // What is on sale right now. `left` is null for an item that does not run out: a test item, and
 // one a supplier makes to order. The second is only on sale where real payments are taken and the
@@ -544,6 +553,7 @@ export async function listItems(now = Date.now()): Promise<ShelfItem[]> {
     priceCents: row.priceCents,
     kind: row.kind,
     left: row.kind === "stock" ? (left.get(row.id) ?? 0) : null,
+    shelf: row.shelf,
   }))
 }
 
