@@ -8,11 +8,13 @@ import { ItemView } from "@/components/shop/item-view"
 import { ProblemForm } from "@/components/shop/problem-form"
 import { Qr } from "@/components/shop/qr"
 import { RefundForm } from "@/components/shop/refund-form"
+import { TellMe } from "@/components/shop/tell-me"
 import { KeepHere } from "@/components/shop/keep-here"
 import { CopyButton } from "@/components/site/copy-button"
 import { DotLabel, PillLink } from "@/components/site/primitives"
 import { Button } from "@/components/ui/button"
 import { giftPath } from "@/lib/gift"
+import { stageOf } from "@/lib/notice"
 import { LATE_MS } from "@/lib/order-times"
 import type { OrderView as Order } from "@/lib/orders"
 import { formatZec } from "@/lib/price"
@@ -162,52 +164,55 @@ export function OrderView({ id }: { id: string }) {
       </div>
 
       <div className="grid items-start gap-2.5 lg:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
-        {/* Where the order stands. */}
-        <ol className="space-y-1.5 cut rounded-3xl bg-card p-4 md:p-6">
-          {STEPS.map((step, index) => {
-            const done = at > index
-            const current = at === index
-            return (
-              <li
-                key={step}
-                className={cn(
-                  "flex items-center justify-between rounded-lg py-3 pr-4 pl-3 transition-colors duration-500",
-                  current ? "bg-accent" : "bg-secondary"
-                )}
-              >
-                <span
+        {/* Where the order stands, and a way to be told when that changes. */}
+        <div className="space-y-2.5">
+          <ol className="space-y-1.5 cut rounded-3xl bg-card p-4 md:p-6">
+            {STEPS.map((step, index) => {
+              const done = at > index
+              const current = at === index
+              return (
+                <li
+                  key={step}
                   className={cn(
-                    "flex items-center gap-3 font-medium transition-colors duration-500",
-                    !done && !current && "text-muted-foreground"
+                    "flex items-center justify-between rounded-lg py-3 pr-4 pl-3 transition-colors duration-500",
+                    current ? "bg-accent" : "bg-secondary"
                   )}
                 >
                   <span
                     className={cn(
-                      "flex size-6 items-center justify-center rounded-md font-mono text-[0.625rem] transition-colors duration-500",
-                      current
-                        ? "bg-primary text-primary-foreground"
-                        : done
-                          ? "bg-foreground text-background"
-                          : "bg-foreground/10 text-muted-foreground"
+                      "flex items-center gap-3 font-medium transition-colors duration-500",
+                      !done && !current && "text-muted-foreground"
                     )}
                   >
-                    {done ? <Check aria-hidden className="size-3.5" /> : index + 1}
+                    <span
+                      className={cn(
+                        "flex size-6 items-center justify-center rounded-md font-mono text-[0.625rem] transition-colors duration-500",
+                        current
+                          ? "bg-primary text-primary-foreground"
+                          : done
+                            ? "bg-foreground text-background"
+                            : "bg-foreground/10 text-muted-foreground"
+                      )}
+                    >
+                      {done ? <Check aria-hidden className="size-3.5" /> : index + 1}
+                    </span>
+                    {step}
                   </span>
-                  {step}
-                </span>
-                <span className={cn("label-mono", current ? "text-brand" : "text-muted-foreground")}>
-                  {index === 2 && at >= 1 && at < 4
-                    ? `${order.confirmations} of ${order.confirmationsNeeded} blocks`
-                    : done
-                      ? "Done"
-                      : current && index === 0 && (order.state === "waiting" || order.state === "underpaid")
-                        ? `Held for ${clock}`
-                        : ""}
-                </span>
-              </li>
-            )
-          })}
-        </ol>
+                  <span className={cn("label-mono", current ? "text-brand" : "text-muted-foreground")}>
+                    {index === 2 && at >= 1 && at < 4
+                      ? `${order.confirmations} of ${order.confirmationsNeeded} blocks`
+                      : done
+                        ? "Done"
+                        : current && index === 0 && (order.state === "waiting" || order.state === "underpaid")
+                          ? `Held for ${clock}`
+                          : ""}
+                  </span>
+                </li>
+              )
+            })}
+          </ol>
+          <TellMe id={order.id} stage={stageOf(order)} />
+        </div>
 
         {/* What to do now, or the item. */}
         <div className="cut rounded-3xl bg-card p-6 md:p-8">

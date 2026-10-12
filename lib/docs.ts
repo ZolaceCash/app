@@ -263,6 +263,23 @@ export const DOCS: Doc[] = [
         ],
       },
       {
+        id: "being-told",
+        heading: "Being told when it moves",
+        blocks: [
+          {
+            p: "The shop has no email and no number to reach you on. If you ask it to, your own browser tells you instead: the order's page, left open in a tab, shows a notice when the order moves, for instance when an item that is bought to order is ready.",
+          },
+          {
+            list: [
+              "It works while that tab stays open, on that device. Close the tab and nothing tells you; the link still shows where the order stands.",
+              "A phone may put a tab in the background to sleep. The notice then comes when you are back on it.",
+              "Nothing is sent to the shop for it, and the shop keeps nothing for it.",
+              "The notice is shown by your device, so it names no item and no amount.",
+            ],
+          },
+        ],
+      },
+      {
         id: "other-paths",
         heading: "Other paths",
         blocks: [
