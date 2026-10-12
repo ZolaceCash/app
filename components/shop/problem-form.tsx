@@ -7,10 +7,23 @@ import { PROBLEM_MAX, PROBLEM_MIN } from "@/lib/order-times"
 import type { OrderView } from "@/lib/orders"
 import { cn } from "@/lib/utils"
 
-// Where a buyer says that the item they were handed does not work, and reads the owner's answer.
-// It needs no email and no account: the order's link is how the report is found. Closed until it
-// is asked for, so an order that went well shows one quiet line.
-export function ProblemForm({ id, network, problem }: { id: string; network: "testnet" | "mainnet"; problem: OrderView["problem"] }) {
+// Where a buyer says that the item they were handed does not work, and reads the answer: the
+// owner's, or the seller's when the item was another seller's (the payment went to that seller,
+// so a refund is theirs to send; the shop's owner reads the report too). It needs no email and no
+// account: the order's link is how the report is found. Closed until it is asked for, so an order
+// that went well shows one quiet line.
+export function ProblemForm({
+  id,
+  network,
+  problem,
+  seller = null,
+}: {
+  id: string
+  network: "testnet" | "mainnet"
+  problem: OrderView["problem"]
+  seller?: string | null
+}) {
+  const who = seller ? "seller" : "owner"
   const [kept, setKept] = useState(problem)
   const [open, setOpen] = useState(false)
   const [note, setNote] = useState("")
@@ -45,12 +58,14 @@ export function ProblemForm({ id, network, problem }: { id: string; network: "te
         <p className="label-mono mb-2 text-muted-foreground">Your report was answered</p>
         <p>
           {kept.refunded
-            ? "A refund was sent by hand to the address you gave, less the network's fee."
+            ? seller
+              ? "The seller said a refund was sent to the address you gave, less the network's fee."
+              : "A refund was sent by hand to the address you gave, less the network's fee."
             : "The report was read, and no refund was sent."}
         </p>
         {kept.reply ? (
           <p className="mt-3 text-muted-foreground">
-            <span className="text-foreground">The owner wrote:</span> {kept.reply}
+            <span className="text-foreground">The {who} wrote:</span> {kept.reply}
           </p>
         ) : null}
       </div>
@@ -64,7 +79,9 @@ export function ProblemForm({ id, network, problem }: { id: string; network: "te
           <p className="label-mono mb-2 text-muted-foreground">You reported a problem</p>
           <p className="break-words whitespace-pre-wrap">{kept.note}</p>
           <p className="mt-3 text-muted-foreground">
-            The owner reads each report by hand and answers on this page. Keep the link and come back with it.
+            {seller
+              ? "It went to the seller, who answers on this page, and the shop's owner reads it too. Keep the link and come back with it."
+              : "The owner reads each report by hand and answers on this page. Keep the link and come back with it."}
           </p>
         </div>
       ) : null}
@@ -96,8 +113,9 @@ export function ProblemForm({ id, network, problem }: { id: string; network: "te
           </label>
           <p className="mt-3 text-sm leading-snug text-muted-foreground">
             A shielded address from your own wallet, copied whole. Both are kept with this order and read by
-            the owner: write nothing here that you want kept from the shop. A report does not by itself mean
-            a refund.
+            {seller ? " the seller and the shop's owner" : " the owner"}: write nothing here that you want kept from
+            {seller ? " either" : " the shop"}. A report does not by itself mean a refund
+            {seller ? ", and the shop cannot send one for a seller: it never held the payment." : "."}
           </p>
           <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2">
             <Button type="submit" disabled={busy || note.trim().length < PROBLEM_MIN || address.length < 20}>
@@ -119,7 +137,7 @@ export function ProblemForm({ id, network, problem }: { id: string; network: "te
             onClick={() => setOpen(true)}
             className="rounded text-brand underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/40"
           >
-            {kept ? "Write the report again" : "Report it to the owner"}
+            {kept ? "Write the report again" : `Report it to the ${who}`}
           </button>
           . No email and no account are asked for.
         </p>

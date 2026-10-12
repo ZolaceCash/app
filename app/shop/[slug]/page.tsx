@@ -83,7 +83,7 @@ function Item({ item }: { item: ShelfItem }) {
       <div className="cut-2 rounded-3xl bg-card p-7 md:p-12">
         <DotLabel>
           <span className="text-muted-foreground">The shop /</span>
-          {test ? "Test item" : item.kind === "supplier" ? "Made to order" : item.kind === "hand" ? "Bought to order" : "From stock"}
+          {test ? "Test item" : item.seller ? "Another seller's item" : item.kind === "supplier" ? "Made to order" : item.kind === "hand" ? "Bought to order" : "From stock"}
         </DotLabel>
         <h1 className="mt-5 text-4xl leading-[1.02] font-medium tracking-[-0.04em] text-balance md:text-6xl">
           {item.name}
@@ -139,6 +139,18 @@ function Item({ item }: { item: ShelfItem }) {
           <span className="label-mono mb-2 block text-foreground">{shopWords().noteLabel}</span>
           {shopWords().note}
         </p>
+
+        {item.seller ? (
+          <p className="mt-2.5 max-w-xl rounded-xl bg-accent p-5 text-sm leading-relaxed text-accent-foreground">
+            <span className="label-mono mb-2 block">Sold by {item.seller}, not by Zolace</span>
+            <span className="text-foreground/85">
+              This item is another seller&apos;s. Your payment goes straight to that seller&apos;s wallet and never to the
+              shop, so the shop cannot refund it: what is owed back to you, and any refund for an item that does
+              not work, is the seller&apos;s to send. Zolace has not checked the item. You can report it on the
+              order&apos;s page, to the seller and to the shop.
+            </span>
+          </p>
+        ) : null}
 
         {item.kind === "hand" ? (
           <p className="mt-2.5 max-w-xl rounded-xl bg-secondary p-5 text-sm leading-relaxed text-muted-foreground">

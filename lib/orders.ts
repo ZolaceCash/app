@@ -3,13 +3,14 @@ import { and, eq, gt, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-or
 import { getDb, schema } from "@/lib/db"
 import type { Order, ShelfSlug } from "@/lib/db/schema"
 import { LOCK_MS, PROBLEM_MAX, PROBLEM_MIN } from "@/lib/order-times"
-import { CONFIRMATIONS_NEEDED, engine, FEE_ZAT, type Network, type Seen } from "@/lib/payment"
+import { CONFIRMATIONS_NEEDED, engine, FEE_ZAT, sellerEngine, type Network, type PaymentEngine, type Seen } from "@/lib/payment"
 import { quoteZec } from "@/lib/price"
 import { sealTo, type PublicKey, type Sealed, type Wrapped } from "@/lib/seal"
+import { sellingOn } from "@/lib/selling"
 import { canSupply, supplierOn, supply } from "@/lib/supplier"
 import { maskAddress, shieldedAddress } from "@/lib/zcash-address"
 
-const { orders, products, stock } = schema
+const { orders, products, sellers, stock } = schema
 
 export { LOCK_MS }
 
@@ -83,6 +84,20 @@ export async function createOrder(input: {
     if (!(await canSupply(product.supplierRef, product.priceCents, now))) return { ok: false, reason: "no-stock" }
   }
 
+  // Another seller's item: its address is made from the seller's viewing key, so the payment goes
+  // to the seller's wallet. It is sold only while selling is open, the seller has not been closed,
+  // the item has not been taken down, and the seller's key is of the network payments run on.
+  let payee: PaymentEngine = pay
+  if (product.sellerId) {
+    const [seller] = await db.select().from(sellers).where(eq(sellers.id, product.sellerId))
+    const theirs = seller ? sellerEngine(seller.engineKey) : null
+    if (!sellingOn() || !seller || seller.closedAt !== null || product.takenDownAt !== null || product.kind !== "stock") {
+      return { ok: false, reason: "no-product" }
+    }
+    if (!theirs || seller.network !== pay.network) return { ok: false, reason: "no-product" }
+    payee = theirs
+  }
+
   // An engine that cannot be trusted to see a payment takes no order: a buyer would pay into silence.
   if (!(await pay.healthy())) return { ok: false, reason: "no-engine" }
 
@@ -123,7 +138,7 @@ export async function createOrder(input: {
   }
 
   // Only now is an address asked for: an order that found no item has cost the engine nothing.
-  const opened = await pay.open({ orderId: id, priceCents: product.priceCents, usdPerZec: quote.usdPerZec })
+  const opened = await payee.open({ orderId: id, priceCents: product.priceCents, usdPerZec: quote.usdPerZec })
   if (!opened.ok) {
     await releaseStock({ stockId, productId: product.id })
     return { ok: false, reason: opened.reason === "price-disagree" ? "price-disagree" : "no-engine" }
@@ -133,6 +148,7 @@ export async function createOrder(input: {
     id,
     productId: product.id,
     stockId,
+    sellerId: product.sellerId,
     state: "waiting",
     priceCents: product.priceCents,
     zat: opened.zat,
@@ -293,6 +309,33 @@ export async function sweep(now = Date.now(), late = false) {
     .select()
     .from(orders)
     .where(late ? or(overdue, watched) : overdue)
+  for (const order of due) await advance(order, now)
+  return due.length
+}
+
+// The same for one seller's orders, when that seller looks at their desk: orders whose lock ran
+// out are closed, and the ones still watched are asked about, so a payment that came late or
+// twice is on the seller's list of what they owe.
+export async function sweepSeller(sellerId: string, now = Date.now()) {
+  const db = await getDb()
+  const due = await db
+    .select()
+    .from(orders)
+    .where(
+      and(
+        eq(orders.sellerId, sellerId),
+        or(
+          and(inArray(orders.state, [...OPEN]), lt(orders.expiresAt, now)),
+          inArray(orders.state, [...PAID]),
+          and(
+            inArray(orders.state, ["expired", "owed", "delivered"]),
+            isNotNull(orders.engineRef),
+            isNull(orders.refundedAt),
+            gt(orders.expiresAt, now - watchMs())
+          )
+        )
+      )
+    )
   for (const order of due) await advance(order, now)
   return due.length
 }
@@ -570,6 +613,9 @@ export type OrderView = {
   // Which money this order is about: none (the stand-in), test coins, or real ZEC.
   network: Network
   product: string
+  // Who sells the item, when it is another seller's: the payment goes to that seller's wallet, and
+  // whatever is owed back is theirs to send. Null for the shop's own item.
+  seller: string | null
   priceCents: number
   zat: number
   // What has arrived so far, and what of it is owed back.
@@ -609,6 +655,7 @@ export async function readOrder(id: string, now = Date.now()): Promise<OrderView
 
   const { order, confirmations } = await advance(found, now)
   const [product] = await db.select().from(products).where(eq(products.id, order.productId))
+  const [seller] = order.sellerId ? await db.select({ name: sellers.name }).from(sellers).where(eq(sellers.id, order.sellerId)) : []
 
   return {
     id: order.id,
@@ -617,6 +664,7 @@ export async function readOrder(id: string, now = Date.now()): Promise<OrderView
     // An order says what it was paid in by its address, whatever the server is set to today.
     network: order.test ? "stand-in" : order.address.startsWith("utest") ? "testnet" : "mainnet",
     product: product?.name ?? "Item",
+    seller: order.sellerId ? (seller?.name ?? "Another seller") : null,
     priceCents: order.priceCents,
     zat: order.zat,
     receivedZat: order.receivedZat,
@@ -709,6 +757,8 @@ export type ShelfItem = {
   left: number | null
   // The shelf it stands on, if the owner put it on one.
   shelf: ShelfSlug | null
+  // Who sells it, when it is another seller's item. Null for the shop's own.
+  seller: string | null
 }
 
 // What is on sale right now. `left` is null for an item that does not run out: a test item, one
@@ -720,8 +770,17 @@ export async function listItems(now = Date.now()): Promise<ShelfItem[]> {
   // A made-up item is not shown where real money is taken: it could only be refused.
   const real = engine().network === "mainnet"
   const made = engine().network !== "stand-in" && supplierOn()
+  // Another seller's item is on the shelf only while selling is open, the seller was not closed,
+  // the item was not taken down and the seller's key is of the network payments run on.
+  const selling = sellingOn()
+  const network = engine().network
+  const sellerRows = selling ? await db.select().from(sellers) : []
+  const sellerOf = new Map(sellerRows.filter((row) => row.closedAt === null && row.network === network).map((row) => [row.id, row.name]))
   const rows = (await db.select().from(products).where(eq(products.active, true))).filter(
-    (row) => !(real && row.kind === "test") && !(row.kind === "supplier" && !(made && row.supplierRef))
+    (row) =>
+      !(real && row.kind === "test") &&
+      !(row.kind === "supplier" && !(made && row.supplierRef)) &&
+      (row.sellerId === null || (row.kind === "stock" && row.takenDownAt === null && sellerOf.has(row.sellerId)))
   )
   const free = await db
     .select({ productId: stock.productId, count: sql<number>`count(*)` })
@@ -744,6 +803,7 @@ export async function listItems(now = Date.now()): Promise<ShelfItem[]> {
     kind: row.kind,
     left: row.kind === "stock" ? (left.get(row.id) ?? 0) : null,
     shelf: row.shelf ?? (row.kind === "supplier" || esim.has(row.id) ? "esim" : null),
+    seller: row.sellerId ? (sellerOf.get(row.sellerId) ?? null) : null,
   }))
 }
 

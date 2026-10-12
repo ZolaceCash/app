@@ -1,36 +1,30 @@
 import type { Metadata } from "next";
 import { Minus } from "lucide-react";
+import { Suspense } from "react";
 
+import { SellAction, SellActionFallback, SellHead, SellHeadFallback } from "@/components/sell/selling-now";
 import { TrySelling } from "@/components/sell/try-selling";
-import { PageHead, PageShell } from "@/components/site/page-shell";
-import { DotLabel, PillLink } from "@/components/site/primitives";
+import { PageShell } from "@/components/site/page-shell";
+import { DotLabel } from "@/components/site/primitives";
 import { Reveal } from "@/components/site/reveal";
-import { XIcon, X_URL } from "@/components/site/x-link";
-import { Button } from "@/components/ui/button";
-import { DECIDED, PLAINLY, STEPS, UNDECIDED } from "@/lib/sell";
+import { DECIDED, NOT_SOLD, PLAINLY, STEPS, TAKEN_DOWN, UNDECIDED } from "@/lib/sell";
 import { cn } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Sell on Zolace",
   description:
-    "The plan for other sellers on Zolace: a buyer pays the seller directly, in shielded ZEC, and the shop never holds the money. Not open yet.",
+    "Other sellers on Zolace: a buyer pays the seller directly, in shielded ZEC, and the shop never holds the money.",
 };
 
-// The plan for other sellers (lib/sell.ts). Nothing here can be used yet, and the page says so
-// first: it is how selling is meant to work, what follows from that, and what is still open.
+// Other sellers (lib/sell.ts): how selling works, what follows from that and what may not be
+// sold. Whether it is open is a setting of the server, so the head and the last card are read on
+// each request (components/sell/selling-now.tsx) and nothing else on the page claims either.
 export default function Sell() {
   return (
     <PageShell>
-      <PageHead
-        figure="sweep"
-        label="Selling / Not open yet"
-        title="Your goods. Your wallet. Our shelf."
-        facts={["Paid straight to the seller", "Open to anyone", "Free at the start", "Being built"]}
-      >
-        Zolace is opening its shelves to other sellers. A buyer pays you directly, in shielded ZEC,
-        to an address that is yours, and the shop never holds the money. None of this can be used
-        today: this page says how it is meant to work and what is still to be decided.
-      </PageHead>
+      <Suspense fallback={<SellHeadFallback />}>
+        <SellHead />
+      </Suspense>
 
       <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_repeat(3,minmax(0,1fr))]">
         {DECIDED.map((item, index) => (
@@ -58,7 +52,7 @@ export default function Sell() {
 
       <div className="mt-2.5 grid items-start gap-2.5 lg:grid-cols-[minmax(0,1fr)_24rem]">
         <Reveal className="cut-2 rounded-3xl bg-card p-6 md:p-8">
-          <DotLabel>How an order of yours will run</DotLabel>
+          <DotLabel>How an order of yours runs</DotLabel>
           <ol className="mt-6 space-y-1.5">
             {STEPS.map((step, index) => (
               <li
@@ -90,8 +84,17 @@ export default function Sell() {
 
       <div className="mt-2.5 grid gap-2.5 lg:grid-cols-2">
         <Reveal className="cut rounded-3xl bg-card p-6 md:p-8">
-          <DotLabel>Not decided yet</DotLabel>
+          <DotLabel>Not sold here</DotLabel>
           <ul className="mt-6 space-y-1.5">
+            {NOT_SOLD.map((line) => (
+              <li key={line} className="rounded-lg bg-secondary px-5 py-3.5 leading-snug">
+                {line}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-4 leading-snug text-muted-foreground">{TAKEN_DOWN}</p>
+          <p className="label-mono mt-8 text-muted-foreground">Not decided yet</p>
+          <ul className="mt-4 space-y-1.5">
             {UNDECIDED.map((line) => (
               <li key={line} className="rounded-lg bg-secondary px-5 py-3.5 leading-snug text-muted-foreground">
                 {line}
@@ -101,25 +104,9 @@ export default function Sell() {
         </Reveal>
 
         <Reveal delay={60} className="cut flex flex-col rounded-3xl bg-card p-6 md:p-8">
-          <DotLabel>The first sellers</DotLabel>
-          <h2 className="mt-5 max-w-md text-3xl leading-[1.03] font-medium tracking-[-0.04em] text-balance md:text-4xl">
-            Tell us what you would sell.
-          </h2>
-          <p className="mt-4 max-w-md leading-relaxed text-muted-foreground">
-            Selling is not open yet. What sellers ask for decides what is built first: say on X what you
-            would put on a shelf, and nothing more about yourself than you want to.
-          </p>
-          <div className="mt-8 flex flex-wrap gap-2 lg:mt-auto lg:pt-8">
-            <Button asChild size="lg">
-              <a href={X_URL} target="_blank" rel="noopener noreferrer">
-                <XIcon className="size-3.5" />
-                Say it on X
-              </a>
-            </Button>
-            <PillLink href="/docs/placing-an-order" variant="secondary" size="lg">
-              How an order runs
-            </PillLink>
-          </div>
+          <Suspense fallback={<SellActionFallback />}>
+            <SellAction />
+          </Suspense>
         </Reveal>
       </div>
     </PageShell>

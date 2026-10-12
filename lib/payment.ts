@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs"
 
-import { cipherpay } from "@/lib/cipherpay"
+import { cipherpay, register } from "@/lib/cipherpay"
 import { toZat } from "@/lib/price"
 
 // The payment engine sits behind this interface so it can be replaced (PLAN.md, "Architecture").
@@ -91,19 +91,45 @@ function engineKey() {
   }
 }
 
-// The engine the server is told to use, read when it is needed and not when the site is built.
-// It takes all three to leave the stand-in: where the engine is, the key to it, and which network
-// it is on. With one missing or mistyped the site keeps taking test orders, which say on their
-// face that no money moves.
-export function engine(): PaymentEngine {
+// Where the real engine is and which network it is on, or null while the server is not told all
+// of it: where the engine is, the key to it, and the network. With one missing or mistyped the
+// site keeps taking test orders, which say on their face that no money moves.
+function settings() {
   const url = (process.env.CIPHERPAY_URL ?? "").trim().replace(/\/+$/, "")
   const key = engineKey()
   const network = (process.env.PAYMENT_NETWORK ?? "").trim()
-  if (!url || !key || (network !== "testnet" && network !== "mainnet")) return standIn
+  if (!url || !key || (network !== "testnet" && network !== "mainnet")) return null
   // The chain explorer the depth of a payment is asked of: the one the engine reads. Without it
   // a confirmed payment would count as one block for ever and nothing would be handed over.
   const scanUrl =
     (process.env.CIPHERSCAN_API_URL ?? "").trim().replace(/\/+$/, "") ||
     (network === "testnet" ? "https://api.testnet.cipherscan.app" : "https://api.mainnet.cipherscan.app")
-  return cipherpay({ url, key, network, scanUrl })
+  return { url, key, network, scanUrl } as const
+}
+
+// The engine the server is told to use, read when it is needed and not when the site is built.
+export function engine(): PaymentEngine {
+  const set = settings()
+  return set ? cipherpay(set) : standIn
+}
+
+// The same engine, asked with another seller's key to it (lib/sellers.ts): the address it makes
+// comes from that seller's viewing key, so the payment arrives in the seller's wallet and never
+// in the shop's. Null on the stand-in: a seller's item is only ever paid for through the engine.
+export function sellerEngine(key: string): PaymentEngine | null {
+  const set = settings()
+  return set && key ? cipherpay({ ...set, key }) : null
+}
+
+export type Registered =
+  | { ok: true; key: string }
+  // taken: the engine has that viewing key already. refused: it is not a viewing key of the
+  // engine's network. busy: the engine takes a few registrations a minute. unavailable: no answer.
+  | { ok: false; reason: "taken" | "refused" | "busy" | "unavailable" }
+
+// Gives the engine a seller's viewing key and returns the key to the engine it answers with. The
+// viewing key goes to the engine and nowhere else: it is not stored or logged on the way.
+export async function registerViewingKey(viewingKey: string): Promise<Registered> {
+  const set = settings()
+  return set ? register(set, viewingKey) : { ok: false, reason: "unavailable" }
 }

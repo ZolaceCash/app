@@ -10,6 +10,11 @@ const { orders, products, stock } = schema
 // app/owner does that first (lib/owner-session.ts). No function returns a code from the stock. Of
 // a buyer, only what they typed in for the owner to read: a refund address, and a report about an
 // item that did not work.
+//
+// Refunds, reports, items and stock here are the shop's own. An order of another seller's item
+// was paid to that seller's wallet: what it is owed back is the seller's to send and its report
+// the seller's to answer (lib/sellers.ts), and the owner cannot edit a seller's item, only take
+// it down.
 
 export type OwnerOrder = {
   id: string
@@ -31,7 +36,8 @@ export type OwnerOrder = {
 
 const orderColumns = {
   id: orders.id,
-  product: sql<string>`coalesce(${products.name}, 'Item')`,
+  // An order of another seller's item says so: its money is in that seller's wallet, not the owner's.
+  product: sql<string>`coalesce(${products.name}, 'Item') || case when ${orders.sellerId} is not null then ' (another seller''s)' else '' end`,
   state: orders.state,
   test: orders.test,
   priceCents: orders.priceCents,
@@ -77,7 +83,7 @@ export async function listRefundsDue(now = Date.now()): Promise<OwnerOrder[]> {
     .select(orderColumns)
     .from(orders)
     .leftJoin(products, eq(orders.productId, products.id))
-    .where(and(gt(orders.owedZat, 0), isNull(orders.refundedAt)))
+    .where(and(gt(orders.owedZat, 0), isNull(orders.refundedAt), isNull(orders.sellerId)))
     .orderBy(asc(orders.seenAt))
 }
 
@@ -112,7 +118,7 @@ export async function listProblems(): Promise<OwnerProblem[]> {
     })
     .from(orders)
     .leftJoin(products, eq(orders.productId, products.id))
-    .where(and(isNotNull(orders.problem), isNull(orders.problemClosedAt)))
+    .where(and(isNotNull(orders.problem), isNull(orders.problemClosedAt), isNull(orders.sellerId)))
     .orderBy(asc(orders.problemAt))
 }
 
@@ -129,7 +135,7 @@ export async function answerProblem(id: string, answer: { refunded: boolean; rep
   const done = await db
     .update(orders)
     .set({ problemClosedAt: now, problemReply: reply || null, problemRefunded: answer.refunded })
-    .where(and(eq(orders.id, id), isNotNull(orders.problem), isNull(orders.problemClosedAt)))
+    .where(and(eq(orders.id, id), isNotNull(orders.problem), isNull(orders.problemClosedAt), isNull(orders.sellerId)))
     .returning({ id: orders.id })
   return done.length > 0 ? { ok: true } : { ok: false, error: "That report is not waiting for an answer any more." }
 }
@@ -142,7 +148,7 @@ export async function markRefunded(id: string, now = Date.now()) {
     .update(orders)
     // An order that was delivered and overpaid stays delivered: only the excess went back.
     .set({ refundedAt: now, state: sql`case when ${orders.state} = 'owed' then 'refunded' else ${orders.state} end`, closedAt: sql`coalesce(${orders.closedAt}, ${now})` })
-    .where(and(eq(orders.id, id), gt(orders.owedZat, 0), isNull(orders.refundedAt)))
+    .where(and(eq(orders.id, id), gt(orders.owedZat, 0), isNull(orders.refundedAt), isNull(orders.sellerId)))
     .returning({ stockId: orders.stockId })
   if (done.length === 0) return false
   // What was set aside for it had nothing in it: drop the empty row.
@@ -155,7 +161,7 @@ export type OwnerProduct = Product & { free: number; held: number; given: number
 
 export async function listProducts(): Promise<OwnerProduct[]> {
   const db = await getDb()
-  const rows = await db.select().from(products).orderBy(asc(products.id))
+  const rows = await db.select().from(products).where(isNull(products.sellerId)).orderBy(asc(products.id))
   const counts = await db
     .select({ productId: stock.productId, state: stock.state, count: sql<number>`count(*)` })
     .from(stock)
@@ -242,7 +248,7 @@ export async function updateProduct(id: number, input: ProductInput & { active: 
       active: input.active,
       ...(input.shelf === undefined ? {} : { shelf: input.shelf }),
     })
-    .where(eq(products.id, id))
+    .where(and(eq(products.id, id), isNull(products.sellerId)))
     .returning({ id: products.id })
   return changed.length > 0 ? { ok: true } : { ok: false, error: "There is no such item." }
 }
@@ -264,7 +270,7 @@ export async function addStock(productId: number, text: string): Promise<Result 
   if (codes.some((code) => code.length > 2000)) return { ok: false, error: "One of the codes is too long." }
 
   const db = await getDb()
-  const [product] = await db.select().from(products).where(eq(products.id, productId))
+  const [product] = await db.select().from(products).where(and(eq(products.id, productId), isNull(products.sellerId)))
   if (!product) return { ok: false, error: "There is no such item." }
   if (product.kind === "supplier") {
     return { ok: false, error: "This item is made by the supplier when it is paid for. It takes no stock." }

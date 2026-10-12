@@ -7,6 +7,25 @@ import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core"
 export const SHELF_SLUGS = ["vouchers", "licences", "gift-cards", "ai-credit", "esim", "gift-links"] as const
 export type ShelfSlug = (typeof SHELF_SLUGS)[number]
 
+// Another seller on the shop (lib/sellers.ts). No name of a person and no way to reach one: a
+// seller is a label a buyer reads, a secret link, and a key the payment engine gave. The viewing
+// key itself is not here: it is passed to the payment engine and not kept by the site.
+export const sellers = sqliteTable("sellers", {
+  id: text("id").primaryKey(),
+  // What a buyer reads on an item's page as who sells it.
+  name: text("name").notNull(),
+  // A hash of the secret in the seller's link. The secret itself is not kept.
+  tokenHash: text("token_hash").notNull().unique(),
+  // The payment engine's own key for this seller: with it the shop asks the engine for an address
+  // made from the seller's viewing key. It opens invoices. It cannot move money.
+  engineKey: text("engine_key").notNull(),
+  // Which network the viewing key belongs to. A seller of the test network sells nothing on the real one.
+  network: text("network", { enum: ["testnet", "mainnet"] }).notNull(),
+  createdAt: integer("created_at").notNull(),
+  // When the shop's owner closed this seller. Their items are off the shelf from then on.
+  closedAt: integer("closed_at"),
+})
+
 export const products = sqliteTable("products", {
   id: integer("id").primaryKey({ autoIncrement: true }),
   slug: text("slug").notNull().unique(),
@@ -23,6 +42,11 @@ export const products = sqliteTable("products", {
   // Which shelf the item stands on, as the owner chose. Null: on none, it is only in the list of items.
   shelf: text("shelf", { enum: SHELF_SLUGS }),
   active: integer("active", { mode: "boolean" }).notNull().default(true),
+  // Whose item it is. Null: the shop's own. Otherwise an order of it is paid straight to that
+  // seller's wallet and the shop never holds the money.
+  sellerId: text("seller_id").references(() => sellers.id),
+  // When the shop's owner took a seller's item down. The seller cannot put it back.
+  takenDownAt: integer("taken_down_at"),
 })
 
 export const stock = sqliteTable("stock", {
@@ -44,6 +68,9 @@ export const orders = sqliteTable("orders", {
     .notNull()
     .references(() => products.id),
   stockId: integer("stock_id"),
+  // The seller the order pays, for an item that is another seller's. Null: the shop's own item.
+  // What such an order is owed back is the seller's to send, never the shop's.
+  sellerId: text("seller_id"),
   // waiting: nothing has arrived. underpaid: part of the amount has. seen: all of it, not yet in
   // a block. confirmed: in a block, not yet deep enough to hand the item over. delivered.
   // expired: the price lock ran out and nothing arrived. owed: money arrived and nothing was
@@ -142,4 +169,5 @@ export const vaultState = sqliteTable("vault_state", {
 })
 
 export type Product = typeof products.$inferSelect
+export type Seller = typeof sellers.$inferSelect
 export type Order = typeof orders.$inferSelect

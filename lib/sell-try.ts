@@ -2,9 +2,9 @@ import { aboutZec, formatZec, toZat } from "@/lib/price"
 
 // "Try selling": a walk-through of one order of a seller's item, on /sell.
 //
-// Selling is not built (PLAN.md, "Other sellers"). Until it is, a visitor can type a pretend
-// item and watch one order of it run: where the payment goes, what the shop holds, what the
-// buyer opens. All of it happens in the browser. Nothing typed is sent anywhere, nothing is
+// Before signing up (lib/sellers.ts is the real thing), a visitor can type a pretend item and
+// watch one order of it run: where the payment goes, what the shop holds, what the buyer
+// opens. All of it happens in the browser. Nothing typed is sent anywhere, nothing is
 // listed, no key is asked for and no money moves; the page says so above the form.
 //
 // This file is the part with no browser in it: what counts as a pretend item, the steps an

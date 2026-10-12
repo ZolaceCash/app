@@ -134,7 +134,7 @@ export function TrySelling() {
               </p>
             </div>
             <p className="mt-4 text-sm leading-snug text-muted-foreground">
-              Do not type a real code: this is only a walk-through, and selling is not open yet.
+              Do not type a real code: this is only a walk-through. Nothing typed here is listed.
             </p>
           </form>
         </div>
@@ -205,7 +205,7 @@ export function TrySelling() {
           <p className="mt-3 text-sm leading-snug text-muted-foreground">
             {item && at.done
               ? "That was a walk-through. In a real order the shop could not refund for you: the money would be yours from the first block."
-              : "Each step is what a real order of a seller's item is meant to do. The amounts use the rate of this moment."}
+              : "Each step is what a real order of a seller's item does. The amounts use the rate of this moment."}
           </p>
         </div>
       </div>

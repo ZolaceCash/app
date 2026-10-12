@@ -10,6 +10,7 @@ import { addStock, answerProblem, createProduct, markRefunded, parsePrice, parse
 import { cannotBuy, HAND_CODE_MAX, handOver } from "@/lib/orders"
 import { isOwnerSecret, newSession, ownerEnabled } from "@/lib/owner"
 import { isOwner, OWNER_COOKIE, OWNER_PATH } from "@/lib/owner-session"
+import { closeSeller, takeDown } from "@/lib/sellers"
 import { tokenConfig, vaultLive } from "@/lib/token"
 import { hourLabel } from "@/lib/vault"
 import { advance, close, settle } from "@/lib/vault-store"
@@ -153,6 +154,28 @@ export async function uploadCodes(_previous: FormState, form: FormData): Promise
   if (!result.ok) return { error: result.error }
   refresh()
   return { ok: `${result.added} code${result.added === 1 ? "" : "s"} added.` }
+}
+
+// The owner takes another seller's item down, or puts it back. Down, it is off the shelf at once
+// and its seller cannot put it back.
+export async function takeItemDown(_previous: FormState, form: FormData): Promise<FormState> {
+  if (!(await isOwner())) return SIGNED_OUT
+  const down = form.get("down") === "yes"
+  const result = await takeDown(Number(text(form, "id")), down)
+  if (!result.ok) return { error: result.error }
+  refresh()
+  return { ok: down ? "Taken down. Its seller cannot put it back." : "Back in its seller's hands. It is off the shelf until they put it there." }
+}
+
+// The owner closes a seller, or opens them again. Closed, nothing of theirs can be ordered.
+export async function closeTheSeller(_previous: FormState, form: FormData): Promise<FormState> {
+  if (!(await isOwner())) return SIGNED_OUT
+  const closed = form.get("closed") === "yes"
+  if (closed && form.get("sure") !== "yes") return { error: "Tick the box to close this seller." }
+  const result = await closeSeller(text(form, "id"), closed)
+  if (!result.ok) return { error: result.error }
+  refresh()
+  return { ok: closed ? "Closed. None of their items can be ordered." : "Open again." }
 }
 
 // Brings the vault's count up to the last full hour, now, instead of waiting for the server's own

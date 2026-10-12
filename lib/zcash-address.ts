@@ -56,3 +56,23 @@ export function shieldedAddress(text: string, network: "mainnet" | "testnet"): s
 // An address as it is shown back to whoever holds the order's link: enough to recognise it, not
 // enough to learn it.
 export const maskAddress = (address: string) => `${address.slice(0, 8)}…${address.slice(-6)}`
+
+// What a viewing key starts with on each network: a unified full viewing key, or its incoming half.
+const VIEWING: Record<"mainnet" | "testnet", string[]> = {
+  mainnet: ["uview", "uivk"],
+  testnet: ["uviewtest", "uivktest"],
+}
+
+// A viewing key a seller pasted, tidied, when it is one of that network whose checksum holds.
+// Null otherwise. This only catches a key that was cut short, mistyped or made for the other
+// network: whether it is a key the payment engine can use is the engine's to say. A key that
+// spends (a seed, a spending key) starts differently and is refused here, before it goes anywhere.
+export function viewingKey(text: string, network: "mainnet" | "testnet"): string | null {
+  const typed = text.replace(/\s+/g, "")
+  if (typed.length < 100 || typed.length > 2000) return null
+  if (typed !== typed.toLowerCase() && typed !== typed.toUpperCase()) return null
+  const key = typed.toLowerCase()
+  const found = checksumOf(key)
+  if (!found || found.kind !== BECH32M) return null
+  return VIEWING[network].includes(found.prefix) ? key : null
+}

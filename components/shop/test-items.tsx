@@ -40,7 +40,7 @@ export async function TestItems() {
       {items.map((item, index) => (
         <li key={item.slug} className="flex flex-col cut rounded-3xl bg-card p-6">
           <div className="label-mono flex items-center justify-between text-muted-foreground">
-            <span>0{index + 1}</span>
+            <span>{String(index + 1).padStart(2, "0")}</span>
             <span className="rounded-md bg-accent px-2.5 py-1.5 text-accent-foreground">
               {item.kind === "test" ? "Test item" : item.kind === "supplier" ? "Made to order" : item.kind === "hand" ? "Bought to order" : `${item.left} left`}
             </span>
@@ -54,6 +54,12 @@ export async function TestItems() {
             </Link>
           </h3>
           <p className="mt-2 flex-1 leading-snug text-muted-foreground">{item.blurb}</p>
+          {/* Another seller's item says so wherever it is shown: the buyer pays that seller. */}
+          {item.seller ? (
+            <p className="label-mono mt-4 text-muted-foreground">
+              Sold by <span className="text-foreground">{item.seller}</span>
+            </p>
+          ) : null}
           <p className="mt-6 flex items-baseline gap-3">
             <span className="font-mono text-3xl font-medium tracking-[-0.04em]">
               {dollars(item.priceCents)}

@@ -1,6 +1,6 @@
 import { getTableColumns } from "drizzle-orm"
 
-import { orders, products, stock, vaultHours, vaultState } from "./db/schema"
+import { orders, products, sellers, stock, vaultHours, vaultState } from "./db/schema"
 
 // What each stored column is, in the reader's words. The page at /proof lists every column of
 // every table from the schema and takes its text from here, so the page cannot leave one out:
@@ -10,6 +10,7 @@ const NOTES: Record<string, Record<string, string>> = {
     id: "The first half of the order link. Random, so it cannot be guessed.",
     product_id: "Which item was ordered.",
     stock_id: "Which code was set aside for the order.",
+    seller_id: "For an item that is another seller's: which seller the order pays. Empty for the shop's own item.",
     state: "Where the order stands: waiting, underpaid, seen, confirmed, delivered, expired, owed a refund, or refunded.",
     price_cents: "The price in dollars.",
     zat: "The amount in ZEC that the price was locked at.",
@@ -17,16 +18,16 @@ const NOTES: Record<string, Record<string, string>> = {
     engine_ref: "The payment engine's own name for this order's invoice. Empty for a test order.",
     received_zat: "How much the payment engine saw arrive at that address.",
     txid: "The transaction the payment was seen in. It is shielded: its id shows no sender, no receiver and no amount.",
-    owed_zat: "What is owed back to you: all of it if nothing was handed over, the excess if you paid too much.",
+    owed_zat: "What is owed back to you: all of it if nothing was handed over, the excess if you paid too much. For another seller's item it is that seller who owes it: the shop never held the payment.",
     refund_address: "The shielded address you gave for a refund, if something was owed back to you and you gave one.",
-    refunded_at: "When the owner said the refund was sent.",
+    refunded_at: "When the owner said the refund was sent, or the seller, for another seller's item.",
     supply_ref: "For an item a supplier makes: the supplier's number for what was bought for this order.",
     ready_at: "For an item the owner buys by hand: when your payment was confirmed and the order began to wait for the owner.",
     problem: "What you wrote, if you reported that the item you were handed did not work.",
     problem_at: "When you reported it.",
-    problem_closed_at: "When the owner answered the report.",
-    problem_reply: "What the owner answered, if anything was written.",
-    problem_refunded: "Whether the owner said a refund was sent for the report.",
+    problem_closed_at: "When the report was answered: by the owner, or by the seller for another seller's item.",
+    problem_reply: "What was answered, if anything was written.",
+    problem_refunded: "Whether whoever answered said a refund was sent for the report.",
     public_key: "The public half of a key pair your browser made. The item is sealed to it.",
     wrapped_key: "The private half, locked with the secret part of your link. Without that secret it cannot be opened, and the server is never sent the secret.",
     sealed: "The item after delivery, as ciphertext only your browser can open.",
@@ -77,6 +78,17 @@ const NOTES: Record<string, Record<string, string>> = {
     supplier_ref: "For an item a supplier makes: which of the supplier's packages it is.",
     shelf: "Which of the shop's six shelves the item stands on, if the owner put it on one.",
     active: "Whether the item is on the shelf.",
+    seller_id: "Whose item it is, when it is another seller's. Empty for the shop's own.",
+    taken_down_at: "When the shop's owner took a seller's item down, if they did.",
+  },
+  sellers: {
+    id: "A random name for the seller, used inside the shop.",
+    name: "The name the seller chose. It is shown on their items.",
+    token_hash: "A hash of the secret in the seller's link. The secret itself is not kept, so the link cannot be read back from here.",
+    engine_key: "The payment engine's own key for this seller. With it the shop asks the engine for an address made from the seller's viewing key. It cannot move money.",
+    network: "Which Zcash network the seller's viewing key belongs to.",
+    created_at: "When the seller signed up.",
+    closed_at: "When the shop's owner closed the seller, if they did.",
   },
 }
 
@@ -98,6 +110,13 @@ const TABLES = [
     title: "Products",
     about: "What is on sale. Nothing here is about a buyer.",
     table: products,
+  },
+  {
+    name: "sellers",
+    title: "Sellers",
+    about:
+      "One row per seller who lists items here. No name of a person, no email and no address. A seller's viewing key is not in this table: the site passes it to the payment engine, which keeps the half that sees incoming payments, encrypted, and the site does not keep it. Nothing here is about a buyer.",
+    table: sellers,
   },
   {
     name: "vault_hours",

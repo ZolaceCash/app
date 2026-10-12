@@ -236,6 +236,28 @@ it. Nothing tops that balance up but you. `node preflight.mjs` shows what is lef
 The key can spend the balance and nothing else, so keep the balance small. Run so far against a played
 supplier only (`tests/supplier.test.ts`): no eSIM has been bought through the shop yet.
 
+## Other sellers
+
+`SELLING=open` lets anyone sign up as a seller at `/sell/start` with the viewing key of their own wallet,
+list items and put codes behind them. An order of a seller's item gets an address made from that seller's
+viewing key, so the payment arrives in the seller's wallet. The shop never holds it and cannot refund it:
+what such an order is owed back is the seller's to send, and it is never on your refunds screen.
+
+- It needs real payments (the three settings above). Without them, or with `SELLING` empty, nobody can
+  sign up and no seller's item is shown or sold; items and sellers already there are kept.
+- `/owner/sellers` lists every seller with their items, the reports buyers made that the seller has not
+  answered, and the refunds they have not sent. There you take an item down or close a seller. You
+  cannot read a seller's codes or change their items.
+- `SELLER_MAX_PRICE` (dollars, 100 unless set) and `SELLER_MAX_ITEMS` (20 unless set) bound what a buyer
+  can lose to a seller who does not deliver. `SELLERS_MAX` (500 unless set) is how many may sign up.
+- A seller's viewing key is handed to the payment engine, which keeps the incoming half of it, encrypted
+  with `ENGINE_ENCRYPTION_KEY`, on its own volume. The site's database keeps the engine's key for that
+  seller and a hash of the secret in the seller's link. Lose the engine's volume and every seller has to
+  sign up again with a new wallet.
+- The engine takes about two sign-ups a minute. A third is told to wait.
+- Run so far on testnet only, and without a paid order: nobody has paid a seller's order through the
+  shop yet. Do that once on testnet, with a second wallet, before `SELLING=open` on mainnet.
+
 ## Items you buy after they are paid for (gift cards)
 
 An item marked "I buy it myself after the order is paid" is sold with nothing in stock. Its order

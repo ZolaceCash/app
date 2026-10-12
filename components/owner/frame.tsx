@@ -11,6 +11,7 @@ const SCREENS = [
   { href: "/owner", name: "Orders" },
   { href: "/owner/refunds", name: "Refunds" },
   { href: "/owner/products", name: "Items" },
+  { href: "/owner/sellers", name: "Sellers" },
   { href: "/owner/payout", name: "Payout" },
 ] as const
 

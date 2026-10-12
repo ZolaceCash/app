@@ -35,6 +35,15 @@ services:
       # How many hours the owner has to buy an item that is bought after it is paid, and to hand it
       # over. After that the payment is owed back. Empty: 12.
       HAND_HOURS: ${HAND_HOURS:-}
+      # Other sellers. "open": anyone can sign up with a viewing key and list items, and an order
+      # of a seller's item is paid straight to that seller's wallet. It also takes real payments
+      # (PAYMENT_NETWORK and the engine): without them nobody can sign up. Empty: selling is off,
+      # and no seller's item is shown or sold.
+      SELLING: ${SELLING:-}
+      # The most a seller's item may cost, in dollars, and the most items one seller may list.
+      # Empty: 100 and 20.
+      SELLER_MAX_PRICE: ${SELLER_MAX_PRICE:-}
+      SELLER_MAX_ITEMS: ${SELLER_MAX_ITEMS:-}
       # SECRET. Where the server sends a line when something waits for the owner (a paid order to
       # buy an item for, a buyer's report, a refund that is due): the address of a notification
       # service, such as an ntfy topic. The line names no order, no item and no amount. Whoever

@@ -3,6 +3,7 @@ import { and, gt, isNull } from "drizzle-orm"
 import { listProblems } from "@/lib/admin"
 import { getDb, schema } from "@/lib/db"
 import { handHours, listToBuy } from "@/lib/orders"
+import { listSellers } from "@/lib/sellers"
 
 // Telling the owner that something waits for them: a paid order whose item has to be bought, a
 // report from a buyer, a refund that is due. One line is sent to an address the owner sets in
@@ -13,9 +14,10 @@ import { handHours, listToBuy } from "@/lib/orders"
 // Nothing is kept in the database about a notice. What was already said is remembered while the
 // server runs; after a restart, whatever still waits is said once more.
 
-type Said = { toBuy: Set<string>; reminded: Set<string>; problems: Set<string>; refunds: Set<string> }
+type Said = { toBuy: Set<string>; reminded: Set<string>; problems: Set<string>; refunds: Set<string>; sellers: Set<string> }
 const store = globalThis as unknown as { zolaceSaid?: Said }
-const said = (): Said => (store.zolaceSaid ??= { toBuy: new Set(), reminded: new Set(), problems: new Set(), refunds: new Set() })
+const said = (): Said =>
+  (store.zolaceSaid ??= { toBuy: new Set(), reminded: new Set(), problems: new Set(), refunds: new Set(), sellers: new Set() })
 
 // For the tests: forget what was said.
 export function forgetNotices() {
@@ -90,11 +92,20 @@ export async function ownerTick(now = Date.now()): Promise<number> {
     await say(memory.problems, problem.id, "Zolace: a buyer reported a problem with an item. It waits on the refunds screen.")
   }
 
+  // A report about another seller's item is the seller's to answer, but the owner decides whether
+  // the item stays: one line per report, by when it was made.
+  for (const seller of await listSellers()) {
+    for (const report of seller.reports) {
+      await say(memory.sellers, `${seller.id}:${report.at}`, "Zolace: a buyer reported another seller's item. It is on the sellers screen.")
+    }
+  }
+
   const db = await getDb()
   const due = await db
     .select({ id: schema.orders.id })
     .from(schema.orders)
-    .where(and(gt(schema.orders.owedZat, 0), isNull(schema.orders.refundedAt)))
+    // Only what the shop itself owes: an order of another seller's item is that seller's to refund.
+    .where(and(gt(schema.orders.owedZat, 0), isNull(schema.orders.refundedAt), isNull(schema.orders.sellerId)))
   for (const order of due) {
     await say(memory.refunds, order.id, "Zolace: a refund is due. It waits on the refunds screen.")
   }

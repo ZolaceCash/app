@@ -142,6 +142,12 @@ export function OrderView({ id }: { id: string }) {
   // (Less a minute, so that twelve hours and a second read as twelve, not thirteen.)
   const handHoursLeft = order.handBy ? Math.ceil((order.handBy - (now + loaded.skew) - 60_000) / (60 * 60 * 1000)) : 0
   const handWithin = handHoursLeft > 1 ? `within ${handHoursLeft} hours` : "within the hour"
+  // Who sends a refund. For another seller's item the payment went to that seller's wallet: the
+  // shop never held it and cannot send it back, and the page says so wherever something is owed.
+  const refundsAreMade = order.seller
+    ? `The payment went to the seller's wallet (${order.seller}), not to the shop, so the refund is the seller's to send, by hand, less the network's fee, to the address you give below. The shop cannot send it.`
+    : "Refunds are made by hand, less the network's fee, to the address you give below."
+  const sentBack = order.seller ? "The seller said it was sent back" : "It was sent back by hand"
 
   return (
     <div className="enter">
@@ -234,6 +240,7 @@ export function OrderView({ id }: { id: string }) {
               ) : null}
               <dl className="mt-8 space-y-1.5">
                 <Row name="Item">{order.product}</Row>
+                {order.seller ? <Row name="Sold by">{order.seller}: you pay this seller, not the shop</Row> : null}
                 <Row name="Price">{dollars(order.priceCents)}</Row>
                 <Row name="Price held for">
                   <span className="text-brand tabular-nums">{clock}</span>
@@ -349,8 +356,8 @@ export function OrderView({ id }: { id: string }) {
                     <Warning title={order.refunded ? "The excess was sent back." : "You paid more than the price."}>
                       {formatZec(order.receivedZat)} ZEC arrived for a price of {formatZec(order.zat)}.{" "}
                       {order.refunded
-                        ? `${formatZec(order.owedZat)} ZEC was sent back by hand, less the network's fee.`
-                        : `${formatZec(order.owedZat)} ZEC is owed back to you. Refunds are made by hand, less the network's fee, to the address you give below. Keep this link: it is how the order is found.`}
+                        ? `${formatZec(order.owedZat)} ZEC: ${sentBack.toLowerCase()}, less the network's fee.`
+                        : `${formatZec(order.owedZat)} ZEC is owed back to you. ${refundsAreMade} Keep this link: it is how the order is found.`}
                     </Warning>
                   ) : null}
                   {order.owedZat > 0 && !order.refunded && order.network !== "stand-in" ? (
@@ -367,7 +374,7 @@ export function OrderView({ id }: { id: string }) {
               )}
               {/* A made-up item paid with nothing has nothing to report. */}
               {!order.test && order.network !== "stand-in" ? (
-                <ProblemForm id={order.id} network={order.network} problem={order.problem} />
+                <ProblemForm id={order.id} network={order.network} problem={order.problem} seller={order.seller} />
               ) : null}
             </>
           ) : null}
@@ -379,8 +386,7 @@ export function OrderView({ id }: { id: string }) {
                 : order.owedWhy === "late"
                   ? "Your payment arrived after the price lock ran out. The item had gone back on the shelf, so nothing was handed over."
                   : "Your payment was confirmed, but no item was handed over for it: none was left, or it could not be bought in time."}{" "}
-              Refunds are made by hand, less the network&apos;s fee, to the address you give below. Keep this
-              link: it is how the order is found.
+              {refundsAreMade} Keep this link: it is how the order is found.
             </Warning>
           ) : null}
           {order.state === "owed" && order.network !== "stand-in" ? (
@@ -389,8 +395,8 @@ export function OrderView({ id }: { id: string }) {
 
           {order.state === "refunded" ? (
             <p className="leading-relaxed text-muted-foreground">
-              Nothing was handed over, and the payment was sent back by hand to the address that was
-              given for it, less the network&apos;s fee. Nothing more happens with this order.
+              Nothing was handed over. {sentBack} to the address that was given for it, less the
+              network&apos;s fee. Nothing more happens with this order.
             </p>
           ) : null}
 
@@ -401,7 +407,9 @@ export function OrderView({ id }: { id: string }) {
                 went back on the shelf.{" "}
                 {order.network === "stand-in"
                   ? "Nothing was charged."
-                  : "If you did send a payment, it is not lost: once it arrives it is shown on this page and is owed back to you."}
+                  : order.seller
+                    ? "If you did send a payment, it is not lost: once it arrives it is shown on this page and is owed back to you by the seller."
+                    : "If you did send a payment, it is not lost: once it arrives it is shown on this page and is owed back to you."}
               </p>
               <PillLink href="/shop" size="lg" arrow className="mt-6">
                 Start a new order

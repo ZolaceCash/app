@@ -405,6 +405,23 @@ export const DOCS: Doc[] = [
           { open: "No time is promised for an answer, and a report does not by itself mean a refund." },
         ],
       },
+      {
+        id: "another-sellers-item",
+        heading: "An item of another seller",
+        blocks: [
+          {
+            p: "Some items are another seller's. Their pages say so, and name the seller, before you order. Your payment for one goes straight to that seller's wallet. The shop never holds it, so the shop cannot send it back.",
+          },
+          {
+            list: [
+              "What is owed back to you (too little, too late, or more than the price) is owed by the seller. You give the address on the order page as for any order, and the seller sends it by hand.",
+              "A report about an item that does not work goes to the seller, who answers on the order page. The shop's owner reads it too.",
+              "The owner can take an item down or close a seller. The owner cannot make a seller pay.",
+            ],
+          },
+          { open: "Zolace does not check a seller's items before they are listed." },
+        ],
+      },
     ],
   },
   {

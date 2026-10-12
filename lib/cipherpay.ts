@@ -1,4 +1,4 @@
-import type { Invoice, Opened, PaymentEngine, Seen } from "@/lib/payment"
+import type { Invoice, Opened, PaymentEngine, Registered, Seen } from "@/lib/payment"
 import { MAX_GAP } from "@/lib/price"
 
 // CipherPay as the payment engine (engine/cipherpay/, and PLAN.md "Stage 0"). It runs beside the
@@ -54,6 +54,25 @@ const STATE: Record<string, Seen["state"]> = {
   detected: "seen",
   confirmed: "confirmed",
   expired: "expired",
+}
+
+// Another seller's viewing key, given to the engine (lib/sellers.ts). The engine keeps the half
+// that sees incoming payments, encrypted, and answers with a key of its own for that seller; an
+// invoice opened with that key gets an address from the seller's viewing key. Only the viewing
+// key is sent: no name and nothing else about the seller.
+export async function register(config: Pick<Config, "url">, viewingKey: string): Promise<Registered> {
+  const made = await ask(`${config.url}/api/merchants`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ufvk: viewingKey }),
+  })
+  if (!made) return { ok: false, reason: "unavailable" }
+  if (made.status === 409) return { ok: false, reason: "taken" }
+  if (made.status === 429) return { ok: false, reason: "busy" }
+  if (made.status === 400) return { ok: false, reason: "refused" }
+  const key = made.body?.api_key
+  if (made.status >= 300 || typeof key !== "string" || !key) return { ok: false, reason: "unavailable" }
+  return { ok: true, key }
 }
 
 export function cipherpay(config: Config): PaymentEngine {
