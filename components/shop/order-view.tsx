@@ -271,6 +271,19 @@ export function OrderView({ id }: { id: string }) {
                       Open in your wallet
                     </a>
                   </Button>
+                  {/* In a tab of its own, so this page and the secret in its link stay where they are. */}
+                  <p className="basis-full text-sm leading-snug text-muted-foreground">
+                    No ZEC in your wallet yet? Getting it can take longer than this price is held.{" "}
+                    <a
+                      href="/docs/getting-zec"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-brand underline-offset-4 hover:underline"
+                    >
+                      How to get it
+                    </a>
+                    . If this order runs out, nothing is lost: start a new one.
+                  </p>
                 </div>
               )}
               {order.test ? (

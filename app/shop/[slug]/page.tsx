@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 
@@ -98,6 +99,15 @@ function Item({ item }: { item: ShelfItem }) {
             paid in ZEC
           </span>
         </p>
+        {test ? null : (
+          <p className="mt-3 text-sm leading-snug text-muted-foreground">
+            No ZEC yet?{" "}
+            <Link href="/docs/getting-zec" className="text-brand underline-offset-4 hover:underline">
+              How to get it
+            </Link>
+            , before you order.
+          </p>
+        )}
 
         <p className="label-mono mt-6 inline-flex rounded-md bg-accent px-3 py-2 text-accent-foreground">
           {test

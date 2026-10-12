@@ -98,6 +98,64 @@ export const DOCS: Doc[] = [
     ],
   },
   {
+    slug: "getting-zec",
+    title: "Getting ZEC",
+    summary: "What you need before you can pay, and the ways to get shielded ZEC.",
+    group: "Buying",
+    sections: [
+      {
+        id: "what-you-need",
+        heading: "What you need",
+        blocks: [
+          {
+            p: "Zolace is paid in shielded ZEC and in nothing else. You need a Zcash wallet that can send a shielded payment, with enough ZEC in it for the price and the network's fee, which is small.",
+          },
+          {
+            p: "The wallet is yours. The shop never holds your coins and never learns which wallet paid.",
+          },
+          {
+            list: [
+              "Wallets that send shielded payments include Zodl (called Zashi until 2026), YWallet, Zingo, Cake Wallet and Edge. Zolace is not affiliated with any of them.",
+              "An exchange account is not such a wallet. What an exchange sends usually leaves from a transparent address, in the open.",
+            ],
+          },
+        ],
+      },
+      {
+        id: "ways-to-get-it",
+        heading: "Ways to get it",
+        blocks: [
+          {
+            rows: [
+              ["Swap in a wallet", "Some wallets turn another coin into shielded ZEC. In Zodl you pick the coin you have (BTC or USDC, among others), send it from the wallet that holds it, and the ZEC arrives shielded"],
+              ["Buy on an exchange", "Buy ZEC and withdraw it to your own wallet. If it arrives at a transparent address, shield it in the wallet before you pay"],
+              ["Be sent some", "Anyone who has ZEC can send it to your wallet's shielded address"],
+            ],
+          },
+          {
+            p: "Whichever way you take, do it before you start an order. The price of an order is held for 15 minutes, and getting ZEC can take longer than that. An order that runs out costs nothing: start a new one when the ZEC is in your wallet.",
+          },
+        ],
+      },
+      {
+        id: "what-others-see",
+        heading: "What others see on the way",
+        blocks: [
+          {
+            list: [
+              "A swap service sees the coin you paid with, the address it came from and the amount. It does not see what you buy afterwards.",
+              "An exchange knows who you are and what you withdrew, and a withdrawal to a transparent address can be read by anyone on the Zcash chain.",
+              "The payment to the shop, sent from your shielded balance, is written to the chain without showing who sent it, who received it or how much it was.",
+            ],
+          },
+          {
+            open: "Wallets change what they offer. Check the wallet's own pages before you rely on a step named here. Paying the shop in another coin directly is not possible.",
+          },
+        ],
+      },
+    ],
+  },
+  {
     slug: "paying-in-zec",
     title: "Paying in ZEC",
     summary: "The one-time address, the price lock and what your wallet needs.",
