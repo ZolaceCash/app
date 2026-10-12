@@ -30,6 +30,7 @@ function CloseIcon({ className }: { className?: string }) {
 const LINKS = [
   { href: "/#how", label: "How it works" },
   { href: "/#privacy", label: "Privacy" },
+  { href: "/sell", label: "Sell" },
   { href: "/roadmap", label: "Roadmap" },
   { href: "/docs", label: "Docs" },
   { href: "/whitepaper", label: "Whitepaper" },

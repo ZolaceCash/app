@@ -13,6 +13,7 @@ const LINKS = [
   { href: "/vault", label: "The vault" },
   { href: "/shop", label: "Browse the shelves" },
   { href: "/orders", label: "Orders on this device" },
+  { href: "/sell", label: "Sell on Zolace" },
 ]
 
 const READ = [
