@@ -1,0 +1,516 @@
+<!doctype html>
+<!--
+  A film for the post about gift links, in four scenes: the logo; a headline in the middle of the
+  screen; a panel with three cards (the buyer's order, the gift's page, what that page shows)
+  under a line of words that changes three times; and a closing card with the name set large.
+  The order of scenes follows a film the owner showed as a model (12 Oct 2026). The look, every
+  word and every figure are this project's own.
+  Drawn and encoded one frame at a time (encode.js); opened by compose.mjs with PAGE=gift.html.
+  ?still=<seconds> draws one moment and stops.
+  The item and its price are the shelf's on 12 Oct 2026. The order is a sample: its name is made
+  up, its secret is drawn as dots, and the square of dots is not a code a phone can read.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=Geist+Mono:wght@500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #09090b;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage" width="1920" height="1080"></canvas>
+    <script type="module">
+      const W = 1920
+      const H = 1080
+      const GROUND = "#09090b"
+      const CARD = "#101014"
+      const RAISE = "#1c1c23"
+      const ICE = "#f4f4f6"
+      const INK = "#0b0b10"
+      const QUIET = "rgba(244,244,246,0.58)"
+      const INDIGO = "#5567ea"
+      const BRAND = "#7b8cff"
+      const NAVY = "#1f2358"
+      const SANS = "Geist, system-ui, sans-serif"
+      const MONO = '"Geist Mono", ui-monospace, monospace'
+      const TOTAL = 16.2
+
+      const canvas = document.getElementById("stage")
+      const ctx = canvas.getContext("2d")
+      const clamp = (x, low = 0, high = 1) => Math.min(high, Math.max(low, x))
+      const easeOut = (x) => 1 - Math.pow(1 - clamp(x), 3)
+      const easeBoth = (x) => {
+        const t = clamp(x)
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+      }
+      const settle = (x) => {
+        const t = clamp(x)
+        const c = 1.5
+        return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2)
+      }
+      const rounded = (x, y, w, h, r) => {
+        ctx.beginPath()
+        ctx.roundRect(x, y, w, h, r)
+      }
+      const text = (value, x, y, font, colour, align = "left", spacing = "0px") => {
+        ctx.font = font
+        ctx.fillStyle = colour
+        ctx.textAlign = align
+        ctx.letterSpacing = spacing
+        ctx.fillText(value, x, y)
+      }
+      const widthOf = (value, font, spacing = "0px") => {
+        ctx.font = font
+        ctx.letterSpacing = spacing
+        return ctx.measureText(value).width
+      }
+      // A line that rises into place from under its own baseline.
+      const rise = (value, x, y, size, font, colour, p, spacing = "0px", align = "left") => {
+        if (p <= 0) return
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(0, y - size * 0.95, W, size * 1.24)
+        ctx.clip()
+        ctx.globalAlpha *= clamp(p * 1.6)
+        text(value, x, y + (1 - easeOut(p)) * size * 0.9, font, colour, align, spacing)
+        ctx.restore()
+      }
+      const MARK = [
+        [8.1, 2, 22, 2, 13.25, 14.5, 10.65, 14.5, 15.9, 7, 4.6, 7],
+        [19.4, 17, 15.9, 22, 2, 22, 10.75, 9.5, 13.35, 9.5, 8.1, 17],
+        [5.5, 2, 7, 2, 3.5, 7, 2, 7],
+        [20.5, 17, 22, 17, 18.5, 22, 17, 22],
+      ]
+      // The mark alone: `shown` says how far each of its four pieces has come in.
+      const mark = (x, y, size, colour, shown = () => 1) => {
+        const k = size / 24
+        MARK.forEach((points, piece) => {
+          const p = shown(piece)
+          if (p <= 0) return
+          ctx.save()
+          ctx.globalAlpha *= clamp(p * 1.5)
+          ctx.translate(x + size / 2, y + size / 2)
+          const s = 0.6 + 0.4 * settle(p)
+          ctx.scale(s, s)
+          ctx.translate(-size / 2, -size / 2)
+          ctx.fillStyle = colour
+          ctx.beginPath()
+          for (let i = 0; i < points.length; i += 2) ctx[i ? "lineTo" : "moveTo"](points[i] * k, points[i + 1] * k)
+          ctx.closePath()
+          ctx.fill()
+          ctx.restore()
+        })
+      }
+      const logo = (x, y, size, colour) => {
+        mark(x, y, size, colour)
+        text("zolace", x + size * 1.28, y + size * 0.86, `700 ${size * 0.95}px ${SANS}`, colour, "left", `${-size * 0.05}px`)
+      }
+      const ground = (time, alpha = 1) => {
+        ctx.fillStyle = GROUND
+        ctx.fillRect(0, 0, W, H)
+        ctx.fillStyle = `rgba(255,255,255,${0.06 * alpha})`
+        const drift = (time * 5) % 28
+        for (let y = 14 - 28 + drift; y < H; y += 28) for (let x = 14; x < W; x += 28) ctx.fillRect(x, y, 1.5, 1.5)
+      }
+      // A small label in a tile, with the brand's square before it.
+      const pill = (label, x, y, alpha, centred = false) => {
+        if (alpha <= 0) return
+        const font = `500 21px ${MONO}`
+        const wide = widthOf(label, font, "1.4px") + 62
+        const left = centred ? x - wide / 2 : x
+        ctx.save()
+        ctx.globalAlpha *= alpha
+        ctx.fillStyle = RAISE
+        rounded(left, y, wide, 46, 12)
+        ctx.fill()
+        ctx.fillStyle = BRAND
+        ctx.fillRect(left + 18, y + 19, 9, 9)
+        text(label, left + 40, y + 31, font, ICE, "left", "1.4px")
+        ctx.restore()
+      }
+      const BAYER = [0, 32, 8, 40, 2, 34, 10, 42, 48, 16, 56, 24, 50, 18, 58, 26, 12, 44, 4, 36, 14, 46, 6, 38, 60, 28, 52, 20, 62, 30, 54, 22, 3, 35, 11, 43, 1, 33, 9, 41, 51, 19, 59, 27, 49, 17, 57, 25, 15, 47, 7, 39, 13, 45, 5, 37, 63, 31, 55, 23, 61, 29, 53, 21]
+      const threshold = (cx, cy) => (BAYER[(cy & 7) * 8 + (cx & 7)] + 0.5) / 64
+      const hash = (x, y) => {
+        const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453
+        return s - Math.floor(s)
+      }
+
+      // ------------------------------------------------------------ scene 1: the logo
+      const S1 = 2.5
+      function sceneLogo(time) {
+        ground(time)
+        const out = 1 - easeOut((time - (S1 - 0.45)) / 0.4)
+        ctx.globalAlpha = out
+        const size = 150
+        const font = `700 ${size * 0.95}px ${SANS}`
+        const spacing = `${-size * 0.05}px`
+        const wide = size * 1.28 + widthOf("zolace", font, spacing)
+        // The mark comes first, in the middle, and moves over as the name arrives.
+        const named = easeBoth((time - 0.75) / 0.55)
+        const x = W / 2 - size / 2 + (W / 2 - wide / 2 - (W / 2 - size / 2)) * named
+        const y = 430
+        mark(x, y, size, ICE, (piece) => (time - 0.15 - piece * 0.11) / 0.45)
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(x + size * 1.1, y - 40, wide, size + 80)
+        ctx.clip()
+        ctx.globalAlpha = out * easeOut((time - 0.8) / 0.5)
+        text("zolace", x + size * 1.28 - (1 - easeOut((time - 0.8) / 0.55)) * 90, y + size * 0.86, font, ICE, "left", spacing)
+        ctx.restore()
+        ctx.globalAlpha = out * easeOut((time - 1.3) / 0.5)
+        text("DIGITAL GOODS · NO ACCOUNT · PAID IN SHIELDED ZEC", W / 2, y + size + 92, `500 23px ${MONO}`, QUIET, "center", "3px")
+        ctx.globalAlpha = 1
+      }
+
+      // ------------------------------------------------------------ scene 2: the headline
+      const S2 = 6.3
+      function sceneHeadline(time) {
+        const t = time - S1
+        ground(time)
+        ctx.globalAlpha = easeOut(t / 0.4)
+        logo(96, 76, 48, ICE)
+        text("GIFT LINKS · NEW IN THE SHOP", W - 96, 112, `500 21px ${MONO}`, QUIET, "right", "1.8px")
+        ctx.globalAlpha = 1
+        pill("New in the shop", W / 2, 318, easeOut((t - 0.15) / 0.4), true)
+        const font = `500 168px ${SANS}`
+        rise("One link.", W / 2, 560, 168, font, ICE, clamp((t - 0.3) / 0.75), "-9px", "center")
+        rise("It's a gift.", W / 2, 730, 168, font, BRAND, clamp((t - 0.5) / 0.75), "-9px", "center")
+        ctx.globalAlpha = easeOut((t - 1.1) / 0.6)
+        text("Any order on Zolace can be handed on with a link.", W / 2, 846, `400 34px ${SANS}`, QUIET, "center", "-0.5px")
+        text("Whoever opens it gets the item. No account, nothing to pay.", W / 2, 894, `400 34px ${SANS}`, QUIET, "center", "-0.5px")
+        ctx.globalAlpha = 1
+      }
+
+      // ------------------------------------------------------------ scene 3: the three cards
+      const S3 = 13.2
+      const WORDS = [
+        { at: 0, first: "You buy it.", then: " One link comes back." },
+        { at: 2.3, first: "They open it.", then: " No price on the page." },
+        { at: 4.5, first: "No account for them.", then: " Nothing to pay." },
+      ]
+      const PANEL = { x: 96, y: 214, w: W - 192, h: 950 }
+      const MINE = { x: 196, y: 428, w: 420, h: 396 }
+      const GIFT = { x: 690, y: 300, w: 540, h: 690 }
+      const SEEN = { x: 1304, y: 428, w: 420, h: 396 }
+
+      function card(box, p, alpha = 1) {
+        const lift = (1 - settle(p)) * 90
+        ctx.globalAlpha = clamp(p * 1.8) * alpha
+        ctx.shadowColor = "rgba(8,10,40,0.55)"
+        ctx.shadowBlur = 50
+        ctx.shadowOffsetY = 24
+        ctx.fillStyle = CARD
+        rounded(box.x, box.y + lift, box.w, box.h, 28)
+        ctx.fill()
+        ctx.shadowColor = "transparent"
+        return lift
+      }
+      // A square of dots that looks like a code and is none: the corners are drawn, the rest is noise.
+      function dots(x, y, size, shown) {
+        const n = 21
+        const cell = size / (n + 2)
+        ctx.fillStyle = ICE
+        rounded(x, y, size, size, 16)
+        ctx.fill()
+        ctx.fillStyle = INK
+        const corner = (cx, cy) => (cx < 7 && cy < 7) || (cx >= n - 7 && cy < 7) || (cx < 7 && cy >= n - 7)
+        for (let cy = 0; cy < n; cy++) {
+          for (let cx = 0; cx < n; cx++) {
+            let on
+            if (corner(cx, cy)) {
+              const lx = cx < 7 ? cx : cx - (n - 7)
+              const ly = cy < 7 ? cy : cy - (n - 7)
+              on = lx === 0 || lx === 6 || ly === 0 || ly === 6 || (lx >= 2 && lx <= 4 && ly >= 2 && ly <= 4)
+            } else on = hash(cx + 3, cy + 11) > 0.52
+            if (on && threshold(cx, cy) < shown * 1.03) ctx.fillRect(x + (cx + 1) * cell, y + (cy + 1) * cell, cell + 0.6, cell + 0.6)
+          }
+        }
+      }
+      const tick = (x, y, colour) => {
+        ctx.strokeStyle = colour
+        ctx.lineWidth = 3.5
+        ctx.lineCap = "round"
+        ctx.lineJoin = "round"
+        ctx.beginPath()
+        ctx.moveTo(x, y)
+        ctx.lineTo(x + 7, y + 7)
+        ctx.lineTo(x + 19, y - 7)
+        ctx.stroke()
+      }
+
+      function sceneCards(time) {
+        const t = time - S2
+        ground(time)
+        // The line of words, and the three marks that say which of them is on.
+        let on = 0
+        for (let i = 0; i < WORDS.length; i++) if (t >= WORDS[i].at) on = i
+        const words = WORDS[on]
+        const since = t - words.at
+        const font = `500 54px ${SANS}`
+        const head = widthOf(words.first, font, "-2.2px")
+        rise(words.first, 96, 132, 54, font, QUIET, clamp(since / 0.5), "-2.2px")
+        rise(words.then, 96 + head, 132, 54, font, ICE, clamp((since - 0.12) / 0.5), "-2.2px")
+        for (let i = 0; i < WORDS.length; i++) {
+          ctx.fillStyle = i === on ? BRAND : "#2a2a33"
+          rounded(W - 96 - (WORDS.length - i) * 44 + 8, 108, 36, 10, 5)
+          ctx.fill()
+        }
+
+        // The panel, with a tab that says what it is.
+        const up = settle(t / 0.7)
+        const top = PANEL.y + (1 - up) * 260
+        ctx.globalAlpha = clamp(t / 0.3)
+        ctx.fillStyle = INDIGO
+        rounded(PANEL.x, top - 44, 430, 80, 20)
+        ctx.fill()
+        rounded(PANEL.x, top, PANEL.w, PANEL.h, 36)
+        ctx.fill()
+        text("GIFT LINK · A SAMPLE ORDER", PANEL.x + 30, top - 14, `500 18px ${MONO}`, "#fff", "left", "1.6px")
+        // The site's dither, thin, over the panel's right side.
+        ctx.fillStyle = NAVY
+        for (let y = top + 40; y < H; y += 12) {
+          for (let x = PANEL.x + PANEL.w * 0.62; x < PANEL.x + PANEL.w - 24; x += 12) {
+            const far = clamp((x - (PANEL.x + PANEL.w * 0.62)) / (PANEL.w * 0.38))
+            if (threshold(Math.round(x / 12), Math.round(y / 12)) < far * 0.34) ctx.fillRect(x, y, 5, 5)
+          }
+        }
+        ctx.globalAlpha = 1
+
+        // The three cards are drawn a little larger than they are laid out, about the panel's middle.
+        ctx.save()
+        ctx.translate(W / 2, 645)
+        ctx.scale(1.1, 1.1)
+        ctx.translate(-W / 2, -645)
+
+        // The buyer's order.
+        const a = (t - 0.45) / 0.6
+        if (a > 0) {
+          const lift = card(MINE, a)
+          const { x, y, w } = MINE
+          const o = y + lift
+          text("YOUR ORDER", x + 34, o + 52, `500 17px ${MONO}`, QUIET, "left", "1.5px")
+          text("US data eSIM", x + 34, o + 108, `500 36px ${SANS}`, ICE, "left", "-1.2px")
+          text("1 GB · 7 days · $5.99", x + 34, o + 146, `500 19px ${MONO}`, QUIET, "left", "0.4px")
+          ctx.fillStyle = "rgba(123,140,255,0.16)"
+          rounded(x + 34, o + 172, 172, 38, 10)
+          ctx.fill()
+          tick(x + 50, o + 192, BRAND)
+          text("DELIVERED", x + 82, o + 198, `500 17px ${MONO}`, BRAND, "left", "1.4px")
+          // The gift's link, and the button that copies it.
+          const chip = easeOut((t - 1.0) / 0.4)
+          ctx.globalAlpha = clamp(a * 1.8) * chip
+          ctx.fillStyle = RAISE
+          rounded(x + 34, o + 232, w - 68, 54, 12)
+          ctx.fill()
+          text("/g/4e6f4z73…", x + 52, o + 266, `500 19px ${MONO}`, ICE, "left", "-0.2px")
+          text("#••••••••", x + 52 + widthOf("/g/4e6f4z73…", `500 19px ${MONO}`, "-0.2px"), o + 266, `500 19px ${MONO}`, BRAND, "left", "-0.2px")
+          const pressed = t >= 1.55
+          const squeeze = pressed ? 1 - 0.06 * Math.sin(Math.PI * clamp((t - 1.55) / 0.26)) : 1
+          ctx.save()
+          ctx.translate(x + w / 2, o + 330)
+          ctx.scale(squeeze, squeeze)
+          ctx.fillStyle = pressed ? BRAND : INDIGO
+          rounded(-(w - 68) / 2, -27, w - 68, 54, 12)
+          ctx.fill()
+          if (pressed) tick(-118, 2, INK)
+          text(pressed ? "COPIED" : "COPY THE GIFT'S LINK", pressed ? -86 : 0, 7, `500 17px ${MONO}`, pressed ? INK : "#fff", pressed ? "left" : "center", "1.5px")
+          ctx.restore()
+          ctx.globalAlpha = 1
+        }
+
+        // What the gift's page shows, and what it leaves out.
+        const c = (t - 0.75) / 0.6
+        if (c > 0) {
+          const lift = card(SEEN, c)
+          const { x, y, w } = SEEN
+          const o = y + lift
+          text("ON THEIR PAGE", x + 34, o + 52, `500 17px ${MONO}`, QUIET, "left", "1.5px")
+          const rows = [
+            ["The item", true],
+            ["How to use it", true],
+            ["The price", false],
+            ["The payment", false],
+          ]
+          rows.forEach(([name, shown], at) => {
+            const p = easeOut((t - (2.7 + at * 0.42)) / 0.4)
+            const ry = o + 84 + at * 72
+            ctx.fillStyle = RAISE
+            rounded(x + 34, ry, w - 68, 60, 12)
+            ctx.fill()
+            text(name, x + 54, ry + 38, `500 23px ${SANS}`, p > 0 && !shown ? QUIET : ICE, "left", "-0.4px")
+            if (p <= 0) return
+            ctx.globalAlpha = clamp(c * 1.8) * p
+            if (shown) tick(x + w - 76, ry + 31, BRAND)
+            else text("LEFT OUT", x + w - 54, ry + 37, `500 15px ${MONO}`, QUIET, "right", "1.4px")
+            ctx.globalAlpha = clamp(c * 1.8)
+          })
+          ctx.globalAlpha = 1
+        }
+
+        // The gift's page itself. It is faint until the link reaches it.
+        const b = (t - 0.6) / 0.6
+        if (b > 0) {
+          const woke = easeOut((t - 2.15) / 0.5)
+          const lift = card(GIFT, b)
+          const { x, y, w } = GIFT
+          const o = y + lift
+          ctx.globalAlpha = clamp(b * 1.8) * (0.28 + 0.72 * woke)
+          ctx.fillStyle = BRAND
+          ctx.fillRect(x + 40, o + 46, 9, 9)
+          text("A GIFT FOR YOU", x + 62, o + 57, `500 17px ${MONO}`, ICE, "left", "1.5px")
+          text("US data eSIM,", x + 40, o + 122, `500 42px ${SANS}`, ICE, "left", "-1.6px")
+          text("1 GB, 7 days", x + 40, o + 170, `500 42px ${SANS}`, ICE, "left", "-1.6px")
+          dots(x + 40, o + 206, 210, clamp((t - 2.5) / 1.0))
+          text("Scan it on the", x + 278, o + 262, `400 23px ${SANS}`, QUIET, "left", "-0.3px")
+          text("phone that will", x + 278, o + 292, `400 23px ${SANS}`, QUIET, "left", "-0.3px")
+          text("use it. Or copy", x + 278, o + 322, `400 23px ${SANS}`, QUIET, "left", "-0.3px")
+          text("the two parts.", x + 278, o + 352, `400 23px ${SANS}`, QUIET, "left", "-0.3px")
+          ctx.fillStyle = RAISE
+          rounded(x + 40, o + 446, w - 80, 62, 14)
+          ctx.fill()
+          text("LPA:1$demo…$SAMPLE", x + w / 2, o + 485, `500 20px ${MONO}`, ICE, "center", "0.2px")
+          // Copy the item: pressed near the end.
+          const pressed = t >= 5.5
+          const squeeze = pressed ? 1 - 0.06 * Math.sin(Math.PI * clamp((t - 5.5) / 0.26)) : 1
+          ctx.save()
+          ctx.translate(x + w / 2, o + 562)
+          ctx.scale(squeeze, squeeze)
+          ctx.fillStyle = pressed ? BRAND : INDIGO
+          rounded(-(w - 80) / 2, -32, w - 80, 64, 14)
+          ctx.fill()
+          if (pressed) tick(-62, 2, INK)
+          text(pressed ? "COPIED" : "COPY THE ITEM", pressed ? -30 : 0, 8, `500 19px ${MONO}`, pressed ? INK : "#fff", pressed ? "left" : "center", "1.6px")
+          ctx.restore()
+          text("NO ACCOUNT · NOTHING TO PAY", x + w / 2, o + 644, `500 16px ${MONO}`, t >= 4.5 ? BRAND : QUIET, "center", "1.5px")
+          ctx.globalAlpha = 1
+        }
+
+        // The link on its way from the order to the gift's page.
+        const way = (t - 1.6) / 0.6
+        if (way > 0 && way < 1) {
+          const e = easeBoth(way)
+          const x = MINE.x + MINE.w - 20 + (GIFT.x + 60 - (MINE.x + MINE.w - 20)) * e
+          const y = MINE.y + 258 - Math.sin(Math.PI * e) * 70
+          ctx.globalAlpha = Math.sin(Math.PI * clamp(way * 1.1))
+          ctx.fillStyle = ICE
+          rounded(x - 70, y - 22, 140, 44, 12)
+          ctx.fill()
+          text("/g/…#••", x, y + 7, `500 18px ${MONO}`, INK, "center", "0px")
+          ctx.globalAlpha = 1
+        }
+        ctx.restore()
+      }
+
+      // ------------------------------------------------------------ scene 4: the closing card
+      function sceneClose(time) {
+        const t = time - S3
+        ctx.fillStyle = "#050507"
+        ctx.fillRect(0, 0, W, H)
+        pill("zolace.cash/shop", 96, 150, easeOut((t - 0.15) / 0.4))
+        const font = `500 126px ${SANS}`
+        const head = widthOf("One link. ", font, "-6.8px")
+        rise("One link. ", 90, 372, 126, font, ICE, clamp((t - 0.25) / 0.7), "-6.8px")
+        rise("It's a gift.", 90 + head, 372, 126, font, BRAND, clamp((t - 0.42) / 0.7), "-6.8px")
+        // The panel, with the name set so large that it runs off the bottom.
+        const up = settle((t - 0.35) / 0.8)
+        const top = 590 + (1 - up) * 420
+        ctx.fillStyle = INDIGO
+        rounded(96, top - 44, 470, 80, 20)
+        ctx.fill()
+        rounded(96, top, W - 192, 700, 36)
+        ctx.fill()
+        text("ZOLACE · DIGITAL GOODS", 126, top - 14, `500 18px ${MONO}`, "#fff", "left", "1.6px")
+        text("NO ACCOUNT · NO NAME · NO EMAIL · PAID IN SHIELDED ZEC", 136, top + 62, `500 19px ${MONO}`, "#fff", "left", "1.8px")
+        ctx.save()
+        rounded(96, top, W - 192, 700, 36)
+        ctx.clip()
+        const name = easeOut((t - 0.7) / 0.8)
+        ctx.globalAlpha = clamp(name * 1.4)
+        text("zolace", 118, top + 536 + (1 - name) * 160, `700 400px ${SANS}`, INK, "left", "-21px")
+        ctx.globalAlpha = 1
+        // The site's dither at the right, standing in a rising row.
+        ctx.fillStyle = NAVY
+        const cell = 22
+        const COLUMNS = 9
+        for (let cx = 0; cx < COLUMNS; cx++) {
+          const tall = 4 + Math.round(cx * 1.5 + hash(cx, 3) * 3)
+          for (let cy = 0; cy < tall; cy++) {
+            const p = (t - 1.0 - cx * 0.03 - cy * 0.02) / 0.25
+            if (p <= 0) continue
+            if (threshold(cx + 2, cy + 1) < 0.25 + (cy / tall) * 0.9) continue
+            ctx.globalAlpha = clamp(p)
+            ctx.fillRect(W - 96 - 60 - (COLUMNS - cx) * (cell + 6), H - 30 - cy * (cell + 6), cell, cell)
+          }
+        }
+        ctx.restore()
+        ctx.globalAlpha = 1
+      }
+
+      // ------------------------------------------------------------ the film
+      // A band of indigo that crosses the screen from the bottom, uncovering the next scene behind it.
+      function wipe(time, at, before, after) {
+        const p = (time - at) / 0.62
+        if (p <= 0) return before(time)
+        if (p >= 1) return after(time)
+        const e = easeBoth(p)
+        ;(e < 0.5 ? before : after)(time)
+        const height = H * 1.25
+        const y = H - e * (H + height)
+        ctx.globalAlpha = 1
+        ctx.fillStyle = INDIGO
+        ctx.fillRect(0, y, W, height)
+      }
+
+      function draw(time) {
+        ctx.globalAlpha = 1
+        ctx.shadowColor = "transparent"
+        if (time < S1) sceneLogo(time)
+        else if (time < S2 - 0.31) sceneHeadline(time)
+        else if (time < S2 + 0.31) wipe(time, S2 - 0.31, sceneHeadline, sceneCards)
+        else if (time < S3 - 0.31) sceneCards(time)
+        else if (time < S3 + 0.31) wipe(time, S3 - 0.31, sceneCards, sceneClose)
+        else sceneClose(time)
+        const left = TOTAL - time
+        if (left < 0.3) {
+          ctx.globalAlpha = 1 - clamp(left / 0.3)
+          ctx.fillStyle = "#050507"
+          ctx.fillRect(0, 0, W, H)
+          ctx.globalAlpha = 1
+        }
+      }
+
+      await Promise.all([
+        document.fonts.load(`500 168px ${SANS}`),
+        document.fonts.load(`400 34px ${SANS}`),
+        document.fonts.load(`700 150px ${SANS}`),
+        document.fonts.load(`500 24px ${MONO}`),
+      ])
+      const asked = new URLSearchParams(location.search)
+      window.film = { total: TOTAL }
+      if (asked.has("still")) {
+        draw(Number(asked.get("still")))
+        window.done = true
+      } else {
+        const { encodeFilm } = await import("./encode.js")
+        const { blob, frames } = await encodeFilm({ canvas, total: TOTAL, bitrate: 9_000_000, ready: async () => {}, draw })
+        window.film.frames = frames
+        await fetch("out", { method: "POST", body: blob })
+        window.done = true
+      }
+    </script>
+  </body>
+</html>
