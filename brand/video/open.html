@@ -1,0 +1,338 @@
+<!doctype html>
+<!--
+  A film for the post that says selling is open. A shop front: the screen is closed by a shutter
+  of slats from edge to edge with a plate hanging on it; the plate turns over from "opens soon" to
+  "open"; the shutter rolls up into its housing; behind it stands a shelf of six cards that wake
+  one after another, five sellers' items and one that is the viewer's; the words stand to the
+  right of the shelf and come in a line at a time; and a band rises from the bottom edge with
+  where the money goes and where to sign up. No other film here has a shutter or a wall of cards.
+  Drawn and encoded one frame at a time (encode.js); opened by compose.mjs with PAGE=open.html.
+  ?still=<seconds> draws one moment and stops.
+  POST IT ONLY ONCE THE LIVE SITE SAYS "Selling / Open" ON /sell: the film says selling is open,
+  and that is so only where the owner has switched it on (PLAN.md, "Other sellers"). The sellers,
+  the items and the prices on the shelf are a sample and marked as one. What the words say is what
+  is built: a viewing key to sign up, no account, the buyer pays the seller's wallet, the shop
+  holds none of it and takes no share at the start, and an item costs at most $100.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=Geist+Mono:wght@500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #09090b;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage" width="1920" height="1080"></canvas>
+    <script type="module">
+      const W = 1920
+      const H = 1080
+      const GROUND = "#09090b"
+      const CARD = "#111114"
+      const RAISE = "#1c1c23"
+      const ICE = "#f4f4f6"
+      const INK = "#0b0b10"
+      const QUIET = "rgba(244,244,246,0.58)"
+      const INDIGO = "#5567ea"
+      const BRAND = "#7b8cff"
+      const SANS = "Geist, system-ui, sans-serif"
+      const MONO = '"Geist Mono", ui-monospace, monospace'
+      const TOTAL = 12.6
+
+      const canvas = document.getElementById("stage")
+      const ctx = canvas.getContext("2d")
+      const clamp = (x, low = 0, high = 1) => Math.min(high, Math.max(low, x))
+      const easeOut = (x) => 1 - Math.pow(1 - clamp(x), 3)
+      const easeBoth = (x) => {
+        const t = clamp(x)
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+      }
+      const mix = (a, b, p) => a + (b - a) * p
+      const rounded = (x, y, w, h, r) => {
+        ctx.beginPath()
+        ctx.roundRect(x, y, w, h, r)
+      }
+      const text = (value, x, y, font, colour, align = "left", spacing = "0px") => {
+        ctx.font = font
+        ctx.fillStyle = colour
+        ctx.textAlign = align
+        ctx.letterSpacing = spacing
+        ctx.fillText(value, x, y)
+      }
+      const widthOf = (value, font, spacing = "0px") => {
+        ctx.font = font
+        ctx.letterSpacing = spacing
+        return ctx.measureText(value).width
+      }
+      // A line of words that comes up from behind its own baseline.
+      const rise = (value, x, y, size, font, colour, p, spacing = "0px") => {
+        if (p <= 0) return
+        ctx.save()
+        const alpha = ctx.globalAlpha
+        ctx.beginPath()
+        ctx.rect(0, y - size * 0.95, W, size * 1.24)
+        ctx.clip()
+        ctx.globalAlpha = alpha * clamp(p * 1.6)
+        text(value, x, y + (1 - easeOut(p)) * size * 0.9, font, colour, "left", spacing)
+        ctx.restore()
+      }
+      const MARK = [
+        [8.1, 2, 22, 2, 13.25, 14.5, 10.65, 14.5, 15.9, 7, 4.6, 7],
+        [19.4, 17, 15.9, 22, 2, 22, 10.75, 9.5, 13.35, 9.5, 8.1, 17],
+        [5.5, 2, 7, 2, 3.5, 7, 2, 7],
+        [20.5, 17, 22, 17, 18.5, 22, 17, 22],
+      ]
+      const mark = (x, y, size, colour) => {
+        const k = size / 24
+        ctx.fillStyle = colour
+        for (const points of MARK) {
+          ctx.beginPath()
+          for (let i = 0; i < points.length; i += 2) ctx[i ? "lineTo" : "moveTo"](x + points[i] * k, y + points[i + 1] * k)
+          ctx.closePath()
+          ctx.fill()
+        }
+      }
+      const logo = (x, y, size, colour) => {
+        mark(x, y, size, colour)
+        text("zolace", x + size * 1.28, y + size * 0.86, `700 ${size * 0.95}px ${SANS}`, colour, "left", `${-size * 0.05}px`)
+      }
+      // The site's ground: a faint grid of dots.
+      const dots = (() => {
+        const tile = document.createElement("canvas")
+        tile.width = tile.height = 34
+        const pen = tile.getContext("2d")
+        pen.fillStyle = "rgba(255,255,255,0.06)"
+        pen.fillRect(16, 16, 2, 2)
+        return ctx.createPattern(tile, "repeat")
+      })()
+
+      // ------------------------------------------------------------ the sample shelf
+      const ITEMS = [
+        { seller: "KEY CORNER", name: "Game key", price: "$12.00" },
+        { seller: "NORTHLIGHT", name: "Gift card", price: "$25.00" },
+        { seller: "QUIET HARBOR", name: "VPN voucher", price: "$9.00" },
+        { seller: "KEY CORNER", name: "Software licence", price: "$29.00" },
+        { seller: "PAPER MOTH", name: "Template pack", price: "$15.00" },
+        { seller: "YOU", name: "Your item.", price: "Up to $100", yours: true },
+      ]
+      const SAID = ["Sign up with a viewing key.", "Buyers pay your wallet, in shielded ZEC.", "No account. No fee at the start."]
+
+      // ------------------------------------------------------------ when things happen
+      const TURN = { from: 1.25, to: 1.95 } // the plate turns over
+      const ROLL = { from: 2.45, to: 4.05 } // the shutter rolls up
+      const WAKE = { from: 3.55, every: 0.16 } // the cards wake, one after another
+      const YOURS = 7.3 // the sixth card becomes the viewer's
+      const HEAD = 4.5
+      const SAID_AT = [5.5, 6.15, 6.8]
+      const BAND = 8.5
+      const TOP = 150 // where the shutter's housing is
+
+      // ------------------------------------------------------------ the shelf behind the shutter
+      const GRID = { x: 96, y: 196, w: 334, h: 322, gap: 16 }
+      const place = (index) => ({ x: GRID.x + (index % 3) * (GRID.w + GRID.gap), y: GRID.y + Math.floor(index / 3) * (GRID.h + GRID.gap) })
+
+      function shelf(time) {
+        ITEMS.forEach((item, index) => {
+          const { x, y } = place(index)
+          const woke = easeOut((time - WAKE.from - index * WAKE.every) / 0.5)
+          const mine = item.yours ? easeOut((time - YOURS) / 0.5) : 0
+          const lift = (1 - woke) * 18 - (item.yours ? Math.sin(clamp((time - YOURS) / 0.5) * Math.PI) * 14 : 0)
+          // Asleep, a card is a dim shape; awake, it is a card of the site.
+          ctx.globalAlpha = 0.28 + 0.72 * woke
+          ctx.fillStyle = RAISE
+          rounded(x, y + lift, GRID.w, GRID.h, 24)
+          ctx.fill()
+          if (mine > 0) {
+            ctx.globalAlpha = mine
+            ctx.fillStyle = INDIGO
+            rounded(x, y + lift, GRID.w, GRID.h, 24)
+            ctx.fill()
+          }
+          const shown = item.yours ? mine : woke
+          ctx.globalAlpha = shown
+          const label = `500 16px ${MONO}`
+          ctx.fillStyle = item.yours ? "#ffffff" : BRAND
+          ctx.fillRect(x + 28, y + 36 + lift, 9, 9)
+          text("SOLD BY", x + 49, y + 48 + lift, label, item.yours ? "rgba(255,255,255,0.74)" : QUIET, "left", "1.4px")
+          text(item.seller, x + 49 + widthOf("SOLD BY ", label, "1.4px"), y + 48 + lift, label, item.yours ? "#ffffff" : ICE, "left", "1.4px")
+          text(item.name, x + 26, y + 168 + lift, `500 37px ${SANS}`, item.yours ? "#ffffff" : ICE, "left", "-1.6px")
+          text(item.price, x + 26, y + GRID.h - 34 + lift, `500 ${item.yours ? 34 : 46}px ${MONO}`, item.yours ? "#ffffff" : ICE, "left", "-1.6px")
+          if (!item.yours) text("IN ZEC", x + GRID.w - 28, y + GRID.h - 38 + lift, label, QUIET, "right", "1.4px")
+          ctx.globalAlpha = 1
+        })
+      }
+
+      // ------------------------------------------------------------ the words beside the shelf
+      const SIDE = 1190
+      function words(time) {
+        const noted = easeOut((time - HEAD + 0.2) / 0.5)
+        ctx.globalAlpha = noted
+        text("SELLERS' SHELF · THE ITEMS ARE A SAMPLE", SIDE, 232, `500 17px ${MONO}`, QUIET, "left", "1.5px")
+        ctx.globalAlpha = 1
+        const font = `500 150px ${SANS}`
+        rise("Selling", SIDE - 6, 390, 150, font, ICE, (time - HEAD) / 0.6, "-8.6px")
+        rise("is open.", SIDE - 6, 532, 150, font, BRAND, (time - HEAD - 0.16) / 0.6, "-8.6px")
+        SAID.forEach((line, index) => {
+          const p = easeOut((time - SAID_AT[index]) / 0.5)
+          if (p <= 0) return
+          const y = 632 + index * 62
+          ctx.globalAlpha = p
+          ctx.fillStyle = BRAND
+          ctx.fillRect(SIDE, y - 19, 10, 10)
+          text(line, SIDE + 28 + (1 - p) * 22, y, `500 32px ${SANS}`, ICE, "left", "-0.8px")
+          ctx.globalAlpha = 1
+        })
+      }
+
+      // The band that rises from the bottom edge: where the money goes, and where to sign up.
+      function band(time) {
+        const p = easeOut((time - BAND) / 0.6)
+        if (p <= 0) return
+        const y = 908 + (1 - p) * 190
+        ctx.fillStyle = INDIGO
+        rounded(96, y, 1728, 108, 22)
+        ctx.fill()
+        ctx.fillStyle = "#ffffff"
+        ctx.fillRect(130, y + 49, 10, 10)
+        text("EVERY ORDER IS PAID STRAIGHT TO ITS SELLER", 158, y + 61, `500 21px ${MONO}`, "#ffffff", "left", "1.7px")
+        const held = "ZOLACE HOLDS 0 ZEC"
+        text(held, 158 + widthOf("EVERY ORDER IS PAID STRAIGHT TO ITS SELLER", `500 21px ${MONO}`, "1.7px") + 46, y + 61, `500 21px ${MONO}`, "rgba(255,255,255,0.74)", "left", "1.7px")
+        const told = easeOut((time - BAND - 0.5) / 0.5)
+        ctx.globalAlpha = told
+        text("zolace.cash/sell", 1790, y + 68, `500 42px ${SANS}`, "#ffffff", "right", "-1.6px")
+        ctx.globalAlpha = 1
+      }
+
+      // ------------------------------------------------------------ the shutter
+      const SLAT = 62
+      const SLATS = Math.ceil((H - TOP) / SLAT) + 1
+      function shutter(time) {
+        const up = easeBoth((time - ROLL.from) / (ROLL.to - ROLL.from))
+        if (up >= 1) return
+        const lifted = up * (H - TOP + 40)
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(0, TOP, W, H - TOP)
+        ctx.clip()
+        for (let i = 0; i < SLATS; i++) {
+          const y = TOP + i * SLAT - lifted
+          ctx.fillStyle = i % 2 ? "#15151a" : "#1a1a21"
+          ctx.fillRect(0, y, W, SLAT)
+          // The fold of each slat: a shade along its lower part.
+          ctx.fillStyle = "rgba(0,0,0,0.22)"
+          ctx.fillRect(0, y + SLAT - 14, W, 14)
+        }
+        // What is written on the shutter itself.
+        const written = easeOut((time - 0.3) / 0.6)
+        ctx.globalAlpha = written * 0.5
+        text("ZOLACE · THE SELLERS' SHELF", 96, TOP + 86 - lifted, `500 20px ${MONO}`, ICE, "left", "1.8px")
+        text("YOUR GOODS · YOUR WALLET · OUR SHELF", W - 96, TOP + 86 - lifted, `500 20px ${MONO}`, ICE, "right", "1.8px")
+        ctx.globalAlpha = 1
+
+        // The plate that hangs on it: it turns over on its middle, and what it says changes.
+        const turn = clamp((time - TURN.from) / (TURN.to - TURN.from))
+        const open = turn >= 0.5
+        const flat = Math.abs(Math.cos(turn * Math.PI))
+        const plate = { w: open ? 620 : 760, h: 210 }
+        const cy = TOP + 430 - lifted
+        const dropped = easeOut((time - 0.45) / 0.6)
+        ctx.globalAlpha = dropped
+        // Its two hangers.
+        ctx.fillStyle = "rgba(244,244,246,0.2)"
+        ctx.fillRect(W / 2 - 150, cy - 190, 8, 190 - (plate.h / 2) * flat)
+        ctx.fillRect(W / 2 + 142, cy - 190, 8, 190 - (plate.h / 2) * flat)
+        ctx.fillStyle = open ? INDIGO : ICE
+        rounded(W / 2 - plate.w / 2, cy - (plate.h / 2) * flat, plate.w, plate.h * flat, 26 * flat)
+        ctx.fill()
+        if (flat > 0.08) {
+          ctx.save()
+          ctx.translate(W / 2, cy)
+          ctx.scale(1, flat)
+          text(open ? "OPEN" : "OPENS SOON", 0, 38, `500 ${open ? 124 : 100}px ${MONO}`, open ? "#ffffff" : INK, "center", open ? "10px" : "4px")
+          ctx.restore()
+        }
+        ctx.globalAlpha = 1
+        ctx.restore()
+      }
+
+      // ------------------------------------------------------------ the film
+      function draw(time) {
+        ctx.globalAlpha = 1
+        ctx.fillStyle = GROUND
+        ctx.fillRect(0, 0, W, H)
+        ctx.fillStyle = dots
+        ctx.fillRect(0, 0, W, H)
+
+        if (time > ROLL.from) {
+          shelf(time)
+          words(time)
+          band(time)
+        }
+        shutter(time)
+
+        // The housing the shutter rolls into, and above it the corner: the logo and what stands.
+        ctx.fillStyle = GROUND
+        ctx.fillRect(0, 0, W, TOP - 14)
+        ctx.fillStyle = dots
+        ctx.fillRect(0, 0, W, TOP - 14)
+        const housed = 1 - easeOut((time - ROLL.to) / 0.5)
+        ctx.globalAlpha = housed
+        ctx.fillStyle = RAISE
+        ctx.fillRect(0, TOP - 14, W, 14)
+        ctx.globalAlpha = easeOut(time / 0.4)
+        logo(96, 66, 46, ICE)
+        const opened = time >= (TURN.from + TURN.to) / 2
+        const state = opened ? "SELLERS · OPEN" : "SELLERS · OPENS SOON"
+        const stateFont = `500 19px ${MONO}`
+        const stateWide = widthOf(state, stateFont, "1.6px") + 62
+        ctx.fillStyle = opened ? INDIGO : RAISE
+        rounded(W - 96 - stateWide, 58, stateWide, 46, 12)
+        ctx.fill()
+        ctx.fillStyle = opened ? "#ffffff" : BRAND
+        ctx.fillRect(W - 96 - stateWide + 18, 77, 9, 9)
+        text(state, W - 96 - stateWide + 40, 88, stateFont, ICE, "left", "1.6px")
+        ctx.globalAlpha = 1
+
+        const remaining = TOTAL - time
+        if (remaining < 0.3) {
+          ctx.globalAlpha = 1 - clamp(remaining / 0.3)
+          ctx.fillStyle = "#050507"
+          ctx.fillRect(0, 0, W, H)
+          ctx.globalAlpha = 1
+        }
+      }
+
+      await Promise.all([
+        document.fonts.load(`500 150px ${SANS}`),
+        document.fonts.load(`400 38px ${SANS}`),
+        document.fonts.load(`700 46px ${SANS}`),
+        document.fonts.load(`500 124px ${MONO}`),
+      ])
+      const asked = new URLSearchParams(location.search)
+      window.film = { total: TOTAL }
+      if (asked.has("still")) {
+        draw(Number(asked.get("still")))
+        window.done = true
+      } else {
+        const { encodeFilm } = await import("./encode.js")
+        const { blob, frames } = await encodeFilm({ canvas, total: TOTAL, bitrate: 9_000_000, ready: async () => {}, draw })
+        window.film.frames = frames
+        await fetch("out", { method: "POST", body: blob })
+        window.done = true
+      }
+    </script>
+  </body>
+</html>
