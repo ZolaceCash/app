@@ -1,0 +1,555 @@
+<!doctype html>
+<!--
+  A film for the post about being told when an order moves, in four scenes: the logo; a headline
+  in the middle of the screen; a browser's window with the order's page beside the notices the
+  device shows, under a line of words that changes three times; and a closing card with the name
+  set large. The order of scenes is the one the gift's film uses (gift.html); the third scene is
+  this film's own.
+  Drawn and encoded one frame at a time (encode.js); opened by compose.mjs with PAGE=notice.html.
+  ?still=<seconds> draws one moment and stops.
+  The item and its price are the shelf's on 12 Oct 2026, and the words of each notice are the
+  ones lib/notice.ts gives. The order is a sample: its name is made up, its secret and its item
+  are drawn as dots, and the times beside the notices are an example, not a promise.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=Geist+Mono:wght@500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #09090b;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage" width="1920" height="1080"></canvas>
+    <script type="module">
+      const W = 1920
+      const H = 1080
+      const GROUND = "#09090b"
+      const CARD = "#101014"
+      const RAISE = "#1c1c23"
+      const ICE = "#f4f4f6"
+      const INK = "#0b0b10"
+      const QUIET = "rgba(244,244,246,0.58)"
+      const INDIGO = "#5567ea"
+      const BRAND = "#7b8cff"
+      const NAVY = "#1f2358"
+      const SANS = "Geist, system-ui, sans-serif"
+      const MONO = '"Geist Mono", ui-monospace, monospace'
+      const TOTAL = 17.0
+
+      const canvas = document.getElementById("stage")
+      const ctx = canvas.getContext("2d")
+      const clamp = (x, low = 0, high = 1) => Math.min(high, Math.max(low, x))
+      const easeOut = (x) => 1 - Math.pow(1 - clamp(x), 3)
+      const easeBoth = (x) => {
+        const t = clamp(x)
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+      }
+      const settle = (x) => {
+        const t = clamp(x)
+        const c = 1.5
+        return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2)
+      }
+      const rounded = (x, y, w, h, r) => {
+        ctx.beginPath()
+        ctx.roundRect(x, y, w, h, r)
+      }
+      const text = (value, x, y, font, colour, align = "left", spacing = "0px") => {
+        ctx.font = font
+        ctx.fillStyle = colour
+        ctx.textAlign = align
+        ctx.letterSpacing = spacing
+        ctx.fillText(value, x, y)
+      }
+      const widthOf = (value, font, spacing = "0px") => {
+        ctx.font = font
+        ctx.letterSpacing = spacing
+        return ctx.measureText(value).width
+      }
+      // A line that rises into place from under its own baseline.
+      const rise = (value, x, y, size, font, colour, p, spacing = "0px", align = "left") => {
+        if (p <= 0) return
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(0, y - size * 0.95, W, size * 1.24)
+        ctx.clip()
+        ctx.globalAlpha *= clamp(p * 1.6)
+        text(value, x, y + (1 - easeOut(p)) * size * 0.9, font, colour, align, spacing)
+        ctx.restore()
+      }
+      const MARK = [
+        [8.1, 2, 22, 2, 13.25, 14.5, 10.65, 14.5, 15.9, 7, 4.6, 7],
+        [19.4, 17, 15.9, 22, 2, 22, 10.75, 9.5, 13.35, 9.5, 8.1, 17],
+        [5.5, 2, 7, 2, 3.5, 7, 2, 7],
+        [20.5, 17, 22, 17, 18.5, 22, 17, 22],
+      ]
+      // The mark alone: `shown` says how far each of its four pieces has come in.
+      const mark = (x, y, size, colour, shown = () => 1) => {
+        const k = size / 24
+        MARK.forEach((points, piece) => {
+          const p = shown(piece)
+          if (p <= 0) return
+          ctx.save()
+          ctx.globalAlpha *= clamp(p * 1.5)
+          ctx.translate(x + size / 2, y + size / 2)
+          const s = 0.6 + 0.4 * settle(p)
+          ctx.scale(s, s)
+          ctx.translate(-size / 2, -size / 2)
+          ctx.fillStyle = colour
+          ctx.beginPath()
+          for (let i = 0; i < points.length; i += 2) ctx[i ? "lineTo" : "moveTo"](points[i] * k, points[i + 1] * k)
+          ctx.closePath()
+          ctx.fill()
+          ctx.restore()
+        })
+      }
+      const logo = (x, y, size, colour) => {
+        mark(x, y, size, colour)
+        text("zolace", x + size * 1.28, y + size * 0.86, `700 ${size * 0.95}px ${SANS}`, colour, "left", `${-size * 0.05}px`)
+      }
+      const ground = (time, alpha = 1) => {
+        ctx.fillStyle = GROUND
+        ctx.fillRect(0, 0, W, H)
+        ctx.fillStyle = `rgba(255,255,255,${0.06 * alpha})`
+        const drift = (time * 5) % 28
+        for (let y = 14 - 28 + drift; y < H; y += 28) for (let x = 14; x < W; x += 28) ctx.fillRect(x, y, 1.5, 1.5)
+      }
+      // A small label in a tile, with the brand's square before it.
+      const pill = (label, x, y, alpha, centred = false) => {
+        if (alpha <= 0) return
+        const font = `500 21px ${MONO}`
+        const wide = widthOf(label, font, "1.4px") + 62
+        const left = centred ? x - wide / 2 : x
+        ctx.save()
+        ctx.globalAlpha *= alpha
+        ctx.fillStyle = RAISE
+        rounded(left, y, wide, 46, 12)
+        ctx.fill()
+        ctx.fillStyle = BRAND
+        ctx.fillRect(left + 18, y + 19, 9, 9)
+        text(label, left + 40, y + 31, font, ICE, "left", "1.4px")
+        ctx.restore()
+      }
+      const BAYER = [0, 32, 8, 40, 2, 34, 10, 42, 48, 16, 56, 24, 50, 18, 58, 26, 12, 44, 4, 36, 14, 46, 6, 38, 60, 28, 52, 20, 62, 30, 54, 22, 3, 35, 11, 43, 1, 33, 9, 41, 51, 19, 59, 27, 49, 17, 57, 25, 15, 47, 7, 39, 13, 45, 5, 37, 63, 31, 55, 23, 61, 29, 53, 21]
+      const threshold = (cx, cy) => (BAYER[(cy & 7) * 8 + (cx & 7)] + 0.5) / 64
+      const hash = (x, y) => {
+        const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453
+        return s - Math.floor(s)
+      }
+
+      // ------------------------------------------------------------ scene 1: the logo
+      const S1 = 2.5
+      function sceneLogo(time) {
+        ground(time)
+        const out = 1 - easeOut((time - (S1 - 0.45)) / 0.4)
+        ctx.globalAlpha = out
+        const size = 150
+        const font = `700 ${size * 0.95}px ${SANS}`
+        const spacing = `${-size * 0.05}px`
+        const wide = size * 1.28 + widthOf("zolace", font, spacing)
+        // The mark comes first, in the middle, and moves over as the name arrives.
+        const named = easeBoth((time - 0.75) / 0.55)
+        const x = W / 2 - size / 2 + (W / 2 - wide / 2 - (W / 2 - size / 2)) * named
+        const y = 430
+        mark(x, y, size, ICE, (piece) => (time - 0.15 - piece * 0.11) / 0.45)
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(x + size * 1.1, y - 40, wide, size + 80)
+        ctx.clip()
+        ctx.globalAlpha = out * easeOut((time - 0.8) / 0.5)
+        text("zolace", x + size * 1.28 - (1 - easeOut((time - 0.8) / 0.55)) * 90, y + size * 0.86, font, ICE, "left", spacing)
+        ctx.restore()
+        ctx.globalAlpha = out * easeOut((time - 1.3) / 0.5)
+        text("DIGITAL GOODS · NO ACCOUNT · PAID IN SHIELDED ZEC", W / 2, y + size + 92, `500 23px ${MONO}`, QUIET, "center", "3px")
+        ctx.globalAlpha = 1
+      }
+
+      // ------------------------------------------------------------ scene 2: the headline
+      const S2 = 6.3
+      function sceneHeadline(time) {
+        const t = time - S1
+        ground(time)
+        ctx.globalAlpha = easeOut(t / 0.4)
+        logo(96, 76, 48, ICE)
+        text("ORDER NOTICES · NEW IN THE SHOP", W - 96, 112, `500 21px ${MONO}`, QUIET, "right", "1.8px")
+        ctx.globalAlpha = 1
+        pill("New in the shop", W / 2, 318, easeOut((t - 0.15) / 0.4), true)
+        const font = `500 168px ${SANS}`
+        rise("No email.", W / 2, 560, 168, font, ICE, clamp((t - 0.3) / 0.75), "-9px", "center")
+        rise("Still notified.", W / 2, 730, 168, font, BRAND, clamp((t - 0.5) / 0.75), "-9px", "center")
+        ctx.globalAlpha = easeOut((t - 1.1) / 0.6)
+        text("Your order's page can tell you when the order moves.", W / 2, 846, `400 34px ${SANS}`, QUIET, "center", "-0.5px")
+        text("Your own browser shows the notice. Nothing extra is sent to the shop.", W / 2, 894, `400 34px ${SANS}`, QUIET, "center", "-0.5px")
+        ctx.globalAlpha = 1
+      }
+
+      // ------------------------------------------------------------ scene 3: the window and the notices
+      const S3 = 14.0
+      const WORDS = [
+        { at: 0, first: "Ask once.", then: " Your browser does the telling." },
+        { at: 2.4, first: "Go do something else.", then: " The tab keeps watch." },
+        { at: 5.0, first: "No email, no number.", then: " Nothing extra sent to the shop." },
+      ]
+      // When the sample order moves, and what the page and the notice say of each move.
+      const ASKED = 1.1
+      const ALLOWED = 1.95
+      const LEFT = 2.4
+      const MOVES = [
+        { at: 2.9, step: 1, tab: "Your payment was seen", when: "NOW", lines: ["The order is waiting for the network", "to confirm it."] },
+        { at: 3.7, step: 2, tab: "Your payment is confirmed", when: "+ 4 MIN", lines: ["The item is now being bought", "for your order."] },
+        { at: 5.3, step: 4, tab: "Your item is ready", when: "+ 3 H", lines: ["It has opened on the order's page."] },
+      ]
+      const STEPS = ["Waiting", "Seen", "Confirmed", "Delivered"]
+      const WIN = { x: 96, y: 232, w: 1090, h: 950 }
+      const SIDE = { x: 1236, y: 232, w: 588 }
+
+      const tick = (x, y, colour, width = 3.5) => {
+        ctx.strokeStyle = colour
+        ctx.lineWidth = width
+        ctx.lineCap = "round"
+        ctx.lineJoin = "round"
+        ctx.beginPath()
+        ctx.moveTo(x, y)
+        ctx.lineTo(x + 7, y + 7)
+        ctx.lineTo(x + 19, y - 7)
+        ctx.stroke()
+      }
+      // A button that gives a little when it is pressed.
+      const press = (cx, cy, w, h, label, fill, ink, since, font = `500 17px ${MONO}`) => {
+        const squeeze = since >= 0 ? 1 - 0.07 * Math.sin(Math.PI * clamp(since / 0.26)) : 1
+        ctx.save()
+        ctx.translate(cx, cy)
+        ctx.scale(squeeze, squeeze)
+        ctx.fillStyle = fill
+        rounded(-w / 2, -h / 2, w, h, 12)
+        ctx.fill()
+        text(label, 0, 6, font, ink, "center", "1.5px")
+        ctx.restore()
+      }
+
+      function sceneWindow(time) {
+        const t = time - S2
+        ground(time)
+        // The line of words, and the three marks that say which of them is on.
+        let on = 0
+        for (let i = 0; i < WORDS.length; i++) if (t >= WORDS[i].at) on = i
+        const words = WORDS[on]
+        const since = t - words.at
+        const font = `500 54px ${SANS}`
+        const head = widthOf(words.first, font, "-2.2px")
+        rise(words.first, 96, 132, 54, font, QUIET, clamp(since / 0.5), "-2.2px")
+        rise(words.then, 96 + head, 132, 54, font, ICE, clamp((since - 0.12) / 0.5), "-2.2px")
+        for (let i = 0; i < WORDS.length; i++) {
+          ctx.fillStyle = i === on ? BRAND : "#2a2a33"
+          rounded(W - 96 - (WORDS.length - i) * 44 + 8, 108, 36, 10, 5)
+          ctx.fill()
+        }
+
+        let move = -1
+        for (let i = 0; i < MOVES.length; i++) if (t >= MOVES[i].at) move = i
+        const at = move < 0 ? 0 : MOVES[move].step
+        const away = easeBoth((t - LEFT) / 0.45)
+        const told = t >= ALLOWED + 0.2
+
+        // ---------------------------------------- the browser's window
+        const up = settle(t / 0.7)
+        const top = WIN.y + (1 - up) * 260
+        const { x, w } = WIN
+        ctx.globalAlpha = clamp(t / 0.3)
+        ctx.shadowColor = "rgba(8,10,40,0.55)"
+        ctx.shadowBlur = 50
+        ctx.shadowOffsetY = 24
+        ctx.fillStyle = "#0c0c10"
+        rounded(x, top, w, WIN.h, 30)
+        ctx.fill()
+        ctx.shadowColor = "transparent"
+        ctx.fillStyle = CARD
+        rounded(x, top + 70, w, WIN.h - 70, 30)
+        ctx.fill()
+        ctx.fillRect(x, top + 70, w, 40)
+
+        // Two tabs. The order's is in front until the buyer leaves it; its title is what changes.
+        const TAB = { x: x + 22, w: 470 }
+        const OTHER = { x: x + 504, w: 250 }
+        ctx.fillStyle = CARD
+        const front = TAB.x + (OTHER.x - TAB.x) * away
+        const wide = TAB.w + (OTHER.w - TAB.w) * away
+        rounded(front, top + 14, wide, 80, 16)
+        ctx.fill()
+        const title = move < 0 ? "Your order · Zolace" : `● ${MOVES[move].tab}`
+        const fresh = move < 0 ? 0 : 1 - clamp((t - MOVES[move].at) / 0.9)
+        if (move >= 0) {
+          // The tab that has something to say is lit for a moment, then stays marked.
+          ctx.fillStyle = `rgba(123,140,255,${0.14 + 0.3 * fresh})`
+          rounded(TAB.x, top + 14, TAB.w, 46, 14)
+          ctx.fill()
+        }
+        mark(TAB.x + 20, top + 27, 20, move >= 0 ? BRAND : ICE)
+        rise(title, TAB.x + 54, top + 45, 21, `500 21px ${SANS}`, move >= 0 ? BRAND : ICE, move < 0 ? 1 : clamp((t - MOVES[move].at) / 0.35), "-0.3px")
+        ctx.fillStyle = "#2a2a33"
+        ctx.fillRect(OTHER.x + 22, top + 30, 14, 14)
+        text("Something else", OTHER.x + 50, top + 45, `500 21px ${SANS}`, away > 0.5 ? ICE : QUIET, "left", "-0.3px")
+        if (away > 0) {
+          ctx.globalAlpha = away
+          text("ORDER'S TAB IN THE BACKGROUND", x + w - 30, top + 44, `500 15px ${MONO}`, QUIET, "right", "1.4px")
+        }
+
+        // The page, which goes quiet once the buyer is on the other tab.
+        const page = clamp((t - 0.35) / 0.4) * (1 - 0.52 * away)
+        ctx.globalAlpha = page
+        ctx.fillStyle = RAISE
+        rounded(x + 36, top + 94, w - 72, 50, 12)
+        ctx.fill()
+        const addr = "zolace.cash/o/7k2m9q4x…"
+        text(addr, x + 58, top + 126, `500 19px ${MONO}`, ICE, "left", "-0.2px")
+        text("#••••••••", x + 58 + widthOf(addr, `500 19px ${MONO}`, "-0.2px"), top + 126, `500 19px ${MONO}`, BRAND, "left", "-0.2px")
+
+        // Where the order stands.
+        const LIST = { x: x + 36, y: top + 172, w: 480 }
+        STEPS.forEach((step, index) => {
+          const done = at > index
+          const current = at === index
+          const y = LIST.y + index * 72
+          ctx.fillStyle = current ? NAVY : RAISE
+          rounded(LIST.x, y, LIST.w, 62, 12)
+          ctx.fill()
+          ctx.fillStyle = current ? INDIGO : done ? ICE : "#2a2a33"
+          rounded(LIST.x + 16, y + 16, 30, 30, 8)
+          ctx.fill()
+          if (done) tick(LIST.x + 22, y + 32, INK, 3)
+          else text(String(index + 1), LIST.x + 31, y + 37, `500 15px ${MONO}`, current ? "#fff" : QUIET, "center")
+          text(step, LIST.x + 62, y + 39, `500 23px ${SANS}`, done || current ? ICE : QUIET, "left", "-0.4px")
+          const label = done ? "DONE" : current && index === 0 ? "HELD FOR 14:32" : current && index === 1 ? "1 OF 3 BLOCKS" : current && index === 2 ? "BEING BOUGHT" : ""
+          text(label, LIST.x + LIST.w - 20, y + 37, `500 15px ${MONO}`, current ? BRAND : QUIET, "right", "1.3px")
+        })
+
+        // The panel that offers to tell, and the answer once the browser allows it.
+        const TELL = { x: LIST.x, y: LIST.y + 4 * 72 + 12, w: LIST.w, h: 250 }
+        ctx.fillStyle = "#16161c"
+        rounded(TELL.x, TELL.y, TELL.w, TELL.h, 18)
+        ctx.fill()
+        ctx.fillStyle = BRAND
+        ctx.fillRect(TELL.x + 26, TELL.y + 31, 9, 9)
+        text(told ? "THIS TAB WILL TELL YOU" : "BE TOLD WHEN IT MOVES", TELL.x + 48, TELL.y + 42, `500 16px ${MONO}`, told ? BRAND : QUIET, "left", "1.5px")
+        const say = told ? ["Keep this tab open, in the background", "if you like. Nothing is sent to the", "shop for it."] : ["Your browser can show a notice when", "the order moves, while this tab stays", "open. No email, no number."]
+        say.forEach((line, i) => text(line, TELL.x + 26, TELL.y + 84 + i * 30, `400 21px ${SANS}`, QUIET, "left", "-0.3px"))
+        ctx.globalAlpha = page
+        if (told) {
+          ctx.fillStyle = "rgba(123,140,255,0.16)"
+          rounded(TELL.x + 26, TELL.y + 178, 150, 44, 12)
+          ctx.fill()
+          tick(TELL.x + 44, TELL.y + 201, BRAND)
+          text("ASKED", TELL.x + 76, TELL.y + 207, `500 17px ${MONO}`, BRAND, "left", "1.4px")
+        } else press(TELL.x + 26 + 160, TELL.y + 200, 320, 46, "TELL ME IN THIS BROWSER", t >= ASKED ? BRAND : INDIGO, t >= ASKED ? INK : "#fff", t - ASKED)
+
+        // The order itself.
+        const ITEM = { x: x + 556, y: top + 172, w: w - 556 - 36 }
+        ctx.globalAlpha = page
+        ctx.fillStyle = "#16161c"
+        rounded(ITEM.x, ITEM.y, ITEM.w, 550, 18)
+        ctx.fill()
+        text("YOUR ORDER", ITEM.x + 32, ITEM.y + 50, `500 16px ${MONO}`, QUIET, "left", "1.5px")
+        text("Discord Nitro", ITEM.x + 32, ITEM.y + 112, `500 46px ${SANS}`, ICE, "left", "-1.8px")
+        text("1 MONTH · $11.90", ITEM.x + 32, ITEM.y + 152, `500 19px ${MONO}`, QUIET, "left", "0.6px")
+        const says = ["Waiting for your payment", "Your payment was seen", "Your item is being bought", "", "Your item is ready"][at]
+        const changed = move < 0 ? 1 : clamp((t - MOVES[move].at) / 0.45)
+        rise(says, ITEM.x + 32, ITEM.y + 236, 30, `500 30px ${SANS}`, at === 4 ? BRAND : ICE, changed, "-0.8px")
+        ctx.globalAlpha = page
+        ctx.fillStyle = at === 4 ? ICE : RAISE
+        rounded(ITEM.x + 32, ITEM.y + 272, ITEM.w - 64, 96, 14)
+        ctx.fill()
+        if (at === 4) text("•••• •••• •••• ••••", ITEM.x + ITEM.w / 2, ITEM.y + 330, `500 30px ${MONO}`, INK, "center", "1px")
+        else text(at === 2 ? "BOUGHT FOR YOUR ORDER" : "SEALED UNTIL IT IS YOURS", ITEM.x + ITEM.w / 2, ITEM.y + 327, `500 17px ${MONO}`, QUIET, "center", "1.5px")
+        text(at === 4 ? "OPENED IN THIS BROWSER" : at === 2 ? "WITHIN 12 HOURS OF PAYMENT" : "A SAMPLE ORDER", ITEM.x + 32, ITEM.y + 410, `500 15px ${MONO}`, at === 4 ? BRAND : QUIET, "left", "1.4px")
+        // Thin dither in the card's foot.
+        ctx.fillStyle = NAVY
+        for (let cy = 0; cy < 7; cy++) {
+          for (let cx = 0; cx < 36; cx++) {
+            if (threshold(cx, cy) < 0.14 + (cy / 7) * 0.5) ctx.fillRect(ITEM.x + 32 + cx * 12, ITEM.y + 446 + cy * 12, 5, 5)
+          }
+        }
+
+        // The browser asks before it lets a page show notices.
+        const bubble = Math.min(easeOut((t - (ASKED + 0.25)) / 0.3), 1 - easeOut((t - (ALLOWED + 0.2)) / 0.25))
+        if (bubble > 0) {
+          ctx.globalAlpha = bubble
+          const bx = x + 36
+          const by = top + 152 - (1 - bubble) * 24
+          ctx.shadowColor = "rgba(0,0,0,0.6)"
+          ctx.shadowBlur = 40
+          ctx.shadowOffsetY = 18
+          ctx.fillStyle = ICE
+          rounded(bx, by, 470, 176, 18)
+          ctx.fill()
+          ctx.shadowColor = "transparent"
+          text("zolace.cash wants to", bx + 30, by + 48, `400 21px ${SANS}`, "rgba(11,11,16,0.62)", "left", "-0.3px")
+          text("Show notifications", bx + 30, by + 86, `500 28px ${SANS}`, INK, "left", "-0.8px")
+          press(bx + 30 + 85, by + 132, 170, 44, "BLOCK", "rgba(11,11,16,0.1)", INK, -1)
+          press(bx + 216 + 85, by + 132, 170, 44, "ALLOW", t >= ALLOWED ? BRAND : INDIGO, t >= ALLOWED ? INK : "#fff", t - ALLOWED)
+        }
+        ctx.globalAlpha = 1
+
+        // ---------------------------------------- what the device shows
+        ctx.globalAlpha = easeOut((t - 0.6) / 0.5)
+        ctx.fillStyle = BRAND
+        ctx.fillRect(SIDE.x, SIDE.y + 16, 9, 9)
+        text("ON YOUR SCREEN", SIDE.x + 22, SIDE.y + 27, `500 17px ${MONO}`, ICE, "left", "1.5px")
+        ctx.globalAlpha = 1
+        MOVES.forEach((notice, index) => {
+          const p = (t - notice.at) / 0.55
+          const y = SIDE.y + 58 + index * 188
+          const h = 170
+          if (p <= 0) {
+            // Where a notice will land.
+            ctx.globalAlpha = 0.5 * easeOut((t - 0.7 - index * 0.1) / 0.5)
+            ctx.fillStyle = "#0e0e12"
+            rounded(SIDE.x, y, SIDE.w, h, 22)
+            ctx.fill()
+            ctx.globalAlpha = 1
+            return
+          }
+          const last = index === MOVES.length - 1
+          const slide = (1 - settle(p)) * 220
+          ctx.globalAlpha = clamp(p * 2)
+          ctx.shadowColor = "rgba(8,10,40,0.6)"
+          ctx.shadowBlur = 44
+          ctx.shadowOffsetY = 20
+          ctx.fillStyle = last ? ICE : RAISE
+          rounded(SIDE.x + slide, y, SIDE.w, h, 22)
+          ctx.fill()
+          ctx.shadowColor = "transparent"
+          const nx = SIDE.x + slide
+          ctx.fillStyle = INDIGO
+          rounded(nx + 26, y + 26, 54, 54, 14)
+          ctx.fill()
+          mark(nx + 39, y + 39, 28, "#fff")
+          const quiet = last ? "rgba(11,11,16,0.6)" : QUIET
+          text("ZOLACE.CASH", nx + 100, y + 46, `500 15px ${MONO}`, quiet, "left", "1.4px")
+          text(notice.when, nx + SIDE.w - 28, y + 46, `500 15px ${MONO}`, last ? INDIGO : BRAND, "right", "1.4px")
+          text(`Zolace: ${notice.tab}`, nx + 100, y + 82, `500 25px ${SANS}`, last ? INK : ICE, "left", "-0.7px")
+          notice.lines.forEach((line, i) => text(line, nx + 100, y + 116 + i * 28, `400 20px ${SANS}`, quiet, "left", "-0.3px"))
+          ctx.globalAlpha = 1
+        })
+        const foot = easeOut((t - 6.0) / 0.5)
+        if (foot > 0) {
+          ctx.globalAlpha = foot
+          ctx.fillStyle = "rgba(123,140,255,0.14)"
+          rounded(SIDE.x, SIDE.y + 58 + 3 * 188 + 4, SIDE.w, 58, 14)
+          ctx.fill()
+          text("A NOTICE NAMES NO ITEM, NO AMOUNT, NO ORDER", SIDE.x + SIDE.w / 2, SIDE.y + 58 + 3 * 188 + 40, `500 16px ${MONO}`, BRAND, "center", "1.3px")
+          ctx.globalAlpha = 1
+        }
+      }
+
+      // ------------------------------------------------------------ scene 4: the closing card
+      function sceneClose(time) {
+        const t = time - S3
+        ctx.fillStyle = "#050507"
+        ctx.fillRect(0, 0, W, H)
+        pill("zolace.cash/shop", 96, 150, easeOut((t - 0.15) / 0.4))
+        const font = `500 126px ${SANS}`
+        const head = widthOf("No email. ", font, "-6.8px")
+        rise("No email. ", 90, 372, 126, font, ICE, clamp((t - 0.25) / 0.7), "-6.8px")
+        rise("Still notified.", 90 + head, 372, 126, font, BRAND, clamp((t - 0.42) / 0.7), "-6.8px")
+        // The panel, with the name set so large that it runs off the bottom.
+        const up = settle((t - 0.35) / 0.8)
+        const top = 590 + (1 - up) * 420
+        ctx.fillStyle = INDIGO
+        rounded(96, top - 44, 470, 80, 20)
+        ctx.fill()
+        rounded(96, top, W - 192, 700, 36)
+        ctx.fill()
+        text("ZOLACE · DIGITAL GOODS", 126, top - 14, `500 18px ${MONO}`, "#fff", "left", "1.6px")
+        text("NO ACCOUNT · NO NAME · NO EMAIL · PAID IN SHIELDED ZEC", 136, top + 62, `500 19px ${MONO}`, "#fff", "left", "1.8px")
+        ctx.save()
+        rounded(96, top, W - 192, 700, 36)
+        ctx.clip()
+        const name = easeOut((t - 0.7) / 0.8)
+        ctx.globalAlpha = clamp(name * 1.4)
+        text("zolace", 118, top + 536 + (1 - name) * 160, `700 400px ${SANS}`, INK, "left", "-21px")
+        ctx.globalAlpha = 1
+        // The site's dither at the right, standing in a rising row.
+        ctx.fillStyle = NAVY
+        const cell = 22
+        const COLUMNS = 9
+        for (let cx = 0; cx < COLUMNS; cx++) {
+          const tall = 4 + Math.round(cx * 1.5 + hash(cx, 3) * 3)
+          for (let cy = 0; cy < tall; cy++) {
+            const p = (t - 1.0 - cx * 0.03 - cy * 0.02) / 0.25
+            if (p <= 0) continue
+            if (threshold(cx + 2, cy + 1) < 0.25 + (cy / tall) * 0.9) continue
+            ctx.globalAlpha = clamp(p)
+            ctx.fillRect(W - 96 - 60 - (COLUMNS - cx) * (cell + 6), H - 30 - cy * (cell + 6), cell, cell)
+          }
+        }
+        ctx.restore()
+        ctx.globalAlpha = 1
+      }
+
+      // ------------------------------------------------------------ the film
+      // A band of indigo that crosses the screen from the bottom, uncovering the next scene behind it.
+      function wipe(time, at, before, after) {
+        const p = (time - at) / 0.62
+        if (p <= 0) return before(time)
+        if (p >= 1) return after(time)
+        const e = easeBoth(p)
+        ;(e < 0.5 ? before : after)(time)
+        const height = H * 1.25
+        const y = H - e * (H + height)
+        ctx.globalAlpha = 1
+        ctx.fillStyle = INDIGO
+        ctx.fillRect(0, y, W, height)
+      }
+
+      function draw(time) {
+        ctx.globalAlpha = 1
+        ctx.shadowColor = "transparent"
+        if (time < S1) sceneLogo(time)
+        else if (time < S2 - 0.31) sceneHeadline(time)
+        else if (time < S2 + 0.31) wipe(time, S2 - 0.31, sceneHeadline, sceneWindow)
+        else if (time < S3 - 0.31) sceneWindow(time)
+        else if (time < S3 + 0.31) wipe(time, S3 - 0.31, sceneWindow, sceneClose)
+        else sceneClose(time)
+        const left = TOTAL - time
+        if (left < 0.3) {
+          ctx.globalAlpha = 1 - clamp(left / 0.3)
+          ctx.fillStyle = "#050507"
+          ctx.fillRect(0, 0, W, H)
+          ctx.globalAlpha = 1
+        }
+      }
+
+      await Promise.all([
+        document.fonts.load(`500 168px ${SANS}`),
+        document.fonts.load(`400 34px ${SANS}`),
+        document.fonts.load(`700 150px ${SANS}`),
+        document.fonts.load(`500 24px ${MONO}`),
+      ])
+      const asked = new URLSearchParams(location.search)
+      window.film = { total: TOTAL }
+      if (asked.has("still")) {
+        draw(Number(asked.get("still")))
+        window.done = true
+      } else {
+        const { encodeFilm } = await import("./encode.js")
+        const { blob, frames } = await encodeFilm({ canvas, total: TOTAL, bitrate: 9_000_000, ready: async () => {}, draw })
+        window.film.frames = frames
+        await fetch("out", { method: "POST", body: blob })
+        window.done = true
+      }
+    </script>
+  </body>
+</html>
