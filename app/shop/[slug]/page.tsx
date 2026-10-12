@@ -149,6 +149,11 @@ function Item({ item }: { item: ShelfItem }) {
               not work, is the seller&apos;s to send. Zolace has not checked the item. You can report it on the
               order&apos;s page, to the seller and to the shop.
             </span>
+            {item.sellerSlug ? (
+              <Link href={`/s/${item.sellerSlug}`} className="mt-3 block text-brand underline-offset-4 hover:underline">
+                Everything {item.seller} sells
+              </Link>
+            ) : null}
           </p>
         ) : null}
 

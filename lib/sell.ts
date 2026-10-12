@@ -30,7 +30,7 @@ export const STEPS = [
   },
   {
     name: "Your item on the shelf",
-    body: "A name, a price in dollars and the codes to hand over. A code is kept until its order is paid, then sealed to the buyer and forgotten.",
+    body: "A name, a price in dollars and the codes to hand over. A code is kept until its order is paid, then sealed to the buyer and forgotten. Everything you list stands on a page of your own, with a link to share.",
   },
   {
     name: "The buyer pays you",

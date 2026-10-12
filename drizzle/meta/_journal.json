@@ -92,6 +92,13 @@
       "when": 1791809943518,
       "tag": "0012_sellers",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1791817765542,
+      "tag": "0013_seller_page",
+      "breakpoints": true
     }
   ]
 }

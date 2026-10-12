@@ -55,7 +55,15 @@ export default async function OwnerSellers() {
             sellers.map((seller) => (
               <Panel key={seller.id}>
                 <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-                  <h2 className="text-2xl font-medium tracking-[-0.035em]">{seller.name}</h2>
+                  <h2 className="text-2xl font-medium tracking-[-0.035em]">
+                    {seller.slug && open && !seller.closedAt ? (
+                      <Link href={`/s/${seller.slug}`} className="underline-offset-4 hover:text-brand hover:underline">
+                        {seller.name}
+                      </Link>
+                    ) : (
+                      seller.name
+                    )}
+                  </h2>
                   <p className={seller.closedAt ? "label-mono text-destructive" : "label-mono text-muted-foreground"}>
                     {seller.closedAt ? `Closed ${when(seller.closedAt)}` : seller.network === "testnet" ? "Test network" : "Selling"}
                   </p>

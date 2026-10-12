@@ -512,3 +512,56 @@ test("a seller of one network sells nothing on the other, and nothing while sell
   process.env.SELLING = "open"
   assert.ok(await orders.getItem(item.slug, now))
 })
+
+// ---------------------------------------------------------------- a seller's own page
+
+test("a seller has a page of their own with what of theirs is on the shelf, and nothing else", async () => {
+  const one = await seller("Paper Moth & Co.")
+  const two = await seller("Paper Moth & Co.")
+  const now = later()
+
+  // Two sellers of one name have two pages.
+  assert.match(one.row.slug!, /^paper-moth-co-[0-9a-f]{6}$/)
+  assert.match(two.row.slug!, /^paper-moth-co-[0-9a-f]{6}$/)
+  assert.notEqual(one.row.slug, two.row.slug)
+  assert.equal((await sellers.desk(one.row, now)).page, one.row.slug)
+
+  // Signed up and nothing listed: the page is there, and empty.
+  assert.deepEqual(await sellers.storefront(one.row.slug!, now), { name: "Paper Moth & Co.", slug: one.row.slug, items: [] })
+
+  const first = await listed(one, ["PAGE-CODE-1"])
+  const hidden = await listed(one, ["PAGE-CODE-2"])
+  await sellers.saveItem(one.row, hidden.id, { name: hidden.name, blurb: hidden.blurb, price: "10", shelf: "licences", active: false })
+  const theirs = await listed(two, ["PAGE-CODE-3"])
+
+  const page = await sellers.storefront(one.row.slug!, now)
+  assert.deepEqual(page?.items.map((item) => item.slug), [first.slug])
+  assert.equal(page?.items[0].sellerSlug, one.row.slug)
+  assert.deepEqual((await sellers.storefront(two.row.slug!, now))?.items.map((item) => item.slug), [theirs.slug])
+  // No code, no key and no secret is on it.
+  const all = JSON.stringify(page)
+  assert.ok(!all.includes("PAGE-CODE") && !all.includes(one.engineKey) && !all.includes(one.token))
+  // The shop's list names the page beside the seller.
+  assert.equal((await orders.getItem(first.slug, now))?.sellerSlug, one.row.slug)
+
+  // Not found: no such seller, a name that is no page's, a closed seller, selling switched off.
+  assert.equal(await sellers.storefront("nobody-000000", now), null)
+  assert.equal(await sellers.storefront("../owner", now), null)
+  assert.equal(await sellers.storefront("", now), null)
+  await sellers.closeSeller(one.row.id, true, now)
+  assert.equal(await sellers.storefront(one.row.slug!, now), null)
+  await sellers.closeSeller(one.row.id, false, now)
+  assert.ok(await sellers.storefront(one.row.slug!, now))
+  delete process.env.SELLING
+  assert.equal(await sellers.storefront(one.row.slug!, now), null)
+  process.env.SELLING = "open"
+  real("testnet")
+  cipherpay.forgetHealth()
+  assert.equal(await sellers.storefront(one.row.slug!, now), null)
+})
+
+test("a seller whose name has no plain letters still gets a page", async () => {
+  const who = await seller("Ключи")
+  assert.match(who.row.slug!, /^seller-[0-9a-f]{6}$/)
+  assert.equal((await sellers.storefront(who.row.slug!, clock))?.name, "Ключи")
+})

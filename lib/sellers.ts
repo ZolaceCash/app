@@ -5,7 +5,7 @@ import { and, asc, desc, eq, gt, isNotNull, isNull, sql } from "drizzle-orm"
 import { parsePrice, parseShelf, REPLY_MAX } from "@/lib/admin"
 import { getDb, schema } from "@/lib/db"
 import type { Order, Seller, ShelfSlug } from "@/lib/db/schema"
-import { owedWhy, sweepSeller, type OwedWhy } from "@/lib/orders"
+import { listItems, owedWhy, sweepSeller, type OwedWhy, type ShelfItem } from "@/lib/orders"
 import { engine, registerViewingKey } from "@/lib/payment"
 import { sellerLimits, sellingOn } from "@/lib/selling"
 import { viewingKey } from "@/lib/zcash-address"
@@ -28,6 +28,19 @@ const NAME = /^[\p{L}\p{N}][\p{L}\p{N} .&'_-]{1,39}$/u
 const tidy = (text: string) => text.trim().replace(/\s+/g, " ")
 const hashOf = (token: string) => createHash("sha256").update(token).digest("hex")
 const newId = () => randomBytes(12).toString("hex")
+
+// A name in plain letters for a link, with a few random characters behind it so that no two are
+// alike: two sellers may choose the same name, and two items of one seller too.
+const linkName = (name: string, fallback: string, random: number) => {
+  const base = name
+    .toLowerCase()
+    .normalize("NFKD")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40)
+    .replace(/-+$/, "")
+  return `${base || fallback}-${randomBytes(random).toString("hex")}`
+}
 
 export type Joined =
   | { ok: true; token: string }
@@ -56,7 +69,9 @@ export async function join(input: { name: string; viewingKey: string; agreed: bo
   if (!registered.ok) return { ok: false, reason: registered.reason === "refused" ? "bad-key" : registered.reason }
 
   const token = randomBytes(32).toString("base64url")
-  await db.insert(sellers).values({ id: newId(), name, tokenHash: hashOf(token), engineKey: registered.key, network, createdAt: now })
+  await db
+    .insert(sellers)
+    .values({ id: newId(), name, slug: linkName(name, "seller", 3), tokenHash: hashOf(token), engineKey: registered.key, network, createdAt: now })
   return { ok: true, token }
 }
 
@@ -91,16 +106,7 @@ function checkItem(input: ItemInput): { ok: true; name: string; blurb: string; p
 
 // The item's name in links: its own name in plain letters, and a few random characters so that no
 // two items share one and a seller cannot take a name the shop uses.
-function slugFor(name: string) {
-  const base = name
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 40)
-    .replace(/-+$/, "")
-  return `${base || "item"}-${randomBytes(4).toString("hex")}`
-}
+const slugFor = (name: string) => linkName(name, "item", 4)
 
 const CLOSED = "The shop has closed this seller. Nothing can be listed."
 
@@ -231,6 +237,8 @@ export type DeskItem = {
 
 export type Desk = {
   name: string
+  // The seller's own page, to share: /s/<page>. Null for a seller without one.
+  page: string | null
   network: "testnet" | "mainnet"
   // Selling is open on this server and this seller's key is of the network payments run on.
   open: boolean
@@ -267,6 +275,7 @@ export async function desk(seller: Seller, now = Date.now()): Promise<Desk> {
   const limits = sellerLimits()
   return {
     name: seller.name,
+    page: seller.slug,
     network: seller.network,
     open: sellingOn() && engine().network === seller.network,
     closed: seller.closedAt !== null,
@@ -356,11 +365,30 @@ export async function sellerAnswer(seller: Seller, ref: string, answer: { refund
   return done.length > 0 ? { ok: true } : { ok: false, error: "That report is not waiting for an answer any more." }
 }
 
+// ---------------------------------------------------------------- the seller's own page
+
+export type Storefront = { name: string; slug: string; items: ShelfItem[] }
+
+// A seller's page (/s/<slug>): their name and what of theirs is on the shelf right now. Null when
+// there is no such seller, or none whose items can be ordered: selling is off, the seller was
+// closed, or their key is of another network than payments run on. Then the page is not found,
+// and it does not say which of those it was. Nothing about a seller is on it but the name they
+// chose and their items.
+export async function storefront(slug: string, now = Date.now()): Promise<Storefront | null> {
+  if (!sellingOn() || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug) || slug.length > 60) return null
+  const db = await getDb()
+  const [seller] = await db.select().from(sellers).where(eq(sellers.slug, slug))
+  if (!seller || seller.closedAt !== null || seller.network !== engine().network) return null
+  const items = (await listItems(now)).filter((item) => item.sellerSlug === slug)
+  return { name: seller.name, slug, items }
+}
+
 // ---------------------------------------------------------------- the shop's owner
 
 export type OwnerSeller = {
   id: string
   name: string
+  slug: string | null
   network: "testnet" | "mainnet"
   createdAt: number
   closedAt: number | null
@@ -395,6 +423,7 @@ export async function listSellers(): Promise<OwnerSeller[]> {
     return {
       id: seller.id,
       name: seller.name,
+      slug: seller.slug,
       network: seller.network,
       createdAt: seller.createdAt,
       closedAt: seller.closedAt,

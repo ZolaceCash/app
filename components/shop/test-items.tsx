@@ -35,6 +35,12 @@ export async function TestItems() {
     )
   }
 
+  return <ItemCards items={items} order={order} />
+}
+
+// The cards themselves: one per item, with what the order button says. On a seller's own page the
+// seller is named once, in the head, and not again on every card.
+export function ItemCards({ items, order, naming = true }: { items: ShelfItem[]; order: string; naming?: boolean }) {
   return (
     <ul id="on-sale" className="grid scroll-mt-24 gap-2.5 md:grid-cols-3">
       {items.map((item, index) => (
@@ -55,9 +61,19 @@ export async function TestItems() {
           </h3>
           <p className="mt-2 flex-1 leading-snug text-muted-foreground">{item.blurb}</p>
           {/* Another seller's item says so wherever it is shown: the buyer pays that seller. */}
-          {item.seller ? (
+          {item.seller && naming ? (
             <p className="label-mono mt-4 text-muted-foreground">
-              Sold by <span className="text-foreground">{item.seller}</span>
+              Sold by{" "}
+              {item.sellerSlug ? (
+                <Link
+                  href={`/s/${item.sellerSlug}`}
+                  className="rounded text-foreground underline-offset-4 outline-none hover:text-brand hover:underline focus-visible:ring-3 focus-visible:ring-ring/40"
+                >
+                  {item.seller}
+                </Link>
+              ) : (
+                <span className="text-foreground">{item.seller}</span>
+              )}
             </p>
           ) : null}
           <p className="mt-6 flex items-baseline gap-3">

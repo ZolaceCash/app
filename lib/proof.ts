@@ -84,6 +84,7 @@ const NOTES: Record<string, Record<string, string>> = {
   sellers: {
     id: "A random name for the seller, used inside the shop.",
     name: "The name the seller chose. It is shown on their items.",
+    slug: "The seller's name in the link of their own page, where all their items are.",
     token_hash: "A hash of the secret in the seller's link. The secret itself is not kept, so the link cannot be read back from here.",
     engine_key: "The payment engine's own key for this seller. With it the shop asks the engine for an address made from the seller's viewing key. It cannot move money.",
     network: "Which Zcash network the seller's viewing key belongs to.",

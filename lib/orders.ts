@@ -759,6 +759,8 @@ export type ShelfItem = {
   shelf: ShelfSlug | null
   // Who sells it, when it is another seller's item. Null for the shop's own.
   seller: string | null
+  // That seller's own page (/s/<slug>), where all their items are.
+  sellerSlug: string | null
 }
 
 // What is on sale right now. `left` is null for an item that does not run out: a test item, one
@@ -775,7 +777,7 @@ export async function listItems(now = Date.now()): Promise<ShelfItem[]> {
   const selling = sellingOn()
   const network = engine().network
   const sellerRows = selling ? await db.select().from(sellers) : []
-  const sellerOf = new Map(sellerRows.filter((row) => row.closedAt === null && row.network === network).map((row) => [row.id, row.name]))
+  const sellerOf = new Map(sellerRows.filter((row) => row.closedAt === null && row.network === network).map((row) => [row.id, row]))
   const rows = (await db.select().from(products).where(eq(products.active, true))).filter(
     (row) =>
       !(real && row.kind === "test") &&
@@ -803,7 +805,8 @@ export async function listItems(now = Date.now()): Promise<ShelfItem[]> {
     kind: row.kind,
     left: row.kind === "stock" ? (left.get(row.id) ?? 0) : null,
     shelf: row.shelf ?? (row.kind === "supplier" || esim.has(row.id) ? "esim" : null),
-    seller: row.sellerId ? (sellerOf.get(row.sellerId) ?? null) : null,
+    seller: row.sellerId ? (sellerOf.get(row.sellerId)?.name ?? null) : null,
+    sellerSlug: row.sellerId ? (sellerOf.get(row.sellerId)?.slug ?? null) : null,
   }))
 }
 

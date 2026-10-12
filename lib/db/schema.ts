@@ -14,6 +14,9 @@ export const sellers = sqliteTable("sellers", {
   id: text("id").primaryKey(),
   // What a buyer reads on an item's page as who sells it.
   name: text("name").notNull(),
+  // The seller's name in the link of their own page (/s/<slug>): the name in plain letters and a
+  // few random characters, since two sellers may choose the same name.
+  slug: text("slug").unique(),
   // A hash of the secret in the seller's link. The secret itself is not kept.
   tokenHash: text("token_hash").notNull().unique(),
   // The payment engine's own key for this seller: with it the shop asks the engine for an address

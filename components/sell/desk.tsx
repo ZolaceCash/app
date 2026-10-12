@@ -131,6 +131,7 @@ export function SellerDesk() {
               ? "Orders of your items are paid straight to your wallet. The shop holds none of it, so what an order is owed back is yours to send."
               : "Selling is not open on this server right now, or it runs on another network than your key. Your items are kept and are not on the shelf."}
         </p>
+        {desk.page ? <YourPage page={desk.page} live={desk.open && !desk.closed} /> : null}
         <ul className="mt-6 flex flex-wrap gap-1.5">
           <li className="label-mono rounded-md bg-secondary px-3 py-2">
             {desk.items.length} of {desk.limits.maxItems} items
@@ -173,6 +174,34 @@ export function SellerDesk() {
             <p className="mt-6 leading-snug">{TAKEN_DOWN}</p>
           </section>
         </div>
+      </div>
+    </div>
+  )
+}
+
+// The seller's own page: the one link of theirs that is made to be passed around. Their desk's
+// link is the opposite, and the two are told apart here in so many words.
+function YourPage({ page, live }: { page: string; live: boolean }) {
+  // The desk is only ever drawn in the browser, after it has answered for the link's secret.
+  const origin = typeof window === "undefined" ? "" : window.location.origin
+  const address = `${origin}/s/${page}`
+  return (
+    <div className="mt-6 max-w-2xl rounded-xl bg-secondary p-5">
+      <p className="label-mono text-muted-foreground">Your page, to share</p>
+      <p className="mt-2 font-mono text-sm break-all">
+        <Link href={`/s/${page}`} className="text-brand underline-offset-4 hover:underline">
+          {address}
+        </Link>
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
+        <CopyButton text={address} variant="outline" size="xs">
+          Copy the page&apos;s link
+        </CopyButton>
+        <p className="text-sm leading-snug text-muted-foreground">
+          {live
+            ? "Everything of yours that is on the shelf, on one page. Share this one. Never the link of this desk."
+            : "It shows your items once they can be ordered. Until then it is not found."}
+        </p>
       </div>
     </div>
   )

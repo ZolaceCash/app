@@ -245,6 +245,9 @@ what such an order is owed back is the seller's to send, and it is never on your
 
 - It needs real payments (the three settings above). Without them, or with `SELLING` empty, nobody can
   sign up and no seller's item is shown or sold; items and sellers already there are kept.
+- Every seller has a page of their own, `/s/<their name and six random characters>`, with what of theirs
+  is on the shelf: the link a seller passes around. It is not found while selling is off, for a seller
+  you closed, and for a name that is no seller's.
 - `/owner/sellers` lists every seller with their items, the reports buyers made that the seller has not
   answered, and the refunds they have not sent. There you take an item down or close a seller. You
   cannot read a seller's codes or change their items.
