@@ -1,0 +1,504 @@
+<!doctype html>
+<!--
+  A film for the post that says selling is built. One window and one camera: it opens so close to
+  the window's address bar that the bar fills the screen while a seller's link is typed and its
+  secret is blocked out; it pulls back until the whole desk stands there and fills in (the items,
+  what the shop holds, where an order is paid to); one payment crosses the screen into the
+  seller's wallet; and the window sinks to make room for the headline, which ends on the frame of
+  brand/x-post-sellers.html. No other film here moves its camera or is built on one window.
+  Drawn and encoded one frame at a time (encode.js); opened by compose.mjs with PAGE=built.html.
+  ?still=<seconds> draws one moment and stops.
+  What it says is what was built on 12 Oct 2026 (PLAN.md, "Other sellers"). Selling is not open:
+  the corner says "opens soon" from the first frame to the last. The seller, the items, the prices
+  and the amount are a sample and marked as one; the rate is a sample near that day, and the amount
+  is worked out from it the way lib/price.ts does it. The order is shown handed over at once: on
+  the site that waits for three blocks.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=Geist+Mono:wght@500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #09090b;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage" width="1920" height="1080"></canvas>
+    <script type="module">
+      const W = 1920
+      const H = 1080
+      const GROUND = "#09090b"
+      const CARD = "#111114"
+      const RAISE = "#1c1c23"
+      const ICE = "#f4f4f6"
+      const QUIET = "rgba(244,244,246,0.58)"
+      const FAINT = "rgba(244,244,246,0.2)"
+      const INDIGO = "#5567ea"
+      const BRAND = "#7b8cff"
+      const SANS = "Geist, system-ui, sans-serif"
+      const MONO = '"Geist Mono", ui-monospace, monospace'
+      const TOTAL = 12.8
+
+      const canvas = document.getElementById("stage")
+      const ctx = canvas.getContext("2d")
+      const clamp = (x, low = 0, high = 1) => Math.min(high, Math.max(low, x))
+      const easeOut = (x) => 1 - Math.pow(1 - clamp(x), 3)
+      const easeBoth = (x) => {
+        const t = clamp(x)
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+      }
+      const mix = (a, b, p) => a + (b - a) * p
+      const rounded = (x, y, w, h, r) => {
+        ctx.beginPath()
+        ctx.roundRect(x, y, w, h, r)
+      }
+      const text = (value, x, y, font, colour, align = "left", spacing = "0px") => {
+        ctx.font = font
+        ctx.fillStyle = colour
+        ctx.textAlign = align
+        ctx.letterSpacing = spacing
+        ctx.fillText(value, x, y)
+      }
+      const widthOf = (value, font, spacing = "0px") => {
+        ctx.font = font
+        ctx.letterSpacing = spacing
+        return ctx.measureText(value).width
+      }
+      // A line of words that comes up from behind its own baseline.
+      const rise = (value, x, y, size, font, colour, p, spacing = "0px", align = "left") => {
+        if (p <= 0) return
+        ctx.save()
+        const alpha = ctx.globalAlpha
+        ctx.beginPath()
+        ctx.rect(-W, y - size * 0.95, 3 * W, size * 1.24)
+        ctx.clip()
+        ctx.globalAlpha = alpha * clamp(p * 1.6)
+        text(value, x, y + (1 - easeOut(p)) * size * 0.9, font, colour, align, spacing)
+        ctx.restore()
+      }
+      const MARK = [
+        [8.1, 2, 22, 2, 13.25, 14.5, 10.65, 14.5, 15.9, 7, 4.6, 7],
+        [19.4, 17, 15.9, 22, 2, 22, 10.75, 9.5, 13.35, 9.5, 8.1, 17],
+        [5.5, 2, 7, 2, 3.5, 7, 2, 7],
+        [20.5, 17, 22, 17, 18.5, 22, 17, 22],
+      ]
+      const mark = (x, y, size, colour) => {
+        const k = size / 24
+        ctx.fillStyle = colour
+        for (const points of MARK) {
+          ctx.beginPath()
+          for (let i = 0; i < points.length; i += 2) ctx[i ? "lineTo" : "moveTo"](x + points[i] * k, y + points[i + 1] * k)
+          ctx.closePath()
+          ctx.fill()
+        }
+      }
+      const logo = (x, y, size, colour) => {
+        mark(x, y, size, colour)
+        text("zolace", x + size * 1.28, y + size * 0.86, `700 ${size * 0.95}px ${SANS}`, colour, "left", `${-size * 0.05}px`)
+      }
+      // The site's ground: a faint grid of dots.
+      const dots = (() => {
+        const tile = document.createElement("canvas")
+        tile.width = tile.height = 34
+        const pen = tile.getContext("2d")
+        pen.fillStyle = "rgba(255,255,255,0.06)"
+        pen.fillRect(16, 16, 2, 2)
+        return ctx.createPattern(tile, "repeat")
+      })()
+
+      // ------------------------------------------------------------ the sample
+      const SELLER = "Key Corner"
+      const ITEMS = [
+        { name: "Game key", price: "$12.00", left: 2 },
+        { name: "Software licence", price: "$29.00", left: 5 },
+        { name: "Gift card", price: "$25.00", left: 3 },
+        { name: "VPN voucher", price: "$9.00", left: 8 },
+      ]
+      const RATE = 1307.28
+      const zat = Math.ceil((12 / RATE) * 100_000_000)
+      const AMOUNT = (zat / 100_000_000).toFixed(8).replace(/0+$/, "")
+
+      // ------------------------------------------------------------ when things happen
+      const TYPE = { from: 0.55, to: 1.6 }
+      const BLOCKS = { from: 1.7, every: 0.055, count: 12 }
+      const PULL = { from: 2.7, to: 4.3 } // the camera pulls back
+      const NAMED = 3.3
+      const ROWS_AT = [4.3, 4.52, 4.74, 4.96]
+      const TILES_AT = { held: 5.3, account: 5.48, wallet: 5.75, orders: 6.0 }
+      const PAY = { from: 6.8, to: 7.9 }
+      const SOLD = 7.25 // the payment passes the item's row
+      const HANDED = 8.2
+      const NONE = 8.55 // the shop's nought is pointed at
+      const SINK = { from: 9.4, to: 10.4 } // the window sinks for the headline
+      const HEAD = 9.9
+      const UNDER = 10.5
+      const WORDS = [
+        { from: 4.2, to: 6.55, value: "List what you sell." },
+        { from: 6.6, to: 8.35, value: "The buyer pays you." },
+        { from: 8.4, to: 9.35, value: "Zolace holds none of it." },
+      ]
+
+      // ------------------------------------------------------------ the camera
+      // The window is drawn in its own measure (1608 wide) and placed by where its top left
+      // corner stands on the screen and how large it is drawn.
+      const WIN = { w: 1608, h: 1100 }
+      const NEAR = { s: 2.6, x: 220 - 150 * 2.6, y: 560 - 41 * 2.6 }
+      const WIDE = { s: 1, x: 156, y: 290 }
+      const LOW = { s: 1, x: 156, y: 508 }
+      const camera = (time) => {
+        const back = easeBoth((time - PULL.from) / (PULL.to - PULL.from))
+        const down = easeBoth((time - SINK.from) / (SINK.to - SINK.from))
+        // Size changes by ratio, so the pull back does not rush at its start.
+        const s = NEAR.s * Math.pow(WIDE.s / NEAR.s, back)
+        const along = (NEAR.s - s) / (NEAR.s - WIDE.s)
+        return { s, x: mix(mix(NEAR.x, WIDE.x, along), LOW.x, down), y: mix(mix(NEAR.y, WIDE.y, along), LOW.y, down) }
+      }
+
+      // ------------------------------------------------------------ the window
+      const chip = (label, right, y, colour, p) => {
+        const font = `500 16px ${MONO}`
+        const wide = widthOf(label, font, "1.3px") + 28
+        ctx.globalAlpha *= clamp(p)
+        ctx.fillStyle = CARD
+        rounded(right - wide, y, wide, 40, 7)
+        ctx.fill()
+        text(label, right - wide + 14, y + 26, font, colour, "left", "1.3px")
+        return wide
+      }
+
+      function bar(time) {
+        ctx.fillStyle = RAISE
+        ctx.beginPath()
+        ctx.roundRect(0, 0, WIN.w, 82, [34, 34, 0, 0])
+        ctx.fill()
+        ctx.fillStyle = FAINT
+        for (const x of [34, 58, 82]) ctx.fillRect(x, 33, 16, 16)
+        ctx.fillStyle = GROUND
+        rounded(126, 17, WIN.w - 160, 48, 10)
+        ctx.fill()
+
+        // The address, a letter at a time, and then the secret, a block at a time.
+        const font = `500 22px ${MONO}`
+        const host = "zolace.cash"
+        const rest = "/sell/desk#"
+        const letters = Math.floor(clamp((time - TYPE.from) / (TYPE.to - TYPE.from)) * (host.length + rest.length))
+        text(host.slice(0, letters), 150, 49, font, ICE)
+        const hostWide = widthOf(host.slice(0, letters), font)
+        text(rest.slice(0, Math.max(0, letters - host.length)), 150 + hostWide, 49, font, QUIET)
+        let at = 150 + widthOf((host + rest).slice(0, letters), font) + 5
+        const blocks = Math.floor(clamp((time - BLOCKS.from) / (BLOCKS.every * BLOCKS.count)) * BLOCKS.count)
+        ctx.fillStyle = INDIGO
+        for (let i = 0; i < blocks; i++) {
+          ctx.fillRect(at, 30, 13, 23)
+          at += 17
+        }
+        // The caret, while there is something left to type.
+        if (time > 0.3 && blocks < BLOCKS.count && Math.floor(time * 2.6) % 2 === 0) {
+          ctx.fillStyle = ICE
+          ctx.fillRect(at, 30, 3, 23)
+        }
+        const told = easeOut((time - PULL.to + 0.3) / 0.5)
+        ctx.globalAlpha = told
+        text("YOUR LINK IS YOUR DESK", WIN.w - 58, 48, `500 16px ${MONO}`, BRAND, "right", "1.4px")
+        ctx.globalAlpha = 1
+      }
+
+      function left(time) {
+        const named = (time - NAMED) / 0.6
+        ctx.globalAlpha = easeOut(named)
+        ctx.fillStyle = BRAND
+        ctx.fillRect(53, 138, 9, 9)
+        const label = `500 18px ${MONO}`
+        text("SELLER'S DESK /", 76, 150, label, QUIET, "left", "1.5px")
+        text("A SAMPLE", 76 + widthOf("SELLER'S DESK / ", label, "1.5px"), 150, label, ICE, "left", "1.5px")
+        ctx.globalAlpha = 1
+        rise(SELLER, 50, 258, 100, `500 100px ${SANS}`, ICE, named - 0.15, "-5px")
+
+        ITEMS.forEach((item, index) => {
+          const p = (time - ROWS_AT[index]) / 0.45
+          if (p <= 0) return
+          const y = 296 + index * 102
+          const slide = (1 - easeOut(p)) * -46
+          ctx.globalAlpha = easeOut(p)
+          // The row the payment is for is lit as the payment passes it.
+          const lit = index === 0 ? clamp(1 - Math.abs(time - SOLD - 0.15) / 0.45) : 0
+          ctx.fillStyle = RAISE
+          rounded(53 + slide, y, 740, 90, 16)
+          ctx.fill()
+          if (lit > 0) {
+            ctx.globalAlpha = lit * 0.34
+            ctx.fillStyle = INDIGO
+            rounded(53 + slide, y, 740, 90, 16)
+            ctx.fill()
+            ctx.globalAlpha = 1
+          }
+          text(item.name, 81 + slide, y + 57, `500 33px ${SANS}`, ICE, "left", "-1px")
+          const chips = (time - ROWS_AT[index] - 0.25) / 0.3
+          let right = 53 + 740 - 24 + slide
+          ctx.save()
+          right -= chip("ON THE SHELF", right, y + 25, BRAND, chips) + 10
+          ctx.restore()
+          ctx.save()
+          const count = index === 0 && time >= SOLD ? item.left - 1 : item.left
+          right -= chip(`${count} TO SELL`, right, y + 25, ICE, chips) + 10
+          ctx.restore()
+          ctx.save()
+          chip(item.price, right, y + 25, ICE, chips)
+          ctx.restore()
+          ctx.globalAlpha = 1
+        })
+      }
+
+      const COL = { x: 840, w: 715 }
+      const WALLET = { x: COL.x, y: 130, w: COL.w, h: 180 }
+
+      function right(time) {
+        const pop = (at) => {
+          const p = (time - at) / 0.4
+          return { alpha: easeOut(p), lift: (1 - easeOut(p)) * 26 }
+        }
+        const label = `500 16px ${MONO}`
+
+        // Where every order is paid to.
+        const wallet = pop(TILES_AT.wallet)
+        if (wallet.alpha > 0) {
+          const landed = clamp((time - PAY.to) / 0.25) * clamp((SINK.from - 0.15 - time) / 0.3)
+          const flash = clamp(1 - Math.abs(time - PAY.to - 0.12) / 0.3)
+          ctx.globalAlpha = wallet.alpha
+          ctx.fillStyle = INDIGO
+          rounded(WALLET.x, WALLET.y + wallet.lift, WALLET.w, WALLET.h, 16)
+          ctx.fill()
+          if (flash > 0) {
+            ctx.globalAlpha = flash * 0.3
+            ctx.fillStyle = "#ffffff"
+            rounded(WALLET.x, WALLET.y + wallet.lift, WALLET.w, WALLET.h, 16)
+            ctx.fill()
+            ctx.globalAlpha = wallet.alpha
+          }
+          const heading = landed > 0.5 ? "IN YOUR WALLET, FROM THE FIRST BLOCK" : "EVERY ORDER IS PAID TO"
+          text(heading, WALLET.x + 28, WALLET.y + 46 + wallet.lift, label, "rgba(255,255,255,0.74)", "left", "1.4px")
+          // The standing words give way to the amount while the payment is there, and come back.
+          ctx.globalAlpha = wallet.alpha * (1 - landed)
+          text("Your wallet.", WALLET.x + 26, WALLET.y + 140 + wallet.lift, `500 66px ${SANS}`, "#ffffff", "left", "-3px")
+          ctx.globalAlpha = wallet.alpha * landed
+          text(`+ ${AMOUNT} ZEC`, WALLET.x + 26, WALLET.y + 138 + (1 - landed) * 18, `500 54px ${MONO}`, "#ffffff", "left", "-2px")
+          ctx.globalAlpha = 1
+        }
+
+        // What the shop holds, and what a seller has instead of an account.
+        const small = [
+          { at: TILES_AT.held, x: COL.x, label: "HELD BY ZOLACE", value: "0 ZEC", point: true },
+          { at: TILES_AT.account, x: COL.x + 363.5, label: "ACCOUNT", value: "None", point: false },
+        ]
+        for (const tile of small) {
+          const p = pop(tile.at)
+          if (p.alpha <= 0) continue
+          const y = 322 + p.lift
+          const pointed = tile.point ? clamp(1 - Math.abs(time - NONE - 0.25) / 0.5) : 0
+          ctx.globalAlpha = p.alpha
+          ctx.fillStyle = RAISE
+          rounded(tile.x, y, 351.5, 190, 16)
+          ctx.fill()
+          if (pointed > 0) {
+            ctx.globalAlpha = p.alpha * pointed * 0.16
+            ctx.fillStyle = ICE
+            rounded(tile.x, y, 351.5, 190, 16)
+            ctx.fill()
+            ctx.globalAlpha = p.alpha
+          }
+          text(tile.label, tile.x + 28, y + 46, label, QUIET, "left", "1.4px")
+          const size = 52 + pointed * 10
+          text(tile.value, tile.x + 26, y + 158, `500 ${size}px ${SANS}`, ICE, "left", "-2.4px")
+          ctx.globalAlpha = 1
+        }
+
+        // The seller's orders: none, then the one that was just paid.
+        const orders = pop(TILES_AT.orders)
+        if (orders.alpha > 0) {
+          const y = 524 + orders.lift
+          ctx.globalAlpha = orders.alpha
+          ctx.fillStyle = RAISE
+          rounded(COL.x, y, COL.w, 176, 16)
+          ctx.fill()
+          text("ORDERS OF YOUR ITEMS", COL.x + 28, y + 46, label, QUIET, "left", "1.4px")
+          const handed = easeOut((time - HANDED) / 0.45)
+          ctx.globalAlpha = orders.alpha * (1 - handed)
+          text("None yet.", COL.x + 26, y + 128, `500 40px ${SANS}`, QUIET, "left", "-1.6px")
+          ctx.globalAlpha = orders.alpha * handed
+          text(ITEMS[0].name, COL.x + 26, y + 128 + (1 - handed) * 16, `500 40px ${SANS}`, ICE, "left", "-1.6px")
+          text("HANDED OVER", COL.x + COL.w - 28, y + 124 + (1 - handed) * 16, `500 18px ${MONO}`, BRAND, "right", "1.5px")
+          ctx.globalAlpha = 1
+        }
+      }
+
+      function win(time) {
+        const view = camera(time)
+        ctx.save()
+        ctx.translate(view.x, view.y)
+        ctx.scale(view.s, view.s)
+        ctx.fillStyle = CARD
+        ctx.beginPath()
+        ctx.roundRect(0, 0, WIN.w, WIN.h, [34, 34, 0, 0])
+        ctx.fill()
+        bar(time)
+        left(time)
+        right(time)
+        ctx.restore()
+        return view
+      }
+
+      // ------------------------------------------------------------ what crosses the screen
+      // The payment: one light block with a tail, in from the left edge where the buyer is, along
+      // the row it pays for, and up into the seller's wallet. It stops nowhere on the way.
+      function payment(time, view) {
+        const p = (time - PAY.from) / (PAY.to - PAY.from)
+        if (p <= 0 || p >= 1) return
+        const rowY = view.y + 296 + 45
+        const end = { x: view.x + WALLET.x + 90, y: view.y + WALLET.y + 90 }
+        const where = (q) => {
+          const along = easeBoth(q)
+          const x = mix(-80, end.x, along)
+          const turn = easeBoth((x - (view.x + 720)) / (end.x - (view.x + 720)))
+          return { x, y: mix(rowY, end.y, turn) }
+        }
+        for (let i = 9; i >= 1; i--) {
+          const tail = where(p - i * 0.022)
+          const size = 22 - i * 1.8
+          ctx.globalAlpha = (1 - i / 10) * 0.7 * clamp((1 - p) * 8)
+          ctx.fillStyle = BRAND
+          ctx.fillRect(tail.x - size / 2, tail.y - size / 2, size, size)
+        }
+        const head = where(p)
+        ctx.globalAlpha = clamp((1 - p) * 8)
+        ctx.fillStyle = ICE
+        ctx.fillRect(head.x - 17, head.y - 17, 34, 34)
+        if (head.x > 60 && p < 0.72) {
+          const wide = widthOf(`${AMOUNT} ZEC`, `500 18px ${MONO}`, "1.2px") + 28
+          ctx.fillStyle = GROUND
+          rounded(head.x - wide / 2, head.y - 74, wide, 38, 8)
+          ctx.fill()
+          text(`${AMOUNT} ZEC`, head.x, head.y - 49, `500 18px ${MONO}`, ICE, "center", "1.2px")
+        }
+        ctx.globalAlpha = 1
+      }
+
+      // ------------------------------------------------------------ the film
+      function draw(time) {
+        ctx.globalAlpha = 1
+        ctx.fillStyle = GROUND
+        ctx.fillRect(0, 0, W, H)
+        ctx.fillStyle = dots
+        ctx.fillRect(0, 0, W, H)
+
+        const view = win(time)
+        payment(time, view)
+
+        // While the camera is close: what the bar is, in words above it.
+        const near = clamp((PULL.from + 0.25 - time) / 0.4)
+        if (near > 0) {
+          ctx.globalAlpha = near
+          rise("Your link", 216, 290, 118, `500 118px ${SANS}`, ICE, (time - 0.35) / 0.6, "-6px")
+          rise("is your desk.", 216, 410, 118, `500 118px ${SANS}`, BRAND, (time - 0.6) / 0.6, "-6px")
+          // Under the bar, on the window's bare card: what signing up does not ask for.
+          let at = 216
+          for (const [index, word] of ["NO ACCOUNT", "NO EMAIL", "NO PASSWORD"].entries()) {
+            const p = easeOut((time - 1.25 - index * 0.28) / 0.4)
+            const font = `500 30px ${MONO}`
+            const wide = widthOf(word, font, "2.4px") + 56
+            ctx.globalAlpha = near * p
+            ctx.fillStyle = RAISE
+            rounded(at, 800 + (1 - p) * 24, wide, 76, 14)
+            ctx.fill()
+            text(word, at + 28, 850 + (1 - p) * 24, font, ICE, "left", "2.4px")
+            at += wide + 16
+          }
+          ctx.globalAlpha = 1
+        }
+
+        // While the desk stands whole: one line above it that says what is happening.
+        for (const line of WORDS) {
+          const out = clamp((line.to - time) / 0.25)
+          if (time < line.from || out <= 0) continue
+          ctx.globalAlpha = out
+          rise(line.value, 152, 232, 84, `500 84px ${SANS}`, ICE, (time - line.from) / 0.55, "-4.2px")
+          ctx.globalAlpha = 1
+        }
+
+        // The headline, once the window has sunk: the picture of the post.
+        if (time > HEAD) {
+          const font = `500 187px ${SANS}`
+          const first = "Selling is "
+          const firstWide = widthOf(first, font, "-10.8px")
+          const whole = firstWide + widthOf("built.", font, "-10.8px")
+          const from = (W - whole) / 2
+          rise(first, from, 356, 187, font, ICE, (time - HEAD) / 0.6, "-10.8px")
+          rise("built.", from + firstWide, 356, 187, font, BRAND, (time - HEAD - 0.14) / 0.6, "-10.8px")
+          const told = easeOut((time - UNDER) / 0.6)
+          ctx.globalAlpha = told
+          const under = `500 36px ${SANS}`
+          const one = "Sign up with a viewing key. "
+          const two = "Get paid straight to your own wallet."
+          const oneWide = widthOf(one, under, "-0.7px")
+          const start = (W - oneWide - widthOf(two, under, "-0.7px")) / 2
+          text(one, start, 446 + (1 - told) * 10, under, QUIET, "left", "-0.7px")
+          text(two, start + oneWide, 446 + (1 - told) * 10, under, ICE, "left", "-0.7px")
+          ctx.globalAlpha = 1
+        }
+
+        // The corner: the logo and what stands, from the first frame to the last.
+        ctx.globalAlpha = easeOut(time / 0.4)
+        logo(96, 66, 46, ICE)
+        const state = "SELLERS · BUILT, OPENS SOON"
+        const stateFont = `500 19px ${MONO}`
+        const stateWide = widthOf(state, stateFont, "1.6px") + 62
+        ctx.fillStyle = RAISE
+        rounded(W - 96 - stateWide, 68, stateWide, 46, 12)
+        ctx.fill()
+        ctx.fillStyle = BRAND
+        ctx.fillRect(W - 96 - stateWide + 18, 87, 9, 9)
+        text(state, W - 96 - stateWide + 40, 98, stateFont, ICE, "left", "1.6px")
+        ctx.globalAlpha = 1
+
+        const remaining = TOTAL - time
+        if (remaining < 0.3) {
+          ctx.globalAlpha = 1 - clamp(remaining / 0.3)
+          ctx.fillStyle = "#050507"
+          ctx.fillRect(0, 0, W, H)
+          ctx.globalAlpha = 1
+        }
+      }
+
+      await Promise.all([
+        document.fonts.load(`500 187px ${SANS}`),
+        document.fonts.load(`400 38px ${SANS}`),
+        document.fonts.load(`700 46px ${SANS}`),
+        document.fonts.load(`500 54px ${MONO}`),
+      ])
+      const asked = new URLSearchParams(location.search)
+      window.film = { total: TOTAL, amount: AMOUNT }
+      if (asked.has("still")) {
+        draw(Number(asked.get("still")))
+        window.done = true
+      } else {
+        const { encodeFilm } = await import("./encode.js")
+        const { blob, frames } = await encodeFilm({ canvas, total: TOTAL, bitrate: 9_000_000, ready: async () => {}, draw })
+        window.film.frames = frames
+        await fetch("out", { method: "POST", body: blob })
+        window.done = true
+      }
+    </script>
+  </body>
+</html>

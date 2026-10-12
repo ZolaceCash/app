@@ -61,6 +61,8 @@ const ASSETS = [
   // on /proof. Read the site again before it is posted; the file's own comment says what to leave out.
   { source: "x-post-recap.html", query: "?esim=5.99&nitro=11.90&wallets=14&columns=61", output: "x-post-recap.png", width: 1600, height: 900 },
   { source: "x-post-orderpage.html", output: "x-post-orderpage.png", width: 1600, height: 900 },
+  // Selling is built and not open yet: the seller, the items and the prices in the window are a sample.
+  { source: "x-post-sellers.html", output: "x-post-sellers.png", width: 1600, height: 900 },
 ]
 
 const browser = await puppeteer.launch({ executablePath, headless: true, args: ["--hide-scrollbars"] })

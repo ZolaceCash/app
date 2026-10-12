@@ -1,0 +1,332 @@
+<!doctype html>
+<!--
+  The picture for the post that says selling is built, 1600 x 900.
+  brand/render.mjs renders it at twice the size. Its layout is its own: the headline stands in the
+  middle of the bare ground, and under it one wide window rises from the bottom edge and runs off
+  it: a seller's desk as the site draws it, with the secret of its link blocked out in the bar.
+  What it says is what was built on 12 Oct 2026 (PLAN.md, "Other sellers"): a seller signs up with
+  a viewing key and has no account, an order of their item is paid to their own wallet, and the
+  shop holds none of it. The seller, the items and the prices in the window are a sample. It does
+  not say selling is open: the flag says it opens soon, and the live site says "not open yet"
+  until the owner switches it on.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@500;700&family=Geist+Mono:wght@400;500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ground: #09090b;
+        --card: #111114;
+        --tile: #1a1a20;
+        --ice: #f4f4f6;
+        --indigo: #5567ea;
+        --brand: #7b8cff;
+        --quiet: rgb(244 244 246 / 0.58);
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      body {
+        width: 1600px;
+        height: 900px;
+        overflow: hidden;
+        background-color: var(--ground);
+        /* The site's ground: a faint grid of dots. */
+        background-image: radial-gradient(rgb(255 255 255 / 0.055) 1px, transparent 1px);
+        background-size: 28px 28px;
+        color: var(--ice);
+        font-family: "Geist", system-ui, sans-serif;
+        font-weight: 500;
+        position: relative;
+      }
+      .mono {
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-weight: 500;
+        font-size: 18px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .top {
+        position: absolute;
+        left: 80px;
+        right: 80px;
+        top: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      /* The site's logo as it stands in the nav: the mark beside the name in bold lowercase. */
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 700;
+        font-size: 38px;
+        line-height: 1;
+        letter-spacing: -0.05em;
+      }
+      .logo svg {
+        width: 40px;
+        height: 40px;
+        fill: currentColor;
+      }
+      .flag {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--brand);
+      }
+      .flag::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        background: currentColor;
+      }
+      h1 {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 150px;
+        text-align: center;
+        font-weight: 500;
+        font-size: 156px;
+        line-height: 0.95;
+        letter-spacing: -0.058em;
+        white-space: nowrap;
+      }
+      h1 em {
+        font-style: normal;
+        color: var(--brand);
+      }
+      .under {
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 322px;
+        text-align: center;
+        font-size: 30px;
+        letter-spacing: -0.02em;
+        color: var(--quiet);
+      }
+      .under b {
+        font-weight: 500;
+        color: var(--ice);
+      }
+      /* The window: taller than the room it has, so it runs off the bottom edge. */
+      .window {
+        position: absolute;
+        left: 130px;
+        right: 130px;
+        top: 424px;
+        height: 620px;
+        border-radius: 28px 28px 0 0;
+        background: var(--card);
+        overflow: hidden;
+      }
+      .bar {
+        height: 68px;
+        padding: 0 28px;
+        display: flex;
+        align-items: center;
+        gap: 22px;
+        background: var(--tile);
+      }
+      .bar i {
+        display: block;
+        width: 13px;
+        height: 13px;
+        background: rgb(244 244 246 / 0.2);
+      }
+      .lights {
+        display: flex;
+        gap: 9px;
+      }
+      .address {
+        flex: 1;
+        height: 40px;
+        padding: 0 18px;
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        gap: 3px;
+        background: var(--ground);
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-size: 18px;
+        color: var(--quiet);
+      }
+      .address b {
+        font-weight: 500;
+        color: var(--ice);
+      }
+      /* The secret of the link, blocked out: it is nobody's to read but the seller's. */
+      .address i {
+        width: 11px;
+        height: 18px;
+        margin-left: 3px;
+        background: var(--indigo);
+      }
+      .address .mono {
+        margin-left: auto;
+        font-size: 14px;
+        color: var(--brand);
+      }
+      .desk {
+        padding: 40px 44px 0;
+        display: grid;
+        grid-template-columns: 1fr 596px;
+        gap: 40px;
+      }
+      .desk .label {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 15px;
+        color: var(--quiet);
+      }
+      .desk .label::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        background: var(--brand);
+      }
+      .desk .label b {
+        font-weight: 500;
+        color: var(--ice);
+      }
+      .name {
+        margin-top: 16px;
+        font-size: 84px;
+        line-height: 1;
+        letter-spacing: -0.05em;
+      }
+      .item {
+        margin-top: 30px;
+        padding: 20px 24px;
+        border-radius: 14px;
+        background: var(--tile);
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .item + .item {
+        margin-top: 10px;
+      }
+      .item h2 {
+        flex: 1;
+        font-weight: 500;
+        font-size: 28px;
+        letter-spacing: -0.03em;
+      }
+      .item span {
+        padding: 9px 12px;
+        border-radius: 6px;
+        background: var(--card);
+        font-size: 14px;
+      }
+      .item span.on {
+        color: var(--brand);
+      }
+      .facts {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        align-content: start;
+      }
+      .fact {
+        height: 170px;
+        padding: 22px 24px;
+        border-radius: 14px;
+        background: var(--tile);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+      .fact.wide {
+        grid-column: 1 / -1;
+        height: 150px;
+        background: var(--indigo);
+      }
+      .fact .mono {
+        font-size: 14px;
+        color: var(--quiet);
+      }
+      .fact.wide .mono {
+        color: rgb(255 255 255 / 0.72);
+      }
+      .fact p:last-child {
+        font-size: 44px;
+        line-height: 1;
+        letter-spacing: -0.045em;
+      }
+      .fact.wide p:last-child {
+        font-size: 56px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="top">
+      <p class="logo">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <polygon points="8.1,2 22,2 13.25,14.5 10.65,14.5 15.9,7 4.6,7" />
+          <polygon points="19.4,17 15.9,22 2,22 10.75,9.5 13.35,9.5 8.1,17" />
+          <polygon points="5.5,2 7,2 3.5,7 2,7" />
+          <polygon points="20.5,17 22,17 18.5,22 17,22" />
+        </svg>
+        zolace
+      </p>
+      <span class="mono flag">Feature update · Sellers · Opens soon</span>
+    </div>
+
+    <h1>Selling is <em>built.</em></h1>
+    <p class="under">Sign up with a viewing key. <b>Get paid straight to your own wallet.</b></p>
+
+    <div class="window">
+      <div class="bar">
+        <div class="lights"><i></i><i></i><i></i></div>
+        <p class="address">
+          <b>zolace.cash</b>/sell/desk#<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+          <span class="mono">Your link is your desk</span>
+        </p>
+      </div>
+      <div class="desk">
+        <div>
+          <p class="mono label">Seller's desk / <b>A sample</b></p>
+          <p class="name">Key Corner</p>
+          <div class="item">
+            <h2>Game key</h2>
+            <span class="mono">$12.00</span>
+            <span class="mono">2 to sell</span>
+            <span class="mono on">On the shelf</span>
+          </div>
+          <div class="item">
+            <h2>Software licence</h2>
+            <span class="mono">$29.00</span>
+            <span class="mono">5 to sell</span>
+            <span class="mono on">On the shelf</span>
+          </div>
+        </div>
+        <div class="facts">
+          <div class="fact wide">
+            <p class="mono">Every order is paid to</p>
+            <p>Your wallet.</p>
+          </div>
+          <div class="fact">
+            <p class="mono">Held by Zolace</p>
+            <p>0 ZEC</p>
+          </div>
+          <div class="fact">
+            <p class="mono">Account</p>
+            <p>None</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
