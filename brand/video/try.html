@@ -1,0 +1,388 @@
+<!doctype html>
+<!--
+  A film for the post about trying the seller's side on /sell. Three columns that do three
+  different things: on the left a form is typed into, a letter at a time; in the middle a slip
+  of light paper is fed up out of the bottom edge of the screen, one printed line per step of
+  the order; on the right the words for the step change, and at the end one very large figure
+  stands there: what the shop held. It shares its layout with no other film here.
+  Drawn and encoded one frame at a time (encode.js); opened by compose.mjs with PAGE=try.html.
+  ?still=<seconds> draws one moment and stops.
+  The walk-through is real and on the site; selling is not open, and the film says so in the
+  corner throughout. The item is the form's own example, the rate is a sample near 12 Oct 2026,
+  and the amount is worked out from it the way lib/price.ts does it.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=Geist+Mono:wght@500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #09090b;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage" width="1920" height="1080"></canvas>
+    <script type="module">
+      const W = 1920
+      const H = 1080
+      const GROUND = "#09090b"
+      const RAISE = "#1c1c23"
+      const ICE = "#f4f4f6"
+      const INK = "#0b0b10"
+      const SOFT = "rgba(11,11,16,0.56)"
+      const QUIET = "rgba(244,244,246,0.58)"
+      const FAINT = "rgba(244,244,246,0.3)"
+      const INDIGO = "#5567ea"
+      const BRAND = "#7b8cff"
+      const NAVY = "#1f2358"
+      const SANS = "Geist, system-ui, sans-serif"
+      const MONO = '"Geist Mono", ui-monospace, monospace'
+      const TOTAL = 14.4
+
+      const canvas = document.getElementById("stage")
+      const ctx = canvas.getContext("2d")
+      const clamp = (x, low = 0, high = 1) => Math.min(high, Math.max(low, x))
+      const easeOut = (x) => 1 - Math.pow(1 - clamp(x), 3)
+      const easeBoth = (x) => {
+        const t = clamp(x)
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+      }
+      const mix = (a, b, p) => a + (b - a) * p
+      const rounded = (x, y, w, h, r) => {
+        ctx.beginPath()
+        ctx.roundRect(x, y, w, h, r)
+      }
+      const text = (value, x, y, font, colour, align = "left", spacing = "0px") => {
+        ctx.font = font
+        ctx.fillStyle = colour
+        ctx.textAlign = align
+        ctx.letterSpacing = spacing
+        ctx.fillText(value, x, y)
+      }
+      const widthOf = (value, font, spacing = "0px") => {
+        ctx.font = font
+        ctx.letterSpacing = spacing
+        return ctx.measureText(value).width
+      }
+      const rise = (value, x, y, size, font, colour, p, spacing = "0px", align = "left") => {
+        if (p <= 0) return
+        ctx.save()
+        const alpha = ctx.globalAlpha
+        ctx.beginPath()
+        ctx.rect(0, y - size * 0.95, W, size * 1.24)
+        ctx.clip()
+        ctx.globalAlpha = alpha * clamp(p * 1.6)
+        text(value, x, y + (1 - easeOut(p)) * size * 0.9, font, colour, align, spacing)
+        ctx.restore()
+      }
+      const MARK = [
+        [8.1, 2, 22, 2, 13.25, 14.5, 10.65, 14.5, 15.9, 7, 4.6, 7],
+        [19.4, 17, 15.9, 22, 2, 22, 10.75, 9.5, 13.35, 9.5, 8.1, 17],
+        [5.5, 2, 7, 2, 3.5, 7, 2, 7],
+        [20.5, 17, 22, 17, 18.5, 22, 17, 22],
+      ]
+      const mark = (x, y, size, colour) => {
+        const k = size / 24
+        ctx.fillStyle = colour
+        for (const points of MARK) {
+          ctx.beginPath()
+          for (let i = 0; i < points.length; i += 2) ctx[i ? "lineTo" : "moveTo"](x + points[i] * k, y + points[i + 1] * k)
+          ctx.closePath()
+          ctx.fill()
+        }
+      }
+      const logo = (x, y, size, colour) => {
+        mark(x, y, size, colour)
+        text("zolace", x + size * 1.28, y + size * 0.86, `700 ${size * 0.95}px ${SANS}`, colour, "left", `${-size * 0.05}px`)
+      }
+      const BAYER = [0, 32, 8, 40, 2, 34, 10, 42, 48, 16, 56, 24, 50, 18, 58, 26, 12, 44, 4, 36, 14, 46, 6, 38, 60, 28, 52, 20, 62, 30, 54, 22, 3, 35, 11, 43, 1, 33, 9, 41, 51, 19, 59, 27, 49, 17, 57, 25, 15, 47, 7, 39, 13, 45, 5, 37, 63, 31, 55, 23, 61, 29, 53, 21]
+      const threshold = (cx, cy) => (BAYER[(((cy % 8) + 8) % 8) * 8 + (((cx % 8) + 8) % 8)] + 0.5) / 64
+
+      // ------------------------------------------------------------ the pretend order
+      const ITEM = "Game key"
+      const PRICE = "12.00"
+      const CODE = "ABCD-EFGH-JKLM"
+      const RATE = 1307.28
+      const zat = Math.ceil((12 / RATE) * 100_000_000)
+      const AMOUNT = (zat / 100_000_000).toFixed(8).replace(/0+$/, "")
+
+      // What is typed and when; then the button; then one printed line after another.
+      const TYPED = [
+        { label: "THE ITEM", value: ITEM, from: 0.9, to: 1.6 },
+        { label: "PRICE, IN DOLLARS", value: PRICE, from: 1.8, to: 2.3 },
+        { label: "WHAT YOU WOULD HAND OVER", value: CODE, from: 2.5, to: 3.3 },
+      ]
+      const PRESSED = 3.6
+      const LINES = [
+        { at: 4.3, label: "ON THE SHELF", value: `${ITEM} · $${PRICE}`, words: ["It goes on the shelf,", "said to be a seller's."] },
+        { at: 5.2, label: "AN ADDRESS", value: "made from your key", words: ["One address,", "made from your key."] },
+        { at: 6.1, label: "THE BUYER PAYS YOU", value: `${AMOUNT} ZEC`, words: ["The buyer pays you.", "Not the shop."] },
+        { at: 7.0, label: "THREE BLOCKS", value: "", words: ["Three blocks.", "Already in your wallet."] },
+        { at: 8.8, label: "THE BUYER OPENS", value: CODE, words: ["The item opens", "in the buyer's browser."] },
+      ]
+      const BLOCK_AT = [7.0, 7.5, 8.0]
+      const SUMS_AT = 9.7
+      const LAST = 11.4
+
+      // ------------------------------------------------------------ the slip of paper
+      const SLIP = { x: 680, w: 560, slot: 1036 }
+      const FEED = [
+        [PRESSED + 0.1, 130],
+        [LINES[0].at, 220],
+        [LINES[1].at, 310],
+        [LINES[2].at, 400],
+        [LINES[3].at, 490],
+        [LINES[4].at, 580],
+        [SUMS_AT, 830],
+      ]
+      // How much of the slip has come out by a moment.
+      const fed = (time) => {
+        let out = 0
+        for (const [at, to] of FEED) out = mix(out, to, easeBoth((time - at) / (to - out > 200 ? 0.9 : 0.5)))
+        return out
+      }
+      function slip(time) {
+        const out = fed(time)
+        if (out <= 0) return
+        const top = SLIP.slot - out
+        const { x, w } = SLIP
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(0, 0, W, SLIP.slot)
+        ctx.clip()
+        ctx.shadowColor = "rgba(8,10,40,0.6)"
+        ctx.shadowBlur = 60
+        ctx.shadowOffsetY = 20
+        ctx.fillStyle = ICE
+        ctx.beginPath()
+        ctx.roundRect(x, top, w, out + 40, [20, 20, 0, 0])
+        ctx.fill()
+        ctx.shadowColor = "transparent"
+        // The head of the slip.
+        mark(x + 36, top + 34, 30, INK)
+        text("zolace", x + 76, top + 60, `700 30px ${SANS}`, INK, "left", "-1.4px")
+        text("A PRETEND ORDER", x + w - 36, top + 58, `500 15px ${MONO}`, SOFT, "right", "1.5px")
+        const rule = (y) => {
+          ctx.fillStyle = "rgba(11,11,16,0.22)"
+          for (let i = 0; x + 36 + i * 12 < x + w - 36; i++) ctx.fillRect(x + 36 + i * 12, y, 6, 6)
+        }
+        rule(top + 92)
+        LINES.forEach((line, index) => {
+          const y = top + 138 + index * 90
+          text(line.label, x + 36, y, `500 15px ${MONO}`, SOFT, "left", "1.5px")
+          if (line.value) text(line.value, x + 36, y + 38, `500 25px ${MONO}`, index === 2 ? INDIGO : INK, "left", "-0.2px")
+          else {
+            // The blocks, a square each.
+            BLOCK_AT.forEach((at, block) => {
+              ctx.fillStyle = time >= at ? INDIGO : "rgba(11,11,16,0.14)"
+              ctx.fillRect(x + 36 + block * 44, y + 14, 30, 30)
+            })
+            const count = BLOCK_AT.filter((at) => time >= at).length
+            text(`${count} OF 3`, x + 36 + 3 * 44 + 14, y + 37, `500 19px ${MONO}`, INK, "left", "1.2px")
+          }
+        })
+        rule(top + 596)
+        const sums = [
+          ["YOUR WALLET", `+ ${AMOUNT} ZEC`, INDIGO],
+          ["HELD BY ZOLACE", "0 ZEC", INK],
+          ["TAKEN BY ZOLACE", "0, AT THE START", INK],
+        ]
+        sums.forEach(([label, value, colour], index) => {
+          const y = top + 652 + index * 56
+          text(label, x + 36, y, `500 16px ${MONO}`, SOFT, "left", "1.5px")
+          text(value, x + w - 36, y, `500 ${index === 0 ? 24 : 20}px ${MONO}`, colour, "right", index === 0 ? "-0.2px" : "1px")
+        })
+        text("NOT A REAL ORDER · NO MONEY MOVED", x + w / 2, top + 812, `500 14px ${MONO}`, SOFT, "center", "1.5px")
+        ctx.restore()
+        // The slot the slip comes out of.
+        ctx.fillStyle = "#050507"
+        ctx.fillRect(x - 40, SLIP.slot, w + 80, H - SLIP.slot)
+        ctx.fillStyle = RAISE
+        rounded(x - 40, SLIP.slot - 6, w + 80, 14, 7)
+        ctx.fill()
+      }
+
+      // ------------------------------------------------------------ the form on the left
+      const FORM = { x: 96, w: 480 }
+      function form(time) {
+        const font = `500 124px ${SANS}`
+        rise("Try", FORM.x - 6, 318, 124, font, ICE, clamp((time - 0.1) / 0.6), "-7px")
+        rise("selling.", FORM.x - 6, 438, 124, font, BRAND, clamp((time - 0.25) / 0.6), "-7px")
+        TYPED.forEach((field, index) => {
+          const p = easeOut((time - (0.45 + index * 0.1)) / 0.5)
+          if (p <= 0) return
+          const y = 510 + index * 108 + (1 - p) * 30
+          ctx.globalAlpha = p
+          const typing = time >= field.from && time < field.to + 0.25
+          ctx.fillStyle = typing ? "#24242d" : RAISE
+          rounded(FORM.x, y, FORM.w, 92, 14)
+          ctx.fill()
+          text(field.label, FORM.x + 24, y + 32, `500 14px ${MONO}`, QUIET, "left", "1.4px")
+          // A letter at a time, with the mark of where the next one goes.
+          const letters = Math.round(clamp((time - field.from) / (field.to - field.from)) * field.value.length)
+          const shown = (index === 1 && letters > 0 ? "$" : "") + field.value.slice(0, letters)
+          const valueFont = `500 26px ${MONO}`
+          text(shown, FORM.x + 24, y + 70, valueFont, ICE, "left", "0px")
+          if (typing && Math.floor(time * 3.2) % 2 === 0) {
+            ctx.fillStyle = BRAND
+            ctx.fillRect(FORM.x + 24 + widthOf(shown, valueFont) + 4, y + 47, 4, 28)
+          }
+          ctx.globalAlpha = 1
+        })
+        const b = easeOut((time - 0.8) / 0.5)
+        if (b > 0) {
+          const pressed = time >= PRESSED
+          const done = time >= SUMS_AT + 0.9
+          const squeeze = pressed ? 1 - 0.07 * Math.sin(Math.PI * clamp((time - PRESSED) / 0.26)) : 1
+          // Ready to be pressed, it is lit a little, in turns.
+          const ready = !pressed && time >= TYPED[2].to ? 0.5 + 0.5 * Math.sin((time - TYPED[2].to) * 10) : 0
+          ctx.save()
+          ctx.globalAlpha = b
+          ctx.translate(FORM.x + FORM.w / 2, 878)
+          ctx.scale(squeeze, squeeze)
+          ctx.fillStyle = pressed ? (done ? RAISE : BRAND) : `rgb(${85 + 20 * ready},${103 + 20 * ready},234)`
+          rounded(-FORM.w / 2, -38, FORM.w, 76, 14)
+          ctx.fill()
+          text(done ? "RUN IT AGAIN" : pressed ? "RUNNING" : "RUN A PRETEND ORDER", 0, 8, `500 20px ${MONO}`, pressed ? (done ? ICE : INK) : "#fff", "center", "1.8px")
+          ctx.restore()
+          ctx.globalAlpha = b
+          text("NOTHING YOU TYPE LEAVES THE PAGE", FORM.x, 968, `500 15px ${MONO}`, FAINT, "left", "1.5px")
+          ctx.globalAlpha = 1
+        }
+      }
+
+      // ------------------------------------------------------------ the words on the right
+      const SIDE = { x: 1330, w: 494 }
+      function side(time) {
+        if (time < LINES[0].at) {
+          // Before the order runs: what this is.
+          const p = easeOut((time - 0.7) / 0.6) * (1 - easeOut((time - (PRESSED + 0.2)) / 0.4))
+          if (p <= 0) return
+          ctx.globalAlpha = p
+          text("A walk-through of one order", SIDE.x, 330, `500 34px ${SANS}`, ICE, "left", "-0.8px")
+          text("of a seller's item. Typed in", SIDE.x, 374, `500 34px ${SANS}`, QUIET, "left", "-0.8px")
+          text("your browser, run in your", SIDE.x, 418, `500 34px ${SANS}`, QUIET, "left", "-0.8px")
+          text("browser.", SIDE.x, 462, `500 34px ${SANS}`, QUIET, "left", "-0.8px")
+          ctx.globalAlpha = 1
+          return
+        }
+        if (time < SUMS_AT) {
+          let on = 0
+          for (let i = 0; i < LINES.length; i++) if (time >= LINES[i].at) on = i
+          const since = time - LINES[on].at
+          text(`0${on + 1}`, SIDE.x, 330, `500 26px ${MONO}`, BRAND, "left", "1px")
+          text("/ 05", SIDE.x + 46, 330, `500 26px ${MONO}`, FAINT, "left", "1px")
+          for (let i = 0; i < LINES.length; i++) {
+            ctx.fillStyle = i <= on ? BRAND : "#2a2a33"
+            ctx.fillRect(SIDE.x + 150 + i * 30, 310, 20, 20)
+          }
+          const font = `500 50px ${SANS}`
+          rise(LINES[on].words[0], SIDE.x, 430, 50, font, QUIET, clamp(since / 0.45), "-1.8px")
+          rise(LINES[on].words[1], SIDE.x, 494, 50, font, ICE, clamp((since - 0.12) / 0.45), "-1.8px")
+          return
+        }
+        // The figure the walk ends on.
+        const t = time - SUMS_AT
+        text("HELD BY ZOLACE", SIDE.x, 330, `500 24px ${MONO}`, QUIET, "left", "1.8px")
+        rise("0", SIDE.x - 8, 620, 330, `500 330px ${MONO}`, ICE, clamp((t - 0.2) / 0.7), "0px")
+        ctx.globalAlpha = easeOut((t - 0.7) / 0.5)
+        text("ZEC", SIDE.x + 200, 620, `500 96px ${SANS}`, BRAND, "left", "-4px")
+        text("The whole price went", SIDE.x, 706, `500 38px ${SANS}`, QUIET, "left", "-1px")
+        text("to the seller's wallet.", SIDE.x, 754, `500 38px ${SANS}`, ICE, "left", "-1px")
+        ctx.globalAlpha = 1
+        const last = easeOut((time - LAST) / 0.5)
+        if (last > 0) {
+          ctx.globalAlpha = last
+          ctx.fillStyle = INDIGO
+          rounded(SIDE.x, 820 + (1 - last) * 30, SIDE.w, 148, 20)
+          ctx.fill()
+          text("TRY IT YOURSELF", SIDE.x + 30, 868 + (1 - last) * 30, `500 17px ${MONO}`, "rgba(255,255,255,0.75)", "left", "1.6px")
+          text("zolace.cash/sell", SIDE.x + 30, 930 + (1 - last) * 30, `500 44px ${SANS}`, "#fff", "left", "-1.6px")
+          ctx.globalAlpha = 1
+        }
+      }
+
+      // ------------------------------------------------------------ the film
+      function draw(time) {
+        ctx.globalAlpha = 1
+        ctx.shadowColor = "transparent"
+        ctx.fillStyle = GROUND
+        ctx.fillRect(0, 0, W, H)
+        // The site's dither, thin, down the two gaps between the columns.
+        ctx.fillStyle = NAVY
+        for (const gap of [618, 1278]) {
+          for (let cy = 0; cy < 40; cy++) {
+            for (let cx = 0; cx < 3; cx++) {
+              if (threshold(cx + cy, cy) < 0.2 * easeOut(time / 1.2)) ctx.fillRect(gap + cx * 14, 220 + cy * 20, 6, 6)
+            }
+          }
+        }
+
+        ctx.globalAlpha = easeOut(time / 0.4)
+        logo(96, 66, 46, ICE)
+        const state = "TRY SELLING · A WALK-THROUGH, SELLING IS NOT OPEN YET"
+        const stateFont = `500 19px ${MONO}`
+        const stateWide = widthOf(state, stateFont, "1.6px") + 62
+        ctx.fillStyle = RAISE
+        rounded(W - 96 - stateWide, 68, stateWide, 46, 12)
+        ctx.fill()
+        ctx.fillStyle = BRAND
+        ctx.fillRect(W - 96 - stateWide + 18, 87, 9, 9)
+        text(state, W - 96 - stateWide + 40, 98, stateFont, ICE, "left", "1.6px")
+        ctx.globalAlpha = 1
+
+        form(time)
+        slip(time)
+        side(time)
+        if (time < PRESSED) {
+          // Where the slip will come out, before it does.
+          ctx.globalAlpha = easeOut((time - 0.6) / 0.6) * 0.9
+          ctx.fillStyle = RAISE
+          rounded(SLIP.x - 40, SLIP.slot - 6, SLIP.w + 80, 14, 7)
+          ctx.fill()
+          text("THE ORDER PRINTS HERE", SLIP.x + SLIP.w / 2, SLIP.slot - 40, `500 16px ${MONO}`, FAINT, "center", "1.6px")
+          ctx.globalAlpha = 1
+        }
+
+        const left = TOTAL - time
+        if (left < 0.3) {
+          ctx.globalAlpha = 1 - clamp(left / 0.3)
+          ctx.fillStyle = "#050507"
+          ctx.fillRect(0, 0, W, H)
+          ctx.globalAlpha = 1
+        }
+      }
+
+      await Promise.all([
+        document.fonts.load(`500 124px ${SANS}`),
+        document.fonts.load(`400 38px ${SANS}`),
+        document.fonts.load(`700 46px ${SANS}`),
+        document.fonts.load(`500 330px ${MONO}`),
+      ])
+      const asked = new URLSearchParams(location.search)
+      window.film = { total: TOTAL, amount: AMOUNT }
+      if (asked.has("still")) {
+        draw(Number(asked.get("still")))
+        window.done = true
+      } else {
+        const { encodeFilm } = await import("./encode.js")
+        const { blob, frames } = await encodeFilm({ canvas, total: TOTAL, bitrate: 9_000_000, ready: async () => {}, draw })
+        window.film.frames = frames
+        await fetch("out", { method: "POST", body: blob })
+        window.done = true
+      }
+    </script>
+  </body>
+</html>
