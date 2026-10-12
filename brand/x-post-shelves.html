@@ -3,9 +3,10 @@
   The picture for the post about the shelves following the stock, 1600 x 900. brand/render.mjs
   renders it at twice the size. Its layout is its own: the shop's six shelves as six cards in a
   row, the one that has something to buy raised and lit.
-  The six names are the shop's own, in their order (lib/catalog.ts). Which shelf is on sale, how
-  many items it has and its lowest price come from the address, so the picture follows the shop:
-    x-post-shelves.html?on=esim&items=1&from=5.99
+  The six names are the shop's own, in their order (lib/catalog.ts). Which shelves are on sale, how
+  many items each has and its lowest price come from the address, so the picture follows the shop.
+  Several shelves are given in the same order in all three:
+    x-post-shelves.html?on=gift-cards,esim&items=1,1&from=11.90,5.99
   Do not post it before the live shop shows the same.
 -->
 <html lang="en">
@@ -204,22 +205,30 @@
         ["gift-links", "Gift links"],
       ]
       const asked = new URLSearchParams(location.search)
-      const on = asked.get("on") ?? ""
-      const items = /^\d+$/.test(asked.get("items") ?? "") ? Number(asked.get("items")) : 0
-      const from = /^\d+(\.\d{2})?$/.test(asked.get("from") ?? "") ? asked.get("from") : ""
+      const list = (name) => (asked.get(name) ?? "").split(",").map((part) => part.trim())
+      // What is on sale, by shelf: how many items and from what price. A shelf with a figure that
+      // does not read as one is left as planned.
+      const stocked = new Map()
+      list("on").forEach((slug, at) => {
+        const items = /^\d+$/.test(list("items")[at] ?? "") ? Number(list("items")[at]) : 0
+        const from = /^\d+(\.\d{2})?$/.test(list("from")[at] ?? "") ? list("from")[at] : ""
+        if (slug && items > 0 && from) stocked.set(slug, { items, from })
+      })
+      const WORDS = ["None", "One", "Two", "Three", "Four", "Five", "All"]
+      document.getElementById("count").textContent = `${WORDS[Math.min(stocked.size, 6)]} stocked.`
       const shelves = document.getElementById("shelves")
       SHELVES.forEach(([slug, name], at) => {
         const number = String(at + 1).padStart(2, "0")
         const wrap = document.createElement("div")
-        const lit = slug === on && items > 0 && from
+        const lit = stocked.get(slug)
         wrap.className = lit ? "lift" : ""
         wrap.innerHTML = lit
           ? `<div class="shelf on">
                <div class="mono row"><span>${number}</span><span>On sale</span></div>
                <div>
                  <p class="name">${name}</p>
-                 <p class="price">from $${from}</p>
-                 <p class="mono state">${items} ${items === 1 ? "item" : "items"}</p>
+                 <p class="price">from $${lit.from}</p>
+                 <p class="mono state">${lit.items} ${lit.items === 1 ? "item" : "items"}</p>
                </div>
              </div>`
           : `<div class="shelf">

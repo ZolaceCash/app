@@ -1,0 +1,346 @@
+<!doctype html>
+<!--
+  The picture for the post that sums up what runs on the site, 1600 x 900.
+  brand/render.mjs renders it at twice the size. Its layout is its own: the whole picture is one
+  board of tiles of unequal size, as the site's own pages are laid out, with the headline standing
+  on the bare ground in the top left corner. One tile per thing that runs.
+  What it says was read from the live site on 12 Oct 2026: the footer's "Open. Orders are paid in
+  shielded ZEC", the two items on /shop and their prices, the reward's rule on /vault and the
+  wallets on /api/vault/list (not closed), the burn of the opening buy (PLAN.md, "The token was
+  launched on Pons"), the count of columns on /proof.
+  What can change comes from the address, so read the site again before the post goes out:
+    x-post-recap.html?esim=5.99&nitro=11.90&wallets=14&columns=61
+  Leave `esim` or `nitro` out when that item cannot be ordered, and `wallets` out to drop the count.
+  `reward=0` takes the reward's tile off (the owner can close the reward): the burn's tile widens.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@500;700&family=Geist+Mono:wght@400;500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ground: #09090b;
+        --tile: #1a1a20;
+        --inset: #25252d;
+        --ice: #f4f4f6;
+        --indigo: #5567ea;
+        --brand: #7b8cff;
+        --navy: #1f2358;
+        --quiet: rgb(244 244 246 / 0.58);
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      body {
+        width: 1600px;
+        height: 900px;
+        overflow: hidden;
+        background-color: var(--ground);
+        /* The site's ground: a faint grid of dots. */
+        background-image: radial-gradient(rgb(255 255 255 / 0.055) 1px, transparent 1px);
+        background-size: 28px 28px;
+        color: var(--ice);
+        font-family: "Geist", system-ui, sans-serif;
+        font-weight: 500;
+        position: relative;
+      }
+      .mono {
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-weight: 500;
+        font-size: 15px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .board {
+        position: absolute;
+        left: 56px;
+        right: 56px;
+        top: 52px;
+        height: 752px;
+        display: grid;
+        grid-template-columns: repeat(12, 1fr);
+        grid-template-rows: repeat(8, 1fr);
+        gap: 12px;
+      }
+      .board > * {
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        min-width: 0;
+        min-height: 0;
+      }
+      .head {
+        grid-area: 1 / 1 / 4 / 8;
+        padding: 8px 0 6px 4px;
+      }
+      .head .row {
+        display: flex;
+        align-items: center;
+        gap: 28px;
+      }
+      /* The site's logo as it stands in the nav: the mark beside the name in bold lowercase. */
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 700;
+        font-size: 38px;
+        line-height: 1;
+        letter-spacing: -0.05em;
+      }
+      .logo svg {
+        width: 40px;
+        height: 40px;
+        fill: currentColor;
+      }
+      .flag {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--brand);
+        font-size: 18px;
+      }
+      .flag::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        background: currentColor;
+      }
+      h1 {
+        font-weight: 500;
+        font-size: 102px;
+        line-height: 0.93;
+        letter-spacing: -0.055em;
+        white-space: nowrap;
+      }
+      h1 em {
+        font-style: normal;
+        color: var(--brand);
+      }
+      .tile {
+        background: var(--tile);
+        border-radius: 22px;
+        padding: 24px 28px 26px;
+      }
+      .tile .mono {
+        display: flex;
+        justify-content: space-between;
+        color: var(--quiet);
+      }
+      .tile .mono b {
+        font-weight: 500;
+        color: var(--brand);
+      }
+      .big {
+        font-size: 58px;
+        line-height: 0.96;
+        letter-spacing: -0.05em;
+        white-space: nowrap;
+      }
+      .say {
+        font-size: 21px;
+        line-height: 1.32;
+        letter-spacing: -0.01em;
+        color: var(--quiet);
+      }
+      .say b {
+        font-weight: 500;
+        color: var(--ice);
+      }
+      .pay {
+        grid-area: 1 / 8 / 4 / 13;
+        background: var(--indigo);
+        color: #fff;
+      }
+      .pay .mono,
+      .pay .mono b,
+      .pay .say {
+        color: rgb(255 255 255 / 0.78);
+      }
+      .pay .say b {
+        color: #fff;
+      }
+      .pay .big {
+        font-size: 80px;
+      }
+      .shelves {
+        grid-area: 4 / 1 / 9 / 5;
+      }
+      .shelves .big {
+        font-size: 62px;
+      }
+      .items {
+        display: grid;
+        gap: 10px;
+      }
+      .items p {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        background: var(--inset);
+        border-radius: 14px;
+        padding: 15px 18px 16px;
+        font-size: 23px;
+        letter-spacing: -0.02em;
+      }
+      .items small {
+        display: block;
+        margin-top: 5px;
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-size: 13px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--quiet);
+      }
+      .items i {
+        font-style: normal;
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-size: 28px;
+        letter-spacing: -0.05em;
+      }
+      .reward {
+        grid-area: 4 / 5 / 7 / 10;
+      }
+      .burn {
+        grid-area: 4 / 10 / 7 / 13;
+      }
+      .burn .big {
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-size: 47px;
+        letter-spacing: -0.07em;
+      }
+      .burn.wide {
+        grid-area: 4 / 5 / 7 / 13;
+      }
+      .burn.wide .big {
+        font-size: 92px;
+      }
+      .proof {
+        grid-area: 7 / 5 / 9 / 9;
+      }
+      .sealed {
+        grid-area: 7 / 9 / 9 / 13;
+      }
+      .proof,
+      .sealed {
+        padding: 20px 28px 22px;
+      }
+      .proof .big,
+      .sealed .big {
+        font-size: 42px;
+      }
+      .proof .say,
+      .sealed .say {
+        font-size: 19px;
+      }
+      .foot {
+        position: absolute;
+        left: 60px;
+        right: 60px;
+        bottom: 36px;
+        display: flex;
+        justify-content: space-between;
+        color: var(--quiet);
+      }
+      .foot b {
+        font-weight: 500;
+        color: var(--ice);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="board">
+      <div class="head">
+        <div class="row">
+          <p class="logo">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <polygon points="8.1,2 22,2 13.25,14.5 10.65,14.5 15.9,7 4.6,7" />
+              <polygon points="19.4,17 15.9,22 2,22 10.75,9.5 13.35,9.5 8.1,17" />
+              <polygon points="5.5,2 7,2 3.5,7 2,7" />
+              <polygon points="20.5,17 22,17 18.5,22 17,22" />
+            </svg>
+            zolace
+          </p>
+          <span class="mono flag">Huge update · What runs today</span>
+        </div>
+        <h1 id="headline">Shop open.<br /><em>Reward running.</em></h1>
+      </div>
+
+      <div class="tile pay">
+        <p class="mono"><span>Payments</span><b>Live on mainnet</b></p>
+        <p class="big">Shielded ZEC.</p>
+        <p class="say"><b>One address per order</b>, paid from your own wallet.<br />No account, no name, no email.</p>
+      </div>
+
+      <div class="tile shelves">
+        <p class="mono"><span>The shelves</span><b>On sale</b></p>
+        <p class="big" id="stocked"></p>
+        <div class="items" id="items"></div>
+      </div>
+
+      <div class="tile reward" id="reward">
+        <p class="mono"><span>The reward</span><b>Running</b></p>
+        <p class="big">NVDA, by the hour.</p>
+        <p class="say">
+          <b>At most $0.01 an hour</b> for every 3,000,000 tokens held.
+          <span id="wallets"></span>Every claim public on-chain.
+        </p>
+      </div>
+
+      <div class="tile burn" id="burn">
+        <p class="mono"><span>The token</span><b>Burned</b></p>
+        <p class="big">55,064,964</p>
+        <p class="say"><b>The whole opening buy</b>, 5.5% of the supply, gone.</p>
+      </div>
+
+      <div class="tile proof">
+        <p class="mono"><span>What is stored</span><b>/proof</b></p>
+        <p class="big" id="columns"></p>
+        <p class="say">Everything the server keeps, written out.</p>
+      </div>
+
+      <div class="tile sealed">
+        <p class="mono"><span>The item</span><b>Sealed</b></p>
+        <p class="big">Opens in your browser.</p>
+        <p class="say">Locked to a key your browser made.</p>
+      </div>
+    </div>
+
+    <p class="mono foot"><b>zolace.cash</b><span>Independent of Robinhood, NVIDIA and Discord</span></p>
+
+    <script>
+      const asked = new URLSearchParams(location.search)
+      const price = (name) => (/^\d+(\.\d{2})?$/.test(asked.get(name) ?? "") ? asked.get(name) : "")
+      const count = (name) => (/^\d+$/.test(asked.get(name) ?? "") ? asked.get(name) : "")
+
+      const items = [
+        { name: "US data eSIM", note: "1 GB · 7 days", price: price("esim") },
+        { name: "Discord Nitro", note: "1 month · Bought to order", price: price("nitro") },
+      ].filter((item) => item.price)
+      document.getElementById("stocked").innerHTML =
+        items.length === 2 ? "Two shelves<br />stocked." : items.length === 1 ? "The first<br />shelf is stocked." : "Six shelves."
+      for (const item of items) {
+        document
+          .getElementById("items")
+          .insertAdjacentHTML("beforeend", `<p><span>${item.name}<small>${item.note}</small></span><i>$${item.price}</i></p>`)
+      }
+
+      const wallets = count("wallets")
+      document.getElementById("wallets").innerHTML = wallets ? `<b>${wallets} wallets on the list.</b> ` : ""
+      const columns = count("columns")
+      document.getElementById("columns").textContent = columns ? `${columns} columns.` : "Every column."
+
+      if (asked.get("reward") === "0") {
+        document.getElementById("reward").remove()
+        document.getElementById("burn").classList.add("wide")
+        document.getElementById("headline").innerHTML = "The shop<br /><em>is open.</em>"
+      }
+    </script>
+  </body>
+</html>

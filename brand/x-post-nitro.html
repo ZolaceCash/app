@@ -1,0 +1,235 @@
+<!doctype html>
+<!--
+  The picture for the post about the first item on the gift-card shelf, 1600 x 900.
+  brand/render.mjs renders it at twice the size. Its layout is its own: two bands of running words
+  cross the picture at a slant, the indigo one naming the item, the dark one saying how it is
+  handed over. The two run side by side, so every word of both can be read.
+  What it says is the item as the owner entered it (12 Oct 2026): Discord Nitro, one month, in US
+  dollars, a gift code, Nitro and not Nitro Basic; and how the site hands it over: bought once the
+  order is paid, opened within the hours in HAND_HOURS (twelve), or the payment is owed back.
+  Discord is named as what the code is for; no mark of theirs is used, and the picture says the
+  shop is not tied to them. The price and the hours come from the address:
+    x-post-nitro.html?price=11.90&hours=12
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@500;700&family=Geist+Mono:wght@400;500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ground: #09090b;
+        --tile: #1a1a20;
+        --ice: #f4f4f6;
+        --indigo: #5567ea;
+        --brand: #7b8cff;
+        --navy: #1f2358;
+        --quiet: rgb(244 244 246 / 0.58);
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      body {
+        width: 1600px;
+        height: 900px;
+        overflow: hidden;
+        background-color: var(--ground);
+        /* The site's ground: a faint grid of dots. */
+        background-image: radial-gradient(rgb(255 255 255 / 0.055) 1px, transparent 1px);
+        background-size: 28px 28px;
+        color: var(--ice);
+        font-family: "Geist", system-ui, sans-serif;
+        position: relative;
+      }
+      .mono {
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-weight: 500;
+        font-size: 18px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .top {
+        position: absolute;
+        left: 80px;
+        right: 80px;
+        top: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        z-index: 4;
+      }
+      /* The site's logo as it stands in the nav: the mark beside the name in bold lowercase. */
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 700;
+        font-size: 38px;
+        line-height: 1;
+        letter-spacing: -0.05em;
+      }
+      .logo svg {
+        width: 40px;
+        height: 40px;
+        fill: currentColor;
+      }
+      .new {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--brand);
+      }
+      .new::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        background: currentColor;
+      }
+      h1 {
+        position: absolute;
+        left: 76px;
+        top: 176px;
+        z-index: 4;
+        font-weight: 500;
+        font-size: 124px;
+        line-height: 0.94;
+        letter-spacing: -0.055em;
+        white-space: nowrap;
+      }
+      h1 em {
+        font-style: normal;
+        color: var(--brand);
+      }
+      /* A band of running words, wider than the picture so its ends are out of sight. */
+      .band {
+        position: absolute;
+        left: -200px;
+        width: 2000px;
+        display: flex;
+        align-items: center;
+        white-space: nowrap;
+        overflow: hidden;
+      }
+      .band span {
+        flex: none;
+        display: flex;
+        align-items: center;
+      }
+      /* The mark between two runs of words: a small square stood on its corner. */
+      .band span::after {
+        content: "";
+        flex: none;
+        background: currentColor;
+        transform: rotate(45deg);
+      }
+      .item {
+        top: 520px;
+        height: 148px;
+        background: var(--indigo);
+        color: #fff;
+        transform: rotate(-8deg);
+        z-index: 3;
+        box-shadow: 0 40px 70px -20px rgb(0 0 0 / 0.8);
+        font-weight: 500;
+        font-size: 84px;
+        letter-spacing: -0.05em;
+        padding-left: 60px;
+      }
+      .item span::after {
+        width: 22px;
+        height: 22px;
+        margin: 0 44px;
+        color: var(--navy);
+      }
+      .item span:nth-child(even) {
+        color: var(--navy);
+      }
+      .how {
+        top: 688px;
+        height: 62px;
+        background: var(--tile);
+        color: var(--ice);
+        transform: rotate(-8deg);
+        z-index: 2;
+        padding-left: 236px;
+      }
+      .how span::after {
+        width: 9px;
+        height: 9px;
+        margin: 0 26px;
+        color: var(--brand);
+      }
+      .right {
+        position: absolute;
+        bottom: 64px;
+        z-index: 4;
+      }
+      .left {
+        position: absolute;
+        left: 80px;
+        top: 446px;
+        z-index: 4;
+        color: var(--quiet);
+      }
+      .right {
+        right: 80px;
+        text-align: right;
+      }
+      .price {
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-weight: 500;
+        font-size: 96px;
+        line-height: 0.82;
+        letter-spacing: -0.07em;
+      }
+      .right .mono {
+        margin-top: 18px;
+        color: var(--quiet);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="top">
+      <p class="logo">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <polygon points="8.1,2 22,2 13.25,14.5 10.65,14.5 15.9,7 4.6,7" />
+          <polygon points="19.4,17 15.9,22 2,22 10.75,9.5 13.35,9.5 8.1,17" />
+          <polygon points="5.5,2 7,2 3.5,7 2,7" />
+          <polygon points="20.5,17 22,17 18.5,22 17,22" />
+        </svg>
+        zolace
+      </p>
+      <span class="mono new">New on the gift-card shelf</span>
+    </div>
+
+    <h1>Discord Nitro.<br />Paid in <em>shielded ZEC.</em></h1>
+
+    <div class="band how mono" id="how"></div>
+    <div class="band item" id="item"></div>
+
+    <p class="mono left">No account · No name · No email · Not affiliated with Discord</p>
+    <div class="right">
+      <p class="price" id="price"></p>
+      <p class="mono">1 month · A gift code · Nitro, not Nitro Basic</p>
+    </div>
+
+    <script>
+      const asked = new URLSearchParams(location.search)
+      const price = /^\d+(\.\d{2})?$/.test(asked.get("price") ?? "") ? asked.get("price") : ""
+      const hours = /^\d+$/.test(asked.get("hours") ?? "") ? asked.get("hours") : ""
+      document.getElementById("price").textContent = price ? `$${price}` : ""
+      // The words of each band, said over and over along its length.
+      const fill = (id, words, times) => {
+        const band = document.getElementById(id)
+        for (let i = 0; i < times; i++) for (const word of words) band.insertAdjacentHTML("beforeend", `<span>${word}</span>`)
+      }
+      fill("item", ["1 month of Nitro", "Gift code"], 4)
+      fill("how", ["Bought for you once your order is paid", hours ? `Opens in your browser within ${hours} hours` : "Opens in your browser", "Or your payment is owed back"], 3)
+    </script>
+  </body>
+</html>

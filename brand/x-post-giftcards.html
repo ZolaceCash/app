@@ -1,0 +1,259 @@
+<!doctype html>
+<!--
+  The picture for the post that says gift cards come next, 1600 x 900. brand/render.mjs renders
+  it at twice the size. Its layout is its own: three gift cards thrown down at the right, each
+  tied with a ribbon, two of them running off the edges.
+  It names kinds of card (games, shopping, rides and food) and no brand, on purpose: which cards
+  are sold was not settled when this was made (12 Oct 2026), and a brand's name on a picture
+  reads as a tie to that brand. It shows no price and no date for the same reason.
+  "Shelf 03" is where gift cards stand among the shop's six shelves (lib/catalog.ts).
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@500;700&family=Geist+Mono:wght@400;500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ground: #09090b;
+        --tile: #1c1c22;
+        --ice: #f4f4f6;
+        --ink: #0b0b10;
+        --indigo: #5567ea;
+        --brand: #7b8cff;
+        --navy: #1f2358;
+        --quiet: rgb(244 244 246 / 0.58);
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      body {
+        width: 1600px;
+        height: 900px;
+        overflow: hidden;
+        background-color: var(--ground);
+        /* The site's ground: a faint grid of dots. */
+        background-image: radial-gradient(rgb(255 255 255 / 0.055) 1px, transparent 1px);
+        background-size: 28px 28px;
+        color: var(--ice);
+        font-family: "Geist", system-ui, sans-serif;
+        position: relative;
+      }
+      .mono {
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-weight: 500;
+        font-size: 18px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      /* The site's logo as it stands in the nav: the mark beside the name in bold lowercase. */
+      .logo {
+        position: absolute;
+        left: 80px;
+        top: 64px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 700;
+        font-size: 38px;
+        line-height: 1;
+        letter-spacing: -0.05em;
+      }
+      .logo svg {
+        width: 40px;
+        height: 40px;
+        fill: currentColor;
+      }
+      .text {
+        position: absolute;
+        left: 80px;
+        top: 300px;
+        z-index: 5;
+      }
+      .eyebrow {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--brand);
+      }
+      .eyebrow::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        background: currentColor;
+      }
+      h1 {
+        margin-top: 26px;
+        margin-left: -4px;
+        font-weight: 500;
+        font-size: 132px;
+        line-height: 0.93;
+        letter-spacing: -0.055em;
+        white-space: nowrap;
+      }
+      h1 em {
+        font-style: normal;
+        color: var(--brand);
+      }
+      .foot {
+        position: absolute;
+        left: 80px;
+        bottom: 64px;
+        z-index: 5;
+        line-height: 1.75;
+        color: var(--quiet);
+      }
+      .foot b {
+        font-weight: 500;
+        color: var(--ice);
+      }
+      /* One gift card. The shadow is on the wrapper; the card clips its own ribbon. */
+      .lift {
+        position: absolute;
+        width: 520px;
+        height: 328px;
+        filter: drop-shadow(0 40px 50px rgb(0 0 0 / 0.75));
+      }
+      .card {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        border-radius: 30px;
+        overflow: hidden;
+        background: var(--face);
+        color: var(--words);
+      }
+      /* The ribbon: one band down, one band across, and the knot where they meet. */
+      .card::before,
+      .card::after {
+        content: "";
+        position: absolute;
+        background: var(--ribbon);
+      }
+      .card::before {
+        left: 112px;
+        top: 0;
+        bottom: 0;
+        width: 46px;
+      }
+      .card::after {
+        left: 0;
+        right: 0;
+        top: 196px;
+        height: 46px;
+      }
+      .knot {
+        position: absolute;
+        left: 97px;
+        top: 181px;
+        width: 76px;
+        height: 76px;
+        border-radius: 16px;
+        background: var(--knot);
+        transform: rotate(45deg);
+        z-index: 1;
+      }
+      /* The kind stands over the words, at the left: the right-hand ends of two cards are out of sight. */
+      .card .kind {
+        position: absolute;
+        left: 198px;
+        top: 38px;
+        font-size: 15px;
+      }
+      .card .what {
+        position: absolute;
+        left: 196px;
+        top: 80px;
+        font-weight: 500;
+        font-size: 58px;
+        line-height: 0.95;
+        letter-spacing: -0.05em;
+      }
+      .card .soon {
+        position: absolute;
+        right: 30px;
+        bottom: 26px;
+        font-size: 13px;
+        opacity: 0.7;
+      }
+      .a {
+        left: 800px;
+        top: 96px;
+        transform: rotate(-8deg);
+        --face: var(--indigo);
+        --words: #fff;
+        --ribbon: var(--navy);
+        --knot: #2b3187;
+        z-index: 2;
+      }
+      .b {
+        left: 1130px;
+        top: 356px;
+        transform: rotate(9deg);
+        --face: var(--ice);
+        --words: var(--ink);
+        --ribbon: var(--indigo);
+        --knot: #4353cf;
+        z-index: 3;
+      }
+      .c {
+        left: 730px;
+        top: 592px;
+        transform: rotate(-3deg);
+        --face: var(--tile);
+        --words: var(--ice);
+        --ribbon: var(--brand);
+        --knot: #9aa7ff;
+        z-index: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <p class="logo">
+      <svg viewBox="0 0 24 24" aria-hidden="true">
+        <polygon points="8.1,2 22,2 13.25,14.5 10.65,14.5 15.9,7 4.6,7" />
+        <polygon points="19.4,17 15.9,22 2,22 10.75,9.5 13.35,9.5 8.1,17" />
+        <polygon points="5.5,2 7,2 3.5,7 2,7" />
+        <polygon points="20.5,17 22,17 18.5,22 17,22" />
+      </svg>
+      zolace
+    </p>
+
+    <div class="text">
+      <p class="mono eyebrow">Coming to the shelf</p>
+      <h1>Gift cards<br />are <em>next.</em></h1>
+    </div>
+
+    <p class="mono foot">Shelf 03 · <b>Paid in shielded ZEC</b><br />No account · No name · No email</p>
+
+    <div class="lift a">
+      <div class="card">
+        <i class="knot"></i>
+        <span class="mono kind">Games</span>
+        <p class="what">Gift<br />card</p>
+        <span class="mono soon">Coming soon</span>
+      </div>
+    </div>
+    <div class="lift b">
+      <div class="card">
+        <i class="knot"></i>
+        <span class="mono kind">Shopping</span>
+        <p class="what">Gift<br />card</p>
+        <span class="mono soon">Coming soon</span>
+      </div>
+    </div>
+    <div class="lift c">
+      <div class="card">
+        <i class="knot"></i>
+        <span class="mono kind">Rides &amp; food</span>
+        <p class="what">Gift<br />card</p>
+        <span class="mono soon">Coming soon</span>
+      </div>
+    </div>
+  </body>
+</html>

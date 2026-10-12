@@ -53,8 +53,14 @@ const ASSETS = [
   { source: "x-post-item.html", query: "?price=5.99", output: "x-post-item.png", width: 1600, height: 900 },
   { source: "x-post-lots.html", output: "x-post-lots.png", width: 1600, height: 900 },
   // What the live shelf showed on 12 Oct 2026. Change it to what the shop shows.
-  { source: "x-post-shelves.html", query: "?on=esim&items=1&from=5.99", output: "x-post-shelves.png", width: 1600, height: 900 },
+  { source: "x-post-shelves.html", query: "?on=gift-cards,esim&items=1,1&from=11.90,5.99", output: "x-post-shelves.png", width: 1600, height: 900 },
   { source: "x-post-phone.html", query: "?price=5.99", output: "x-post-phone.png", width: 1600, height: 900 },
+  { source: "x-post-giftcards.html", output: "x-post-giftcards.png", width: 1600, height: 900 },
+  { source: "x-post-nitro.html", query: "?price=11.90&hours=12", output: "x-post-nitro.png", width: 1600, height: 900 },
+  // What the live site showed on 12 Oct 2026: both items, the wallets on the vault's list, the columns
+  // on /proof. Read the site again before it is posted; the file's own comment says what to leave out.
+  { source: "x-post-recap.html", query: "?esim=5.99&nitro=11.90&wallets=14&columns=61", output: "x-post-recap.png", width: 1600, height: 900 },
+  { source: "x-post-orderpage.html", output: "x-post-orderpage.png", width: 1600, height: 900 },
 ]
 
 const browser = await puppeteer.launch({ executablePath, headless: true, args: ["--hide-scrollbars"] })

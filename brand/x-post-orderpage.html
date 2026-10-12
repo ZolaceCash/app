@@ -1,0 +1,219 @@
+<!doctype html>
+<!--
+  The picture for the post about what an order's page can do, 1600 x 900.
+  brand/render.mjs renders it at twice the size. Its layout is its own: one rail runs across the
+  picture from edge to edge, as an order runs from payment to its end, with four stops on it. The
+  words of the two stops every order passes stand below the rail, under the headline; the words of
+  the two that are only met when something goes wrong stand above it, on the right.
+  What it says is what the order's page does on the live site (12 Oct 2026; PLAN.md, "The refund
+  address" and "The first real item"): the payment as a QR code and as a link that opens the
+  wallet, an eSIM's code in its two parts with a copy button each, a report of an item that does
+  not work, and a shielded address for what is owed back. It promises no refund for a report and
+  no time for an answer, as the page itself does not.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@500;700&family=Geist+Mono:wght@400;500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ground: #09090b;
+        --tile: #1a1a20;
+        --ice: #f4f4f6;
+        --indigo: #5567ea;
+        --brand: #7b8cff;
+        --quiet: rgb(244 244 246 / 0.58);
+        --rail: 566px;
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      body {
+        width: 1600px;
+        height: 900px;
+        overflow: hidden;
+        background-color: var(--ground);
+        /* The site's ground: a faint grid of dots. */
+        background-image: radial-gradient(rgb(255 255 255 / 0.055) 1px, transparent 1px);
+        background-size: 28px 28px;
+        color: var(--ice);
+        font-family: "Geist", system-ui, sans-serif;
+        font-weight: 500;
+        position: relative;
+      }
+      .mono {
+        font-family: "Geist Mono", ui-monospace, monospace;
+        font-weight: 500;
+        font-size: 18px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .top {
+        position: absolute;
+        left: 80px;
+        right: 80px;
+        top: 64px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+      /* The site's logo as it stands in the nav: the mark beside the name in bold lowercase. */
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-weight: 700;
+        font-size: 38px;
+        line-height: 1;
+        letter-spacing: -0.05em;
+      }
+      .logo svg {
+        width: 40px;
+        height: 40px;
+        fill: currentColor;
+      }
+      .flag {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        color: var(--brand);
+      }
+      .flag::before {
+        content: "";
+        width: 8px;
+        height: 8px;
+        background: currentColor;
+      }
+      h1 {
+        position: absolute;
+        left: 76px;
+        top: 172px;
+        font-weight: 500;
+        font-size: 134px;
+        line-height: 0.93;
+        letter-spacing: -0.055em;
+        white-space: nowrap;
+      }
+      h1 em {
+        font-style: normal;
+        color: var(--brand);
+      }
+      /* The rail: wider than the picture, so it comes from somewhere and goes on. */
+      .rail {
+        position: absolute;
+        left: -20px;
+        right: -20px;
+        top: var(--rail);
+        height: 12px;
+        background: var(--indigo);
+      }
+      .stop {
+        position: absolute;
+        left: calc(80px + var(--at) * 372px);
+        width: 318px;
+      }
+      /* The stop's mark sits on the rail, with a little ground around it. */
+      .stop::before {
+        content: "";
+        position: absolute;
+        left: 0;
+        width: 36px;
+        height: 36px;
+        background: var(--ice);
+        box-shadow: 0 0 0 12px var(--ground);
+      }
+      .stop.below {
+        top: calc(var(--rail) + 68px);
+      }
+      .stop.below::before {
+        top: -80px;
+      }
+      .stop.above {
+        bottom: calc(900px - var(--rail) + 56px);
+      }
+      .stop.above::before {
+        bottom: -80px;
+      }
+      .stop .mono {
+        font-size: 15px;
+        color: var(--brand);
+      }
+      .stop h2 {
+        margin-top: 14px;
+        font-weight: 500;
+        font-size: 38px;
+        line-height: 1;
+        letter-spacing: -0.045em;
+      }
+      .stop p:last-child {
+        margin-top: 12px;
+        font-size: 20px;
+        line-height: 1.32;
+        letter-spacing: -0.01em;
+        color: var(--quiet);
+      }
+      .stop b {
+        font-weight: 500;
+        color: var(--ice);
+      }
+      .foot {
+        position: absolute;
+        right: 80px;
+        bottom: 44px;
+        font-size: 15px;
+        color: var(--quiet);
+      }
+      .foot b {
+        font-weight: 500;
+        color: var(--ice);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="top">
+      <p class="logo">
+        <svg viewBox="0 0 24 24" aria-hidden="true">
+          <polygon points="8.1,2 22,2 13.25,14.5 10.65,14.5 15.9,7 4.6,7" />
+          <polygon points="19.4,17 15.9,22 2,22 10.75,9.5 13.35,9.5 8.1,17" />
+          <polygon points="5.5,2 7,2 3.5,7 2,7" />
+          <polygon points="20.5,17 22,17 18.5,22 17,22" />
+        </svg>
+        zolace
+      </p>
+      <span class="mono flag">Feature update · The order page</span>
+    </div>
+
+    <h1>One link.<br /><em>No inbox.</em></h1>
+
+    <div class="rail"></div>
+
+    <div class="stop below" style="--at: 0">
+      <p class="mono">01 · When you pay</p>
+      <h2>Open in your wallet.</h2>
+      <p><b>One tap</b> fills in the address and the amount. Or scan the QR code.</p>
+    </div>
+    <div class="stop below" style="--at: 1">
+      <p class="mono">02 · When it opens</p>
+      <h2>An eSIM, in two parts.</h2>
+      <p>The QR code, and both parts of it with <b>a copy button each</b>.</p>
+    </div>
+    <div class="stop above" style="--at: 2">
+      <p class="mono">03 · If it does not work</p>
+      <h2>Report it on the page.</h2>
+      <p><b>No email, no account.</b> The owner answers on the same page.</p>
+    </div>
+    <div class="stop above" style="--at: 3">
+      <p class="mono">04 · If you are owed</p>
+      <h2>Name a shielded address.</h2>
+      <p>Paid late, or too much? <b>The refund goes there.</b></p>
+    </div>
+
+    <p class="mono foot">Every order is one link · <b>zolace.cash</b></p>
+  </body>
+</html>
