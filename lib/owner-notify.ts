@@ -3,6 +3,7 @@ import { and, gt, isNull } from "drizzle-orm"
 import { listProblems } from "@/lib/admin"
 import { getDb, schema } from "@/lib/db"
 import { handHours, listToBuy } from "@/lib/orders"
+import { sendLine } from "@/lib/notify-send"
 import { listSellers } from "@/lib/sellers"
 
 // Telling the owner that something waits for them: a paid order whose item has to be bought, a
@@ -37,26 +38,10 @@ function noticeUrl(): URL | null {
 
 export const noticesOn = () => noticeUrl() !== null
 
-// Sends one line. The address decides the shape: Telegram's and Discord's want it wrapped, and
-// anything else (ntfy and the like) takes the line as it is. False when it did not go out; the
-// address is a secret and is never put in a log.
+// Sends one line to the owner's address (lib/notify-send.ts). False when it did not go out.
 export async function sendNotice(text: string): Promise<boolean> {
   const url = noticeUrl()
-  if (!url) return false
-  const wrapped = url.hostname === "api.telegram.org" ? { text } : /(^|\.)discord(app)?\.com$/.test(url.hostname) ? { content: text } : null
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": wrapped ? "application/json" : "text/plain; charset=utf-8" },
-      body: wrapped ? JSON.stringify(wrapped) : text,
-      signal: AbortSignal.timeout(8000),
-    })
-    if (!response.ok) console.error(`notice: the service answered ${response.status}`)
-    return response.ok
-  } catch (error) {
-    console.error("notice: not sent:", error instanceof Error ? error.name : "error")
-    return false
-  }
+  return url ? sendLine(url, text) : false
 }
 
 // How long before an order's time runs out the owner is told a second time.

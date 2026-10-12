@@ -1,3 +1,4 @@
+import { setNotice, testNotice } from "@/lib/seller-notify";
 import { addCodes, addItem, clearCodes, desk, saveItem, sellerAnswer, sellerOf, sellerRefunded } from "@/lib/sellers";
 
 // A seller's desk. There is no session and no cookie: every request carries the secret of the
@@ -57,9 +58,18 @@ export async function POST(request: Request) {
         ? await sellerAnswer(seller, ref, { refunded: outcome === "refunded", reply: text(body.reply, 2000) ?? "" })
         : { ok: false as const, error: "Say whether you sent a refund for it or not." };
     result = done.ok ? { ok: true, said: "Answered. The buyer reads it on the order's page." } : done;
+  } else if (body.do === "set-notice") {
+    const address = text(body.address, 400);
+    const kept = address === null ? { ok: false as const, error: "That address is too long." } : await setNotice(seller, address);
+    result = kept.ok ? { ok: true, said: address?.trim() ? "Saved. Send a test line to see that it arrives." : "Removed. Nothing is sent any more." } : kept;
+  } else if (body.do === "test-notice") {
+    const sent = await testNotice(seller);
+    result = sent.ok ? { ok: true, said: "A test line was sent." } : sent;
   }
 
   if (!result.ok) return Response.json({ error: result.error }, { status: 400, headers: { "Cache-Control": "no-store" } });
   // The desk as it stands now goes back with the answer, so the screen needs no second request.
-  return Response.json({ ok: true, said: result.said, desk: await desk(seller) }, { headers: { "Cache-Control": "no-store" } });
+  // The seller is read again first: what was just done may have changed their own row.
+  const now = (await who(request)) ?? seller;
+  return Response.json({ ok: true, said: result.said, desk: await desk(now) }, { headers: { "Cache-Control": "no-store" } });
 }

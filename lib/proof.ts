@@ -89,6 +89,7 @@ const NOTES: Record<string, Record<string, string>> = {
     engine_key: "The payment engine's own key for this seller. With it the shop asks the engine for an address made from the seller's viewing key. It cannot move money.",
     network: "Which Zcash network the seller's viewing key belongs to.",
     created_at: "When the seller signed up.",
+    notify_url: "Where the seller asked to be told when something waits for them, if they gave an address: a notification service's. The lines sent there name no order, no item, no amount and no buyer.",
     closed_at: "When the shop's owner closed the seller, if they did.",
   },
 }

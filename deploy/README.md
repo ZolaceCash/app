@@ -248,6 +248,12 @@ what such an order is owed back is the seller's to send, and it is never on your
 - Every seller has a page of their own, `/s/<their name and six random characters>`, with what of theirs
   is on the shelf: the link a seller passes around. It is not found while selling is off, for a seller
   you closed, and for a name that is no seller's.
+- A seller can be told when something waits for them: at their desk they give the address of an ntfy
+  topic, a Telegram bot or a Discord webhook, and the server sends one line there when an order of
+  theirs is handed over, an item runs out of codes, a buyer reports an item, or a refund is theirs to
+  send. No other address is taken, so the server cannot be made to call anything else. The same round
+  that looks after your own orders, every minute, moves the sellers' orders along. The address is kept
+  readable in the database: the server has to send to it.
 - `/owner/sellers` lists every seller with their items, the reports buyers made that the seller has not
   answered, and the refunds they have not sent. There you take an item down or close a seller. You
   cannot read a seller's codes or change their items.

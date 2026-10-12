@@ -1,12 +1,13 @@
 import { createHash, randomBytes } from "node:crypto"
 
-import { and, asc, desc, eq, gt, isNotNull, isNull, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gt, isNotNull, isNull, ne, sql } from "drizzle-orm"
 
 import { parsePrice, parseShelf, REPLY_MAX } from "@/lib/admin"
 import { getDb, schema } from "@/lib/db"
 import type { Order, Seller, ShelfSlug } from "@/lib/db/schema"
 import { listItems, owedWhy, sweepSeller, type OwedWhy, type ShelfItem } from "@/lib/orders"
 import { engine, registerViewingKey } from "@/lib/payment"
+import { noticeWhere } from "@/lib/seller-notify"
 import { sellerLimits, sellingOn } from "@/lib/selling"
 import { viewingKey } from "@/lib/zcash-address"
 
@@ -239,6 +240,9 @@ export type Desk = {
   name: string
   // The seller's own page, to share: /s/<page>. Null for a seller without one.
   page: string | null
+  // Which notification service the seller is told through, by its name. Null: none. The address
+  // itself is never sent back to the desk.
+  notice: string | null
   network: "testnet" | "mainnet"
   // Selling is open on this server and this seller's key is of the network payments run on.
   open: boolean
@@ -276,6 +280,7 @@ export async function desk(seller: Seller, now = Date.now()): Promise<Desk> {
   return {
     name: seller.name,
     page: seller.slug,
+    notice: noticeWhere(seller.notifyUrl),
     network: seller.network,
     open: sellingOn() && engine().network === seller.network,
     closed: seller.closedAt !== null,
@@ -343,8 +348,10 @@ export async function sellerRefunded(seller: Seller, ref: string, now = Date.now
         .returning({ stockId: orders.stockId })
     : []
   if (done.length === 0) return { ok: false, error: "That order is not waiting for a refund any more." }
+  // What was set aside for it and never handed over had nothing in it: drop the empty row. A code
+  // that was handed over stays counted as such.
   const stockId = done[0].stockId
-  if (stockId !== null) await db.delete(stock).where(and(eq(stock.id, stockId), isNull(stock.payload)))
+  if (stockId !== null) await db.delete(stock).where(and(eq(stock.id, stockId), isNull(stock.payload), ne(stock.state, "given")))
   return { ok: true }
 }
 

@@ -1,0 +1,1 @@
+ALTER TABLE `sellers` ADD `notify_url` text;

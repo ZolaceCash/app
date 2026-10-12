@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gt, isNotNull, isNull, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gt, isNotNull, isNull, ne, sql } from "drizzle-orm"
 
 import { getDb, schema } from "@/lib/db"
 import { SHELF_SLUGS, type Order, type Product, type ShelfSlug } from "@/lib/db/schema"
@@ -151,9 +151,10 @@ export async function markRefunded(id: string, now = Date.now()) {
     .where(and(eq(orders.id, id), gt(orders.owedZat, 0), isNull(orders.refundedAt), isNull(orders.sellerId)))
     .returning({ stockId: orders.stockId })
   if (done.length === 0) return false
-  // What was set aside for it had nothing in it: drop the empty row.
+  // What was set aside for it and never handed over had nothing in it: drop the empty row. A code
+  // that was handed over (an order paid too much, and only the excess sent back) stays counted.
   const stockId = done[0].stockId
-  if (stockId !== null) await db.delete(stock).where(and(eq(stock.id, stockId), isNull(stock.payload)))
+  if (stockId !== null) await db.delete(stock).where(and(eq(stock.id, stockId), isNull(stock.payload), ne(stock.state, "given")))
   return true
 }
 

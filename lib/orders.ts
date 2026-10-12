@@ -340,6 +340,21 @@ export async function sweepSeller(sellerId: string, now = Date.now()) {
   return due.length
 }
 
+// Every seller's orders that only time or a confirmation can move: the ones whose lock ran out,
+// and the ones that are paid and wait for their blocks. Run every minute by the server itself
+// (lib/seller-notify.ts), so an order of a seller's item is handed over, or owed back, with no
+// page open. An order that is over is not asked about here: a payment that came late is found
+// when its seller opens their desk or its buyer the order's page.
+export async function sweepSellers(now = Date.now()) {
+  const db = await getDb()
+  const due = await db
+    .select()
+    .from(orders)
+    .where(and(isNotNull(orders.sellerId), or(and(inArray(orders.state, [...OPEN]), lt(orders.expiresAt, now)), inArray(orders.state, [...PAID]))))
+  for (const order of due) await advance(order, now)
+  return due.length
+}
+
 // An item made by a supplier: bought the moment its order is paid, sealed to the buyer's key as
 // soon as the supplier hands it over, and never written down here in a form the server can read.
 async function deliverSupplied(order: Order, packageCode: string, now: number): Promise<Order> {

@@ -25,6 +25,10 @@ export const sellers = sqliteTable("sellers", {
   // Which network the viewing key belongs to. A seller of the test network sells nothing on the real one.
   network: text("network", { enum: ["testnet", "mainnet"] }).notNull(),
   createdAt: integer("created_at").notNull(),
+  // Where the seller asked to be told when something waits for them: the address of a
+  // notification service. Kept readable, since the server has to send to it; whoever knows it
+  // can read the lines sent there, which name no order, no item and no amount.
+  notifyUrl: text("notify_url"),
   // When the shop's owner closed this seller. Their items are off the shelf from then on.
   closedAt: integer("closed_at"),
 })

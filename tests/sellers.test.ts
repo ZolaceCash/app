@@ -404,6 +404,10 @@ test("what a seller's order is owed is the seller's to send, never on the owner'
   const after = await orders.readOrder(second.result.id, now + 25 * MINUTE)
   assert.equal(after?.state, "refunded")
   assert.equal(after?.refunded, true)
+  // The excess of the order that was handed over is sent too, and its code still counts as handed over.
+  const excess = (await sellers.desk(who.row, now + 26 * MINUTE)).orders.find((entry) => entry.state === "delivered" && entry.owedZat > 0 && !entry.refunded)!
+  assert.deepEqual(await sellers.sellerRefunded(who.row, excess.ref, now + 26 * MINUTE), { ok: true })
+  assert.equal((await sellers.desk(who.row, now + 26 * MINUTE)).items[0].given, 1)
   // Its address is not shown on the desk any more.
   assert.equal((await sellers.desk(who.row, now + 26 * MINUTE)).orders.find((entry) => entry.ref === shortOne.ref)?.refundAddress, null)
 })

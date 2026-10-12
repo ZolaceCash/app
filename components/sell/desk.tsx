@@ -164,6 +164,7 @@ export function SellerDesk() {
 
         <div className="space-y-2.5 lg:sticky lg:top-24">
           {canList && desk.items.length < desk.limits.maxItems ? <NewItem act={act} most={desk.limits.maxPriceCents} /> : null}
+          <Notices where={desk.notice} act={act} />
           <section className="cut rounded-3xl bg-ice p-6 text-ink md:p-8">
             <p className="label-mono">Not sold here</p>
             <ul className="mt-6 space-y-3 leading-snug">
@@ -267,6 +268,55 @@ function ShelfSelect({ shelf }: { shelf: string | null }) {
         ))}
       </select>
     </label>
+  )
+}
+
+// Being told: the seller gives the address of a notification service, and the shop sends one line
+// there when something waits for them. The address is not shown again once it is saved.
+function Notices({ where, act }: { where: string | null; act: Act }) {
+  const [tested, setTested] = useState<Said>({})
+  return (
+    <section className={PANEL}>
+      <DotLabel>Be told</DotLabel>
+      <p className="mt-5 leading-snug text-muted-foreground">
+        {where
+          ? `You are told through ${where}. The address is kept on the shop's server and is not shown here again.`
+          : "There is no account to send mail to. Give an address of your own and the shop sends one line there when an order of yours is handed over, an item runs out of codes, a buyer reports an item, or a refund is yours to send."}
+      </p>
+      <DeskForm label={where ? "Replace the address" : "Save the address"} clear className="mt-5 space-y-4" onSend={(form) => act({ do: "set-notice", address: value(form, "address") })}>
+        <label className="block">
+          <span className="label-mono text-muted-foreground">{where ? "Another address" : "Where to tell you"}</span>
+          <input
+            name="address"
+            required
+            maxLength={300}
+            spellCheck={false}
+            autoComplete="off"
+            autoCapitalize="off"
+            placeholder="https://ntfy.sh/a-long-random-name"
+            className={cn(FIELD, "font-mono")}
+          />
+          <span className="mt-2 block text-sm leading-snug text-muted-foreground">
+            An ntfy topic with a name of 16 characters or more, a Telegram bot&apos;s sendMessage address with its chat_id,
+            or a Discord webhook. Whoever knows the address can read the lines, and the service learns that you had
+            something to do and when. A line names no order, no item, no amount and no buyer.
+          </span>
+        </label>
+      </DeskForm>
+      {where ? (
+        <div className="mt-5 flex flex-wrap items-center gap-x-4 gap-y-2">
+          <Button type="button" variant="secondary" onClick={async () => setTested(await act({ do: "test-notice" }))}>
+            Send a test line
+          </Button>
+          <Button type="button" variant="outline" onClick={async () => setTested(await act({ do: "set-notice", address: "" }))}>
+            Stop telling me
+          </Button>
+          <p aria-live="polite" className={cn("text-sm leading-snug", tested.error ? "text-destructive" : "text-muted-foreground")}>
+            {tested.error ?? tested.ok}
+          </p>
+        </div>
+      ) : null}
+    </section>
   )
 }
 
