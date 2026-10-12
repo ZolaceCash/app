@@ -215,6 +215,9 @@ export const DOCS: Doc[] = [
             p: "Prices are set in dollars. At checkout the price is turned into ZEC and held for 15 minutes.",
           },
           {
+            p: "Before you order, an item's page says about what its price is in ZEC at the moment, and the rate it used. That figure moves with the rate and is rounded; the exact amount is the one your order shows. Your browser asks the shop for the rate, never an exchange, and the request says nothing about which item you are reading.",
+          },
+          {
             rows: [
               ["Price held for", "15 minutes"],
               ["Price sources", "Two, compared with each other"],

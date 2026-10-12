@@ -4,8 +4,8 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 
 import { BuyButton } from "@/components/shop/buy-button";
+import { ZecNow } from "@/components/shop/zec-now";
 import { shopWords } from "@/lib/shop-mode";
-import { ZecIcon } from "@/components/site/chain-icons";
 import { PageShell } from "@/components/site/page-shell";
 import { DotLabel, PillLink } from "@/components/site/primitives";
 import { getItem, handHours, type ShelfItem } from "@/lib/orders";
@@ -94,10 +94,10 @@ function Item({ item }: { item: ShelfItem }) {
 
         <p className="mt-10 flex flex-wrap items-baseline gap-x-4 gap-y-2">
           <span className="font-mono text-5xl font-medium tracking-[-0.05em] md:text-6xl">{dollars(item.priceCents)}</span>
-          <span className="label-mono flex items-center gap-1.5 text-muted-foreground">
-            <ZecIcon className="size-3.5 text-brand" />
-            paid in ZEC
-          </span>
+          <ZecNow priceCents={item.priceCents} />
+        </p>
+        <p className="mt-3 max-w-xl text-sm leading-snug text-muted-foreground">
+          The amount in ZEC moves with the rate until you order. An order fixes it and holds it for 15 minutes.
         </p>
         {test ? null : (
           <p className="mt-3 text-sm leading-snug text-muted-foreground">
