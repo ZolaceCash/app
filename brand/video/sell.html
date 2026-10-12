@@ -1,0 +1,452 @@
+<!doctype html>
+<!--
+  A film for the post about other sellers on Zolace. Three lines of words drawn in from the left
+  like shutters; then three lanes that stand the full height of the screen (the buyer, the shop,
+  the seller), with the things that move drawn as blocks travelling sideways between them: an item
+  from the seller to the shelf, the payment from the buyer's wallet across the shop's lane and
+  into the seller's without stopping, the item to the buyer; and a closing line with the three
+  things that are decided. It shares its layout with no other film here.
+  Drawn and encoded one frame at a time (encode.js); opened by compose.mjs with PAGE=sell.html.
+  ?still=<seconds> draws one moment and stops.
+  Selling is not open: the film says so in the corner from the first frame to the last and again
+  at the end. The item, its price and the amount are a sample, and marked as one.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=Geist+Mono:wght@500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #09090b;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage" width="1920" height="1080"></canvas>
+    <script type="module">
+      const W = 1920
+      const H = 1080
+      const GROUND = "#09090b"
+      const CARD = "#101014"
+      const RAISE = "#1c1c23"
+      const ICE = "#f4f4f6"
+      const INK = "#0b0b10"
+      const QUIET = "rgba(244,244,246,0.58)"
+      const FAINT = "rgba(244,244,246,0.3)"
+      const INDIGO = "#5567ea"
+      const DEEP = "#4654c4"
+      const BRAND = "#7b8cff"
+      const NAVY = "#1f2358"
+      const SANS = "Geist, system-ui, sans-serif"
+      const MONO = '"Geist Mono", ui-monospace, monospace'
+      const TOTAL = 14.8
+
+      const canvas = document.getElementById("stage")
+      const ctx = canvas.getContext("2d")
+      const clamp = (x, low = 0, high = 1) => Math.min(high, Math.max(low, x))
+      const easeOut = (x) => 1 - Math.pow(1 - clamp(x), 3)
+      const easeBoth = (x) => {
+        const t = clamp(x)
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+      }
+      const settle = (x) => {
+        const t = clamp(x)
+        const c = 1.5
+        return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2)
+      }
+      const mix = (a, b, p) => a + (b - a) * p
+      const rounded = (x, y, w, h, r) => {
+        ctx.beginPath()
+        ctx.roundRect(x, y, w, h, r)
+      }
+      const text = (value, x, y, font, colour, align = "left", spacing = "0px") => {
+        ctx.font = font
+        ctx.fillStyle = colour
+        ctx.textAlign = align
+        ctx.letterSpacing = spacing
+        ctx.fillText(value, x, y)
+      }
+      const widthOf = (value, font, spacing = "0px") => {
+        ctx.font = font
+        ctx.letterSpacing = spacing
+        return ctx.measureText(value).width
+      }
+      // A line uncovered from the left, as by a shutter drawn aside, with a bar at its edge.
+      const shutter = (value, x, y, size, font, colour, p, spacing = "0px") => {
+        if (p <= 0) return
+        const wide = widthOf(value, font, spacing) + 20
+        const open = easeBoth(p) * wide
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(x - 10, y - size, open, size * 1.32)
+        ctx.clip()
+        text(value, x, y, font, colour, "left", spacing)
+        ctx.restore()
+        if (p < 1) {
+          ctx.fillStyle = BRAND
+          ctx.fillRect(x - 10 + open, y - size * 0.86, 10, size * 1.02)
+        }
+      }
+      // A line that rises into place from under its own baseline.
+      const rise = (value, x, y, size, font, colour, p, spacing = "0px", align = "left") => {
+        if (p <= 0) return
+        ctx.save()
+        const alpha = ctx.globalAlpha
+        ctx.beginPath()
+        ctx.rect(0, y - size * 0.95, W, size * 1.24)
+        ctx.clip()
+        ctx.globalAlpha = alpha * clamp(p * 1.6)
+        text(value, x, y + (1 - easeOut(p)) * size * 0.9, font, colour, align, spacing)
+        ctx.restore()
+      }
+      const MARK = [
+        [8.1, 2, 22, 2, 13.25, 14.5, 10.65, 14.5, 15.9, 7, 4.6, 7],
+        [19.4, 17, 15.9, 22, 2, 22, 10.75, 9.5, 13.35, 9.5, 8.1, 17],
+        [5.5, 2, 7, 2, 3.5, 7, 2, 7],
+        [20.5, 17, 22, 17, 18.5, 22, 17, 22],
+      ]
+      const logo = (x, y, size, colour) => {
+        const k = size / 24
+        ctx.fillStyle = colour
+        for (const points of MARK) {
+          ctx.beginPath()
+          for (let i = 0; i < points.length; i += 2) ctx[i ? "lineTo" : "moveTo"](x + points[i] * k, y + points[i + 1] * k)
+          ctx.closePath()
+          ctx.fill()
+        }
+        text("zolace", x + size * 1.28, y + size * 0.86, `700 ${size * 0.95}px ${SANS}`, colour, "left", `${-size * 0.05}px`)
+      }
+      const BAYER = [0, 32, 8, 40, 2, 34, 10, 42, 48, 16, 56, 24, 50, 18, 58, 26, 12, 44, 4, 36, 14, 46, 6, 38, 60, 28, 52, 20, 62, 30, 54, 22, 3, 35, 11, 43, 1, 33, 9, 41, 51, 19, 59, 27, 49, 17, 57, 25, 15, 47, 7, 39, 13, 45, 5, 37, 63, 31, 55, 23, 61, 29, 53, 21]
+      const threshold = (cx, cy) => (BAYER[(((cy % 8) + 8) % 8) * 8 + (((cx % 8) + 8) % 8)] + 0.5) / 64
+      const tick = (x, y, colour, width = 3.5) => {
+        ctx.strokeStyle = colour
+        ctx.lineWidth = width
+        ctx.lineCap = "round"
+        ctx.lineJoin = "round"
+        ctx.beginPath()
+        ctx.moveTo(x, y)
+        ctx.lineTo(x + 7, y + 7)
+        ctx.lineTo(x + 19, y - 7)
+        ctx.stroke()
+      }
+
+      // ------------------------------------------------------------ when things happen
+      const LANES_AT = 2.5
+      const LISTED = [3.5, 4.4]
+      const PAID = [5.4, 6.9]
+      const HANDED = [7.8, 8.8]
+      const NOTHING = 9.5
+      const CLOSE = 11.6
+      const WORDS = [
+        { at: 3.1, first: "A seller lists an item.", then: " No application." },
+        { at: 5.0, first: "The buyer pays the seller.", then: " Directly." },
+        { at: 7.4, first: "The item opens", then: " in the buyer's browser." },
+        { at: NOTHING, first: "Zolace holds", then: " nothing." },
+      ]
+      const AMOUNT = "0.0091"
+
+      // ------------------------------------------------------------ the three lanes
+      const LANE = { top: 214, h: 700, w: 544, gap: 48 }
+      const lanes = [0, 1, 2].map((i) => ({ x: 96 + i * (LANE.w + LANE.gap), shop: i === 1 }))
+      const MONEY_Y = 372
+      const ITEM_Y = 590
+      // The clear strip between the wallets and the items, where the payment travels.
+      const ROAD_Y = 481
+      const HEADS = [
+        ["THE BUYER", "NO ACCOUNT"],
+        ["ZOLACE · THE SHELF", "HOLDS NO MONEY"],
+        ["THE SELLER", "ANYONE · FREE AT THE START"],
+      ]
+      // A tile inside a lane: its fill, a small label, and where its content starts.
+      function tile(lane, y, h, label, off, fill) {
+        const x = lane.x + 28
+        const w = LANE.w - 56
+        ctx.fillStyle = fill ?? (lane.shop ? DEEP : RAISE)
+        rounded(x, y + off, w, h, 16)
+        ctx.fill()
+        text(label, x + 24, y + off + 36, `500 15px ${MONO}`, lane.shop ? "rgba(255,255,255,0.72)" : QUIET, "left", "1.4px")
+        return { x, w, y: y + off }
+      }
+
+      function drawLanes(time) {
+        const gone = time >= CLOSE
+        lanes.forEach((lane, index) => {
+          // Each lane comes up from under the screen, and leaves the same way.
+          const inP = (time - (LANES_AT + index * 0.12)) / 0.7
+          const outP = easeBoth((time - (CLOSE + index * 0.08)) / 0.55)
+          if (inP <= 0 || outP >= 1) return
+          const off = (1 - settle(inP)) * 420 + outP * 900
+          ctx.globalAlpha = clamp(inP * 2)
+          ctx.fillStyle = lane.shop ? INDIGO : CARD
+          rounded(lane.x, LANE.top + off, LANE.w, LANE.h, 34)
+          ctx.fill()
+          const ink = lane.shop ? "#fff" : ICE
+          const soft = lane.shop ? "rgba(255,255,255,0.72)" : QUIET
+          ctx.fillStyle = lane.shop ? "#fff" : BRAND
+          ctx.fillRect(lane.x + 30, LANE.top + off + 37, 11, 11)
+          text(HEADS[index][0], lane.x + 56, LANE.top + off + 49, `500 21px ${MONO}`, ink, "left", "1.6px")
+          text(HEADS[index][1], lane.x + LANE.w - 30, LANE.top + off + 48, `500 14px ${MONO}`, soft, "right", "1.3px")
+
+          const paid = time >= PAID[1]
+          if (index === 0) {
+            // The buyer's wallet, and the order.
+            const sent = time >= PAID[0]
+            const a = tile(lane, MONEY_Y - 62, 124, "THEIR OWN WALLET", off)
+            text(sent ? `− ${AMOUNT} ZEC` : "SHIELDED ZEC", a.x + 24, a.y + 88, `500 32px ${MONO}`, sent ? QUIET : ICE, "left", "0px")
+            const opened = time >= HANDED[1]
+            const b = tile(lane, ITEM_Y - 62, 190, "THE ORDER · A SAMPLE", off, opened ? ICE : undefined)
+            if (opened) {
+              text("THE ORDER · A SAMPLE", b.x + 24, b.y + 36, `500 15px ${MONO}`, "rgba(11,11,16,0.6)", "left", "1.4px")
+              rise("•••• •••• ••••", b.x + 24, b.y + 100, 36, `500 36px ${MONO}`, INK, clamp((time - HANDED[1]) / 0.4), "1px")
+              tick(b.x + 26, b.y + 148, INDIGO, 3)
+              text("OPENED IN THE BROWSER", b.x + 58, b.y + 154, `500 15px ${MONO}`, INDIGO, "left", "1.4px")
+            } else {
+              text(paid ? "Paid. Three blocks to go." : sent ? "Paying…" : "A gift card, $11.90", b.x + 24, b.y + 96, `500 28px ${SANS}`, ICE, "left", "-0.6px")
+              text("A LINK IS THE RECEIPT", b.x + 24, b.y + 150, `500 15px ${MONO}`, QUIET, "left", "1.4px")
+            }
+          } else if (index === 1) {
+            // What the shop has of the seller: a key that sees, and the shelf.
+            const lit = clamp(1 - Math.abs(time - (PAID[0] + PAID[1]) / 2) / 0.45)
+            const a = tile(lane, MONEY_Y - 62, 124, "THE SELLER'S VIEWING KEY", off, lit > 0 ? `rgba(255,255,255,${0.16 + 0.2 * lit})` : undefined)
+            text(time >= (PAID[0] + PAID[1]) / 2 ? "Saw the payment." : "Sees. Cannot move.", a.x + 24, a.y + 88, `500 30px ${SANS}`, "#fff", "left", "-0.7px")
+            const listed = time >= LISTED[1]
+            const handed = time >= HANDED[0]
+            const b = tile(lane, ITEM_Y - 62, 190, "ON THE SHELF", off)
+            text(listed ? "A gift card, $11.90" : "Nothing yet", b.x + 24, b.y + 96, `500 28px ${SANS}`, listed ? "#fff" : "rgba(255,255,255,0.55)", "left", "-0.6px")
+            text(handed ? "HANDED OVER, SEALED" : listed ? "SOLD BY THE SELLER, SAID ON THE PAGE" : "OPEN TO ANYONE", b.x + 24, b.y + 150, `500 15px ${MONO}`, "rgba(255,255,255,0.72)", "left", "1.4px")
+            // What the shop holds of the money: the figure the film ends its middle on.
+            const loud = easeOut((time - NOTHING) / 0.5)
+            const c = tile(lane, 742, 146, "MONEY HELD BY ZOLACE", off, loud > 0 ? "#fff" : undefined)
+            if (loud > 0) text("MONEY HELD BY ZOLACE", c.x + 24, c.y + 36, `500 15px ${MONO}`, "rgba(11,11,16,0.6)", "left", "1.4px")
+            text("0", c.x + 24, c.y + 118, `500 76px ${MONO}`, loud > 0 ? INK : "#fff", "left", "0px")
+            text("ZEC", c.x + 84, c.y + 118, `500 34px ${SANS}`, loud > 0 ? INDIGO : "rgba(255,255,255,0.72)", "left", "-1px")
+            text("AT ANY MOMENT", c.x + c.w - 24, c.y + 112, `500 15px ${MONO}`, loud > 0 ? "rgba(11,11,16,0.6)" : "rgba(255,255,255,0.72)", "right", "1.4px")
+          } else {
+            // The seller's wallet, and the codes they brought.
+            const a = tile(lane, MONEY_Y - 62, 124, "THEIR OWN WALLET", off, paid ? NAVY : undefined)
+            if (paid) rise(`+ ${AMOUNT} ZEC`, a.x + 24, a.y + 88, 32, `500 32px ${MONO}`, BRAND, clamp((time - PAID[1]) / 0.4), "0px")
+            else text("THE KEY THAT SPENDS STAYS HERE", a.x + 24, a.y + 84, `500 17px ${MONO}`, ICE, "left", "1.2px")
+            const b = tile(lane, ITEM_Y - 62, 190, "THE SELLER'S CODES", off)
+            const left = time >= LISTED[0] ? 2 : 3
+            for (let i = 0; i < 3; i++) {
+              ctx.fillStyle = i < left ? "#2a2a33" : "#16161c"
+              rounded(b.x + 24 + i * 152, b.y + 62, 140, 52, 10)
+              ctx.fill()
+              if (i < left) text("••••-••••", b.x + 24 + i * 152 + 70, b.y + 95, `500 17px ${MONO}`, ICE, "center", "0px")
+            }
+            text(time >= LISTED[1] ? "ONE IS ON THE SHELF" : "A NAME, A PRICE, THE CODES", b.x + 24, b.y + 154, `500 15px ${MONO}`, QUIET, "left", "1.4px")
+          }
+          // A line at the foot of the two outer lanes.
+          if (index !== 1) {
+            text(index === 0 ? "PAYS FROM THEIR OWN WALLET" : "PAID FROM THE FIRST BLOCK", lane.x + 30, LANE.top + off + LANE.h - 78, `500 15px ${MONO}`, FAINT, "left", "1.4px")
+            text(index === 0 ? "NO NAME, NO EMAIL" : "NOTHING IS PAID OUT LATER", lane.x + 30, LANE.top + off + LANE.h - 50, `500 15px ${MONO}`, FAINT, "left", "1.4px")
+          }
+          ctx.globalAlpha = 1
+        })
+        if (gone) return
+
+        // What travels between the lanes.
+        const centre = (i) => lanes[i].x + LANE.w / 2
+        // The item, from the seller's codes to the shelf.
+        const list = (time - LISTED[0]) / (LISTED[1] - LISTED[0])
+        if (list > 0 && list < 1) {
+          const e = easeBoth(list)
+          const x = mix(lanes[2].x + 28 + 24 + 2 * 152 + 70, centre(1), e)
+          const y = ITEM_Y + 26 - Math.sin(Math.PI * e) * 46
+          ctx.globalAlpha = Math.sin(Math.PI * clamp(list * 1.06))
+          ctx.fillStyle = "#2a2a33"
+          rounded(x - 70, y - 26, 140, 52, 10)
+          ctx.fill()
+          text("••••-••••", x, y + 7, `500 17px ${MONO}`, ICE, "center", "0px")
+          ctx.globalAlpha = 1
+        }
+        // The payment: from the buyer's wallet across the shop's lane and into the seller's. It
+        // does not stop in the middle, and leaves a trail of squares that thins out behind it.
+        const pay = (time - PAID[0]) / (PAID[1] - PAID[0])
+        if (pay > 0 && pay < 1.25) {
+          const from = centre(0) + 150
+          const to = centre(2) - 150
+          const x = mix(from, to, easeBoth(pay))
+          // It runs in the clear between the two rows of tiles, dropping out of one wallet and
+          // rising into the other.
+          const road = (at) => {
+            const along = clamp((at - from) / (to - from))
+            return mix(MONEY_Y + 36, ROAD_Y, clamp(Math.min(along, 1 - along) / 0.1))
+          }
+          for (let i = 1; i < 46; i++) {
+            const back = x - i * 18
+            if (back < from) break
+            if (threshold(i, 3) < 1 - i / 46 - clamp(pay - 1) * 4) {
+              ctx.fillStyle = back > lanes[1].x && back < lanes[1].x + LANE.w ? "#fff" : BRAND
+              ctx.fillRect(back - 5, road(back) - 5, 10, 10)
+            }
+          }
+          if (pay < 1) {
+            const y = road(x)
+            ctx.fillStyle = ICE
+            rounded(x - 58, y - 30, 116, 60, 14)
+            ctx.fill()
+            text("ZEC", x, y + 9, `500 26px ${MONO}`, INK, "center", "1px")
+          }
+        }
+        // The item, sealed, from the shelf to the buyer's order.
+        const hand = (time - HANDED[0]) / (HANDED[1] - HANDED[0])
+        if (hand > 0 && hand < 1) {
+          const e = easeBoth(hand)
+          const x = mix(centre(1), centre(0), e)
+          const y = ITEM_Y + 26 - Math.sin(Math.PI * e) * 46
+          ctx.globalAlpha = Math.sin(Math.PI * clamp(hand * 1.06))
+          ctx.fillStyle = ICE
+          rounded(x - 84, y - 26, 168, 52, 10)
+          ctx.fill()
+          text("SEALED ITEM", x, y + 6, `500 16px ${MONO}`, INK, "center", "1.2px")
+          ctx.globalAlpha = 1
+        }
+      }
+
+      // ------------------------------------------------------------ the film
+      function draw(time) {
+        ctx.globalAlpha = 1
+        ctx.shadowColor = "transparent"
+        ctx.fillStyle = GROUND
+        ctx.fillRect(0, 0, W, H)
+
+        // The name, and what state this is in, from the first frame to the last.
+        ctx.globalAlpha = easeOut(time / 0.4)
+        logo(96, 66, 46, ICE)
+        const state = "SELLING ON ZOLACE · BEING BUILT, NOT OPEN YET"
+        const stateFont = `500 19px ${MONO}`
+        const stateWide = widthOf(state, stateFont, "1.6px") + 62
+        ctx.fillStyle = RAISE
+        rounded(W - 96 - stateWide, 68, stateWide, 46, 12)
+        ctx.fill()
+        ctx.fillStyle = BRAND
+        ctx.fillRect(W - 96 - stateWide + 18, 87, 9, 9)
+        text(state, W - 96 - stateWide + 40, 98, stateFont, ICE, "left", "1.6px")
+        ctx.globalAlpha = 1
+
+        // ---------------------------------------- three lines, then one
+        const away = easeBoth((time - 2.15) / 0.55)
+        if (away < 1) {
+          ctx.globalAlpha = 1 - away
+          const font = `500 176px ${SANS}`
+          const lines = [
+            ["Your goods.", ICE, 0.2],
+            ["Your wallet.", ICE, 0.65],
+            ["Our shelf.", BRAND, 1.1],
+          ]
+          lines.forEach(([line, colour, at], index) => {
+            shutter(line, 90, 420 + index * 196 - away * 70, 176, font, colour, (time - at) / 0.5, "-9px")
+          })
+          ctx.globalAlpha = 1
+        }
+        const closing = easeBoth((time - CLOSE) / 0.5)
+        if (time >= LANES_AT && closing < 1) {
+          ctx.globalAlpha = easeOut((time - 2.6) / 0.5) * (1 - closing)
+          text("Your goods. Your wallet. Our shelf.", 96, 180, `500 34px ${SANS}`, ICE, "left", "-0.9px")
+          text("HOW SELLING IS MEANT TO WORK · A SAMPLE ORDER", W - 96, 178, `500 16px ${MONO}`, FAINT, "right", "1.5px")
+          ctx.globalAlpha = 1
+        }
+
+        drawLanes(time)
+
+        // ---------------------------------------- the line under the lanes
+        if (time >= WORDS[0].at && closing < 1) {
+          let on = 0
+          for (let i = 0; i < WORDS.length; i++) if (time >= WORDS[i].at) on = i
+          const words = WORDS[on]
+          const since = time - words.at
+          const font = `500 56px ${SANS}`
+          const head = widthOf(words.first, font, "-2.3px")
+          ctx.globalAlpha = 1 - closing
+          rise(words.first, 96, 1006, 56, font, QUIET, clamp(since / 0.45), "-2.3px")
+          rise(words.then, 96 + head, 1006, 56, font, on === 3 ? BRAND : ICE, clamp((since - 0.12) / 0.45), "-2.3px")
+          // Which of the four it is: squares at the right.
+          for (let i = 0; i < WORDS.length; i++) {
+            ctx.fillStyle = i <= on ? BRAND : "#2a2a33"
+            ctx.fillRect(W - 96 - (WORDS.length - i) * 26 + 8, 982, 16, 16)
+          }
+          ctx.globalAlpha = 1
+        }
+
+        // ---------------------------------------- the closing line
+        if (closing > 0) {
+          const t = time - CLOSE
+          shutter("Sell on Zolace.", 90, 470, 210, `500 210px ${SANS}`, ICE, (t - 0.35) / 0.6, "-11px")
+          const facts = ["PAID STRAIGHT TO YOU", "OPEN TO ANYONE", "FREE AT THE START"]
+          let x = 96
+          facts.forEach((fact, index) => {
+            const p = (t - (0.95 + index * 0.14)) / 0.45
+            const font = `500 22px ${MONO}`
+            const wide = widthOf(fact, font, "1.6px") + 76
+            if (p > 0) {
+              ctx.globalAlpha = clamp(p * 1.8)
+              ctx.fillStyle = index === 0 ? INDIGO : RAISE
+              rounded(x, 560 + (1 - settle(p)) * 40, wide, 70, 16)
+              ctx.fill()
+              ctx.fillStyle = index === 0 ? "#fff" : BRAND
+              ctx.fillRect(x + 26, 590 + (1 - settle(p)) * 40, 11, 11)
+              text(fact, x + 50, 603 + (1 - settle(p)) * 40, font, index === 0 ? "#fff" : ICE, "left", "1.6px")
+              ctx.globalAlpha = 1
+            }
+            x += wide + 14
+          })
+          ctx.globalAlpha = easeOut((t - 1.5) / 0.5)
+          text("The buyer pays you in shielded ZEC. Zolace never holds the money.", 96, 720, `400 38px ${SANS}`, QUIET, "left", "-0.8px")
+          text("NOT OPEN YET: THE PLAN IS AT ZOLACE.CASH/SELL", 96, 800, `500 22px ${MONO}`, BRAND, "left", "1.8px")
+          // The site's dither, standing in rising columns at the right.
+          ctx.fillStyle = NAVY
+          for (let cx = 0; cx < 26; cx++) {
+            const tall = 3 + Math.round(cx * 0.9)
+            for (let cy = 0; cy < tall; cy++) {
+              const p = (t - 1.2 - cx * 0.02 - cy * 0.02) / 0.25
+              if (p <= 0) continue
+              if (threshold(cx + 1, cy + 2) < 0.22 + (cy / tall) * 0.85) continue
+              ctx.globalAlpha = clamp(p)
+              ctx.fillRect(W - 96 - (26 - cx) * 28, H - 60 - cy * 28, 22, 22)
+            }
+          }
+          ctx.globalAlpha = 1
+        }
+
+        const left = TOTAL - time
+        if (left < 0.3) {
+          ctx.globalAlpha = 1 - clamp(left / 0.3)
+          ctx.fillStyle = "#050507"
+          ctx.fillRect(0, 0, W, H)
+          ctx.globalAlpha = 1
+        }
+      }
+
+      await Promise.all([
+        document.fonts.load(`500 176px ${SANS}`),
+        document.fonts.load(`400 38px ${SANS}`),
+        document.fonts.load(`700 46px ${SANS}`),
+        document.fonts.load(`500 32px ${MONO}`),
+      ])
+      const asked = new URLSearchParams(location.search)
+      window.film = { total: TOTAL }
+      if (asked.has("still")) {
+        draw(Number(asked.get("still")))
+        window.done = true
+      } else {
+        const { encodeFilm } = await import("./encode.js")
+        const { blob, frames } = await encodeFilm({ canvas, total: TOTAL, bitrate: 9_000_000, ready: async () => {}, draw })
+        window.film.frames = frames
+        await fetch("out", { method: "POST", body: blob })
+        window.done = true
+      }
+    </script>
+  </body>
+</html>
