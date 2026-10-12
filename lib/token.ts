@@ -104,6 +104,8 @@ const EXPLORERS: Record<number, string> = {
 }
 export const explorerUrl = (chainId: number, address: string) =>
   EXPLORERS[chainId] ? `${EXPLORERS[chainId]}/address/${address}` : null
+// The same for one transaction.
+export const explorerTx = (chainId: number, hash: string) => (EXPLORERS[chainId] ? `${EXPLORERS[chainId]}/tx/${hash}` : null)
 
 // What the site says about the token today, in each of its two states. Every page that speaks of
 // the token's state takes it from here (components/site/token-status.tsx), so setting or clearing

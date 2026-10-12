@@ -120,6 +120,38 @@ export async function fundedIn(fromBlock: bigint, toBlock: bigint) {
   return amounts.reduce((sum, amount) => sum + amount, 0n)
 }
 
+// One movement of the reward into the vault or out of it, as the chain has it: the transaction,
+// where it stands in its block, the wallet at the other end and how much.
+export type RewardMove = { tx: `0x${string}`; block: bigint; index: number; wallet: `0x${string}`; value: bigint }
+
+// Every movement of the reward into the vault ("in": somebody put it there) or out of it ("out":
+// the vault paid a claim) in a stretch of blocks. Both are the reward's own transfers, so they
+// are what an explorer shows too.
+export async function rewardMoves(direction: "in" | "out", fromBlock: bigint, toBlock: bigint): Promise<RewardMove[]> {
+  const { config, client } = live()
+  const args = direction === "in" ? { to: config.vault } : { from: config.vault }
+  return stretch(fromBlock, toBlock, async (from, to) => {
+    const logs = await client.getLogs({ address: config.reward.address, event: TRANSFER, args, fromBlock: from, toBlock: to })
+    return logs.map((log) => ({
+      tx: log.transactionHash,
+      block: log.blockNumber,
+      index: log.logIndex,
+      wallet: (direction === "in" ? log.args.from : log.args.to) as `0x${string}`,
+      value: log.args.value as bigint,
+    }))
+  })
+}
+
+// The newest block the endpoint has, and the time of a block in seconds.
+export async function tipBlock() {
+  const { client } = live()
+  return client.getBlockNumber()
+}
+export async function blockTime(blockNumber: bigint) {
+  const { client } = live()
+  return Number((await client.getBlock({ blockNumber })).timestamp)
+}
+
 // Each time the vault's rate was set in a stretch of blocks, with the time of its block: the
 // contract counts the ceiling from that very second.
 export async function rateChangesIn(fromBlock: bigint, toBlock: bigint): Promise<RateChange[]> {

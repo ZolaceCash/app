@@ -7,8 +7,9 @@ import { PillLink } from "@/components/site/primitives";
 import { Reveal } from "@/components/site/reveal";
 import { Button } from "@/components/ui/button";
 import { ClaimPanel } from "@/components/vault/claim-panel";
-import { formatTokens, formatUnitsShort, HOURLY_CENTS, MINIMUM_UNITS, tokenConfig, vaultLive } from "@/lib/token";
+import { explorerTx, explorerUrl, formatTokens, formatUnitsShort, HOURLY_CENTS, MINIMUM_UNITS, tokenConfig, vaultLive } from "@/lib/token";
 import { hourLabel } from "@/lib/vault";
+import { ledger, type Ledger, type Move } from "@/lib/vault-ledger";
 import { closure, published, recentHours, type Closed, type CountedHour, type Published } from "@/lib/vault-store";
 
 export const metadata: Metadata = {
@@ -103,6 +104,10 @@ export default function Vault() {
 
       <Suspense fallback={<div aria-busy className="mt-2.5 h-40 cut rounded-3xl bg-card" />}>
         <Counted />
+      </Suspense>
+
+      <Suspense fallback={<div aria-busy className="mt-2.5 h-40 cut rounded-3xl bg-card" />}>
+        <InAndOut />
       </Suspense>
     </PageShell>
   );
@@ -279,6 +284,159 @@ async function Counted() {
           </Button>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+const shortWallet = (wallet: string) => `${wallet.slice(0, 6)}…${wallet.slice(-4)}`;
+const minuteLabel = (seconds: number) => `${new Date(seconds * 1000).toISOString().slice(0, 16).replace("T", " ")} UTC`;
+
+// The vault's book: what was put in and what was paid out, each with its transaction. It is the
+// reward's own transfers, read from the chain (lib/vault-ledger.ts), so an explorer shows the same.
+async function InAndOut() {
+  await connection();
+  const config = tokenConfig();
+  if (!vaultLive(config)) return null;
+
+  let book: Ledger | null = null;
+  let closed: Closed | null = null;
+  try {
+    [book, closed] = await Promise.all([ledger(), closure().catch(() => null)]);
+  } catch {
+    book = null;
+  }
+  const { symbol, decimals } = config.reward;
+  const amount = (units: string) => `${formatUnitsShort(BigInt(units), decimals, 9)} ${symbol}`;
+  const vaultOnExplorer = explorerUrl(config.chainId, config.vault);
+
+  return (
+    <div className="mt-2.5 cut rounded-3xl bg-card p-6 md:p-8">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+        <h2 className="text-2xl font-medium tracking-[-0.035em]">In and out</h2>
+        <p className="max-w-md text-sm leading-snug text-muted-foreground">
+          Every time {symbol} was put into the vault and every time the vault paid it out, each with its
+          transaction. Read from the chain, where anyone can read the same.
+        </p>
+      </div>
+
+      {book ? (
+        <>
+          <dl className="mt-6 grid gap-1.5 sm:grid-cols-3">
+            {(
+              [
+                ["Put in", amount(book.putIn)],
+                ["Paid out", amount(book.paidOut)],
+                ["Still in the vault", amount((BigInt(book.putIn) - BigInt(book.paidOut)).toString())],
+              ] as const
+            ).map(([name, value]) => (
+              <div key={name} className="rounded-lg bg-secondary px-4 py-3.5">
+                <dt className="label-mono text-muted-foreground">{name}</dt>
+                <dd className="mt-3 font-mono text-sm font-medium break-all">{value}</dd>
+              </div>
+            ))}
+          </dl>
+
+          <div className="mt-6 grid items-start gap-x-2.5 gap-y-6 lg:grid-cols-2">
+            <Moves
+              title="Put in"
+              none="Nothing has been put in."
+              who="from"
+              moves={book.put}
+              amount={amount}
+              chainId={config.chainId}
+            />
+            <Moves
+              title="Paid out"
+              none="Nothing has been paid out: no wallet has claimed yet."
+              who="to"
+              moves={book.paid}
+              amount={amount}
+              chainId={config.chainId}
+              owner={closed?.to}
+            />
+          </div>
+          <p className="mt-5 text-sm leading-snug text-muted-foreground">
+            Read up to block {book.block}, {minuteLabel(Math.floor(book.readAt / 1000))}. This is read again every few
+            minutes, so a movement can be on the chain a little before it is here.
+          </p>
+        </>
+      ) : (
+        <p className="mt-6 rounded-lg bg-secondary px-5 py-4 text-muted-foreground">
+          The chain did not answer just now, so the movements could not be read. They are on the explorer all the
+          same{vaultOnExplorer ? ", under the vault's address." : "."}
+        </p>
+      )}
+
+      {vaultOnExplorer ? (
+        <div className="mt-6">
+          <Button asChild variant="outline">
+            <a href={vaultOnExplorer} target="_blank" rel="noreferrer noopener">
+              The vault on the explorer
+            </a>
+          </Button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function Moves({
+  title,
+  none,
+  who,
+  moves,
+  amount,
+  chainId,
+  owner,
+}: {
+  title: string;
+  none: string;
+  who: "from" | "to";
+  moves: Move[];
+  amount: (units: string) => string;
+  chainId: number;
+  owner?: string;
+}) {
+  return (
+    <div>
+      <p className="label-mono text-muted-foreground">
+        {title} · {moves.length}
+      </p>
+      {moves.length === 0 ? (
+        <p className="mt-3 rounded-lg bg-secondary px-5 py-4 text-muted-foreground">{none}</p>
+      ) : (
+        <ul className="mt-3 space-y-1.5">
+          {moves.map((move) => {
+            const tx = explorerTx(chainId, move.tx);
+            return (
+              <li key={`${move.tx}-${move.wallet}-${move.amount}`} className="rounded-lg bg-secondary px-5 py-3.5">
+                <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+                  <span className="font-mono text-sm font-medium">{amount(move.amount)}</span>
+                  <span className="font-mono text-xs text-brand">{minuteLabel(move.at)}</span>
+                </div>
+                <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+                  <span className="label-mono text-muted-foreground" title={move.wallet}>
+                    {who} <span className="tracking-normal normal-case">{shortWallet(move.wallet)}</span>
+                    {owner && move.wallet === owner.toLowerCase() ? " · the owner's line" : ""}
+                  </span>
+                  {tx ? (
+                    <a
+                      href={tx}
+                      target="_blank"
+                      rel="noreferrer noopener"
+                      className="font-mono text-xs text-muted-foreground underline-offset-4 hover:underline"
+                    >
+                      {short(move.tx)}
+                    </a>
+                  ) : (
+                    <span className="font-mono text-xs text-muted-foreground">{short(move.tx)}</span>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
     </div>
   );
 }

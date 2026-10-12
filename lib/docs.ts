@@ -460,7 +460,7 @@ export const DOCS: Doc[] = [
         id: "public",
         heading: "What is public",
         blocks: [
-          { p: "All of the token's side is on a public chain. Who holds the token, every transfer, the whole list of what each wallet has earned and every claim, with its wallet, its amount and its time, can be read by anyone and stays there. The reward is not private, and it borrows nothing from the privacy of a shielded payment." },
+          { p: "All of the token's side is on a public chain. Who holds the token, every transfer, the whole list of what each wallet has earned and every claim, with its wallet, its amount and its time, can be read by anyone and stays there. The vault page lays the same out: every time the reward was put into the vault and every time the vault paid it out, each with its transaction. The reward is not private, and it borrows nothing from the privacy of a shielded payment." },
           {
             list: [
               "Buying in the shop needs no token and no wallet on that chain, and leaves nothing on it.",
