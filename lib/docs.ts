@@ -113,6 +113,22 @@ export const DOCS: Doc[] = [
           },
         ],
       },
+      {
+        id: "sending-it-as-a-gift",
+        heading: "Sending it as a gift",
+        blocks: [
+          {
+            p: "Whoever has the whole link can open the order, so an order can be given away by sending its link. The order's page also gives a gift's link: the same order on a page made for the person who receives it, with the item and how to use it, and without the price or the payment.",
+          },
+          {
+            list: [
+              "The person who receives it makes no account and pays nothing. The item opens in their browser.",
+              "A gift's link is the same order and the same secret. Someone who rewrites it into the order's own link sees the price there.",
+              "There is no way to take a link back after sending it. Whoever has it can open the item, and so can you.",
+            ],
+          },
+        ],
+      },
     ],
   },
   {

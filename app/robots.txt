@@ -1,5 +1,6 @@
 User-Agent: *
 Allow: /
 Disallow: /o/
+Disallow: /g/
 Disallow: /owner
 Disallow: /api/
