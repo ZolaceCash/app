@@ -45,6 +45,14 @@ a list that pays any wallet, up to the ceiling for all wallets together. So what
 to nobody until it is claimed, and the only real limit on a stolen key is what the vault holds. Keep it
 to what a week or two needs. Giving up ownership freezes the rate and the signer.
 
+The site uses exactly that to let the owner close the reward (12 Oct 2026): the count stops paying, each
+wallet's line is cut to what it has taken, and everything else in the vault, what nobody had earned and
+what holders had earned and not claimed, goes on the list as one line for an address the owner names.
+There is no time to claim after a closing: the owner's decision. The contract is unchanged and still has
+no function that withdraws: the owner's line is claimed like any other, within the same ceiling, and is
+as public.
+A list signed earlier stays good on the chain while the signer is the same.
+
 What the vault's tests prove (24 pass): the ceiling rises by the rate each hour and keeps its height when
 the rate changes; a wallet takes exactly what it earned, once, and a later list pays only the difference;
 a wallet with several lots takes several times the rate; a list signed by another key, for another hour,

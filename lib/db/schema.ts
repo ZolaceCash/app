@@ -136,6 +136,9 @@ export const vaultState = sqliteTable("vault_state", {
   funded: text("funded").notNull(),
   // The vault's rate, each time it was set.
   rates: text("rates").notNull(),
+  // Set once the owner has closed the reward: the last hour that earned, the address what was
+  // left went to, how much that was, and when. Empty while the reward runs.
+  closed: text("closed"),
 })
 
 export type Product = typeof products.$inferSelect

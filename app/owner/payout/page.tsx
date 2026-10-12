@@ -1,14 +1,14 @@
 import type { Metadata } from "next";
 
-import { countHours } from "@/app/owner/actions";
+import { closeVault, countHours, settleVault } from "@/app/owner/actions";
 import { ActionForm } from "@/components/owner/action-form";
-import { OwnerFrame, Panel } from "@/components/owner/frame";
-import { FundVault, NameSigner, SetRate } from "@/components/owner/vault-tools";
+import { Field, OwnerFrame, Panel } from "@/components/owner/frame";
+import { FundVault, NameSigner, SetRate, StopRate } from "@/components/owner/vault-tools";
 import { listRefundsDue } from "@/lib/admin";
 import { requireOwner } from "@/lib/owner-session";
 import { formatTokens, formatUnitsShort, HOURLY_CENTS, MINIMUM_UNITS, tokenConfig, vaultLive } from "@/lib/token";
 import { hourLabel } from "@/lib/vault";
-import { contractsAmong, neverEarn, vaultNow } from "@/lib/vault-chain";
+import { contractsAmong, neverEarn, takenBy, vaultNow } from "@/lib/vault-chain";
 import { signerAddress } from "@/lib/vault-sign";
 import { hoursBehind, published, recentHours, type CountedHour, type Published } from "@/lib/vault-store";
 
@@ -38,6 +38,8 @@ export default async function OwnerPayout() {
   let chain: Awaited<ReturnType<typeof vaultNow>> | null = null;
   let left: string[] = [];
   let contracts = new Set<string>();
+  // What the address named at closing has taken of its line. Null while the chain has not said.
+  let back: bigint | null = null;
   let problem: string | null = null;
   if (live) {
     try {
@@ -48,6 +50,7 @@ export default async function OwnerPayout() {
     try {
       [chain, left] = await Promise.all([vaultNow(), neverEarn()]);
       contracts = await contractsAmong((hours[0]?.wallets ?? []).map(([wallet]) => wallet as `0x${string}`));
+      if (list?.closed) back = await takenBy(list.closed.to);
     } catch (error) {
       problem = error instanceof Error ? error.message.split("\n")[0] : "The chain did not answer.";
     }
@@ -58,6 +61,24 @@ export default async function OwnerPayout() {
   const last = hours[0] ?? null;
   const behind = list ? hoursBehind(list.hour) : 0;
   const unearned = list ? BigInt(list.funded) - BigInt(list.total) : 0n;
+  const closed = list?.closed ?? null;
+  // What is on holders' lines: everything on the list but the line of the address named at closing.
+  const holders = (list?.list ?? []).reduce((sum, [wallet, units]) => (wallet === closed?.to ? sum : sum + BigInt(units)), 0n);
+  // What holders have taken, as the chain has it: all that was taken, less the owner's own line.
+  const holdersTook = chain ? chain.taken - (back ?? 0n) : null;
+  // A holder who kept a list signed before the closing can still claim with it. Then the chain
+  // has more taken than the list says, and the owner's line is too large by that much.
+  const stale = closed !== null && holdersTook !== null && back !== null && holdersTook > holders;
+
+  // The line of the address named at closing: what is still to take of it, and whether the
+  // contract's ceiling lets it be taken yet. The ceiling counts for all wallets together.
+  const limit = chain ? chain.ceiling * chain.lots : null;
+  const line = closed && list ? BigInt(list.list.find(([wallet]) => wallet === closed.to)?.[1] ?? "0") : 0n;
+  const toTake = closed && back !== null ? line - back : null;
+  const over = chain && limit !== null && toTake !== null ? chain.taken + toTake - limit : null;
+  const rising = chain ? chain.rate * chain.lots : 0n;
+  const wait = over === null || over <= 0n ? 0 : rising > 0n ? Number(over / rising) + 1 : null;
+  const covered = limit !== null && list !== null && limit >= BigInt(list.total);
   // How long what is in the vault lasts, if the lots of the last hour keep being held at this rate.
   const perHour = chain && last ? chain.rate * BigInt(last.lots) : 0n;
   const count = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
@@ -67,7 +88,8 @@ export default async function OwnerPayout() {
     `A wallet earns by the lot. ${formatTokens(MINIMUM_UNITS)} tokens held through a whole hour is one lot and earns at most ${DOLLARS} for that hour, in ${symbol}. Twice as many is two lots and earns twice that.`,
     `The rate is in ${symbol}, not in dollars. Set it again when the price of ${symbol} has moved, or a lot earns more or less than ${DOLLARS} an hour.`,
     "An hour pays the rate only while the vault holds enough for every lot. When it does not, what is left is shared evenly, and then hours pay nothing until you put more in.",
-    "What you put in cannot be taken out again. Keep the vault to what a week or two needs: whoever held this server's signing key could sign a list of their own, and the contract only caps what all wallets together can take.",
+    "No function takes out what you put in. Keep the vault to what a week or two needs: whoever held this server's signing key could sign a list of their own, and the contract only caps what all wallets together can take.",
+    "Closing the reward is the one way back to what is in the vault. It ends the reward: no later hour earns, and everything not claimed by then, what nobody had earned and what holders had earned and not taken, goes on the public list as a line for an address you name.",
     "After each hour the server counts it and signs the list. Holders claim from their own wallets whenever they like. The server sends nothing to the chain.",
   ];
 
@@ -104,11 +126,11 @@ export default async function OwnerPayout() {
                       ["Hours behind", String(behind)],
                       ["Earning last hour", last ? `${count(last.wallets.length, "wallet")}, ${count(last.lots, "lot")}` : "None"],
                       ["Put in so far", list ? amount(BigInt(list.funded)) : amount(0n)],
-                      ["Earned so far", list ? amount(BigInt(list.total)) : amount(0n)],
+                      [closed ? "Taken by holders, as listed" : "Earned by holders", amount(holders)],
                       ["Not earned yet", amount(unearned)],
                       ["Taken by holders", chain ? amount(chain.taken) : "Unknown"],
                       ["In the vault", chain ? amount(chain.holds) : "Unknown"],
-                      ["Lasts", lasts === null ? "Unknown" : `${lasts} hour${lasts === 1 ? "" : "s"}`],
+                      ["Lasts", closed ? "Closed" : lasts === null ? "Unknown" : `${lasts} hour${lasts === 1 ? "" : "s"}`],
                     ] as const
                   ).map(([name, value]) => (
                     <div key={name} className="rounded-lg bg-secondary px-4 py-3.5">
@@ -166,14 +188,122 @@ export default async function OwnerPayout() {
                 </Panel>
                 <Panel>
                   <h2 className="text-2xl font-medium tracking-[-0.035em]">Put {symbol} in</h2>
-                  <p className="mt-3 text-sm leading-snug text-muted-foreground">
-                    A plain transfer to the vault&apos;s address. It cannot be taken back out.
-                  </p>
-                  <div className="mt-6">
-                    <FundVault chainId={config.chainId} vault={config.vault} reward={config.reward.address} symbol={symbol} decimals={decimals} />
-                  </div>
+                  {closed ? (
+                    <p role="alert" className="mt-3 text-sm leading-snug text-destructive">
+                      The reward is closed. Anything put in now is on nobody&apos;s line and no function takes it
+                      out: do not send {symbol} to the vault.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="mt-3 text-sm leading-snug text-muted-foreground">
+                        A plain transfer to the vault&apos;s address. No function takes it back out.
+                      </p>
+                      <div className="mt-6">
+                        <FundVault chainId={config.chainId} vault={config.vault} reward={config.reward.address} symbol={symbol} decimals={decimals} />
+                      </div>
+                    </>
+                  )}
                 </Panel>
               </div>
+
+              <Panel>
+                <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+                  <h2 className="text-2xl font-medium tracking-[-0.035em]">Close the reward</h2>
+                  <p className="label-mono text-muted-foreground">{closed ? `Closed after ${hourLabel(closed.hour)}` : "Running"}</p>
+                </div>
+                {closed ? (
+                  <>
+                    <dl className="mt-6 grid gap-1.5 sm:grid-cols-2">
+                      <div className="rounded-lg bg-secondary px-4 py-3 sm:col-span-2">
+                        <dt className="label-mono text-muted-foreground">Everything not claimed went on the list for</dt>
+                        <dd className="mt-1.5 font-mono text-xs break-all">{closed.to}</dd>
+                      </div>
+                      {(
+                        [
+                          ["Nobody had earned", amount(BigInt(closed.amount), decimals)],
+                          ["Holders had earned", amount(BigInt(closed.earned), decimals)],
+                          ["Holders took, as listed", amount(holders, decimals)],
+                          ["On its line now", amount(line, decimals)],
+                          ["Still to take of its line", toTake === null ? "Unknown" : amount(toTake, decimals)],
+                          ["The contract lets all wallets take", limit === null ? "Unknown" : amount(limit, decimals)],
+                          ["Taken by all wallets", chain ? amount(chain.taken, decimals) : "Unknown"],
+                        ] as const
+                      ).map(([name, value]) => (
+                        <div key={name} className="rounded-lg bg-secondary px-4 py-3">
+                          <dt className="label-mono text-muted-foreground">{name}</dt>
+                          <dd className="mt-1.5 font-mono text-sm font-medium break-all">{value}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                    <p className="mt-4 text-sm leading-snug text-muted-foreground">
+                      {toTake === null
+                        ? "The chain did not say what was taken of that line."
+                        : toTake === 0n
+                          ? "All of that line has been taken."
+                          : wait === 0
+                            ? "That line can be claimed now."
+                            : wait === null
+                              ? "That line is over the contract's ceiling, and at a rate of nothing the ceiling does not rise: set a rate first."
+                              : `That line is over the contract's ceiling for now. The ceiling rises with the rate: in about ${count(wait, "hour")} the claim goes through.`}{" "}
+                      It is claimed like any other, on the{" "}
+                      <a href="/vault" className="text-brand underline-offset-4 hover:underline">
+                        vault&apos;s page
+                      </a>
+                      : type that address there and send the claim from any wallet. The {symbol} goes to the address
+                      on the line, whoever sends it.
+                    </p>
+                    <p className="mt-6 text-sm leading-snug text-muted-foreground">
+                      {stale
+                        ? "A holder has claimed since with a list signed before the closing: the chain has more taken than the list says, so your line is too large and its claim would be refused. Work the list out again."
+                        : "A list signed before the closing still passes the contract while the signer is the same and the vault holds enough, so a holder who kept one can still claim with it. If one does, work the list out again before you claim: your line has to give that back."}
+                    </p>
+                    <ActionForm
+                      action={settleVault}
+                      label="Work the list out again"
+                      busyLabel="Reading the chain"
+                      variant="secondary"
+                      className="mt-4"
+                    />
+                    <p className="mt-6 text-sm leading-snug text-muted-foreground">
+                      {covered
+                        ? "The ceiling now covers every line of the list, so the rate can be set to nothing. That makes the chain say what this site says: no hour earns."
+                        : "Leave the rate as it is for now. Setting it to nothing stops the ceiling, and it does not cover every line of the list yet: a line over it could not be claimed."}
+                    </p>
+                    {covered && chain && chain.rate > 0n ? (
+                      <div className="mt-4">
+                        <StopRate chainId={config.chainId} vault={config.vault} />
+                      </div>
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    <p className="mt-3 text-sm leading-snug text-muted-foreground">
+                      Ends the reward. No hour after the last one counted earns, and everything in the vault that
+                      has not been claimed,{" "}
+                      {chain ? amount(BigInt(list?.funded ?? "0") - chain.taken) : "an amount the chain did not give"}, goes on
+                      the list as one line for the address below. That is {amount(unearned)} that nobody has earned,
+                      and all that holders have earned and not taken, out of {amount(holders)} earned: their lines
+                      are cut to what they took, and the site gives them no way to claim the rest. The line, its
+                      amount and its claim are public like every other. Nothing on this screen opens the reward
+                      again.
+                    </p>
+                    <ActionForm action={closeVault} label="Close the reward" busyLabel="Counting, then closing" variant="destructive" className="mt-6 space-y-4">
+                      <Field
+                        label="The address that takes what is left"
+                        name="to"
+                        placeholder="0x…"
+                        autoComplete="off"
+                        spellCheck={false}
+                        hint={`An address on network ${config.chainId} that you hold, such as the Safe that owns the vault. It cannot be changed afterwards.`}
+                      />
+                      <label className="flex items-start gap-3 leading-snug">
+                        <input type="checkbox" name="sure" value="yes" className="mt-1 size-4 accent-[var(--primary)]" />
+                        <span>I have checked the address. Closing cannot be undone on this screen.</span>
+                      </label>
+                    </ActionForm>
+                  </>
+                )}
+              </Panel>
 
               <Panel>
                 <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">

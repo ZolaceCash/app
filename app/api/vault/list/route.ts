@@ -29,6 +29,9 @@ export async function GET() {
       funded: now?.funded ?? "0",
       total: now?.total ?? "0",
       list: now?.list ?? [],
+      // Set once the owner has closed the reward: the last hour that earned, and the address and
+      // the amount of what was left, which is one of the lines above.
+      closed: now?.closed ?? null,
     },
     { headers }
   );

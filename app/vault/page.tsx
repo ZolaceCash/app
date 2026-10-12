@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { ClaimPanel } from "@/components/vault/claim-panel";
 import { formatTokens, formatUnitsShort, HOURLY_CENTS, MINIMUM_UNITS, tokenConfig, vaultLive } from "@/lib/token";
 import { hourLabel } from "@/lib/vault";
-import { published, recentHours, type CountedHour, type Published } from "@/lib/vault-store";
+import { closure, published, recentHours, type Closed, type CountedHour, type Published } from "@/lib/vault-store";
 
 export const metadata: Metadata = {
   title: "The vault",
@@ -35,7 +35,7 @@ const RULES = [
   },
   {
     name: "How it is taken",
-    body: "In NVDA, Robinhood's stock token for NVIDIA, on the chain the token is on. What a wallet has earned waits in the vault until the wallet claims it.",
+    body: "In NVDA, Robinhood's stock token for NVIDIA, on the chain the token is on. What a wallet has earned waits in the vault until the wallet claims it, or until the owner closes the reward.",
   },
 ];
 
@@ -51,6 +51,7 @@ const RESTS_ON = [
   "The list is worked out by this site from the token's transfers and signed with a key the server holds. Anyone can repeat the count, but nothing on the chain does it for them.",
   "The contract checks the signature, never pays the same earnings twice, and never pays all wallets together more than the rate allows for the whole supply. It does not check that the list is right. It has not been audited.",
   "Whoever held the server's signing key, or the owner's key, could sign a list of their own within that limit. What sits in the vault is not a holder's until it is claimed.",
+  "The owner can close the reward at any time and without notice. From then on no hour earns, and everything in the vault that has not been claimed, whether a wallet had earned it or not, goes back to the owner as a line on the same public list. What a wallet has earned and not claimed by then is lost to it.",
   "NVDA is Robinhood's token, not this project's. Robinhood describes it as a tokenised debt security and does not offer it in every country. No legal review of handing it to holders has been done.",
 ];
 
@@ -68,7 +69,7 @@ export default function Vault() {
       >
         A wallet that holds {MINIMUM} tokens through a whole hour earns that hour: at most {HOURLY},
         in NVDA, for every {MINIMUM} it holds. What it has earned waits in the vault&apos;s contract, and the wallet claims it itself,
-        whenever it likes. All of it is public on the chain.
+        whenever it likes while the reward runs. All of it is public on the chain.
       </PageHead>
 
       <ul className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
@@ -125,16 +126,37 @@ async function Claim() {
   await connection();
   const config = tokenConfig();
   const live = vaultLive(config);
+  let closed: Closed | null = null;
+  try {
+    closed = await closure();
+  } catch {
+    closed = null;
+  }
+  const earning = live && !closed;
 
   return (
     <div className="cut-2 rounded-3xl bg-card p-7 md:p-10">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="label-mono text-muted-foreground">Claim a reward</p>
         <p className="label-mono flex items-center gap-2 rounded-md bg-secondary px-2.5 py-1.5">
-          <span aria-hidden className={live ? "live-dot size-1.5 rounded-full bg-signal" : "size-1.5 rounded-full bg-foreground/30"} />
-          {live ? "Open" : "Not open"}
+          <span aria-hidden className={earning ? "live-dot size-1.5 rounded-full bg-signal" : "size-1.5 rounded-full bg-foreground/30"} />
+          {closed ? "Closed" : live ? "Open" : "Not open"}
         </p>
       </div>
+
+      {closed && config.reward ? (
+        <p className="mt-6 max-w-xl rounded-xl bg-accent p-5 leading-relaxed text-foreground/85">
+          <span className="label-mono mb-2 block text-accent-foreground">The reward is closed</span>
+          The owner closed it: no hour after {hourLabel(closed.hour + 1)} earns, whatever the rules on this page
+          say of an hour. Everything in the vault that had not been claimed by then went on the list as one line
+          for the owner&apos;s address, <span className="font-mono text-xs break-all">{closed.to}</span>:{" "}
+          {formatUnitsShort(BigInt(closed.amount), config.reward.decimals, 9)} {config.reward.symbol} that nobody
+          had earned, and whatever holders had not taken of the{" "}
+          {formatUnitsShort(BigInt(closed.earned), config.reward.decimals, 9)} {config.reward.symbol} they had
+          earned. A wallet&apos;s line now holds only what it took, so there is nothing more for a holder to
+          claim here. The owner&apos;s line is claimed from the vault like any other, and is as public.
+        </p>
+      ) : null}
 
       {live ? (
         <>
@@ -189,6 +211,11 @@ async function Counted() {
   const symbol = config.reward?.symbol ?? "NVDA";
   const decimals = config.reward?.decimals ?? 18;
   const amount = (units: string) => `${formatUnitsShort(BigInt(units), decimals, 9)} ${symbol}`;
+  const closed = list?.closed ?? null;
+  // Holders' lines and the owner's: the owner's is the line of the address named at closing.
+  const lineOf = (wallet: string) => list?.list.find(([listed]) => listed === wallet)?.[1] ?? "0";
+  const owners = closed ? lineOf(closed.to) : "0";
+  const holders = list ? (BigInt(list.total) - BigInt(owners)).toString() : "0";
 
   return (
     <div className="mt-2.5 cut rounded-3xl bg-card p-6 md:p-8">
@@ -205,8 +232,8 @@ async function Counted() {
           {(
             [
               ["Put into the vault", amount(list.funded)],
-              ["Earned by holders", amount(list.total)],
-              ["Wallets on the list", String(list.list.length)],
+              [closed ? "Claimed by holders" : "Earned by holders", amount(holders)],
+              closed ? ["On the owner's line", amount(owners)] : ["Wallets on the list", String(list.list.length)],
             ] as const
           ).map(([name, value]) => (
             <div key={name} className="rounded-lg bg-secondary px-4 py-3.5">

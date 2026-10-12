@@ -3,6 +3,7 @@
 import { refresh } from "next/cache"
 import { cookies } from "next/headers"
 import { redirect } from "next/navigation"
+import { isAddress } from "viem"
 
 import type { FormState } from "@/components/owner/action-form"
 import { addStock, answerProblem, createProduct, markRefunded, parsePrice, parseShelf, updateProduct } from "@/lib/admin"
@@ -11,7 +12,7 @@ import { isOwnerSecret, newSession, ownerEnabled } from "@/lib/owner"
 import { isOwner, OWNER_COOKIE, OWNER_PATH } from "@/lib/owner-session"
 import { tokenConfig, vaultLive } from "@/lib/token"
 import { hourLabel } from "@/lib/vault"
-import { advance } from "@/lib/vault-store"
+import { advance, close, settle } from "@/lib/vault-store"
 
 // What the owner's screens can do. Each of these can be called by anyone who sends the right
 // request, with or without the screen, so each one checks the session itself before it acts.
@@ -168,5 +169,44 @@ export async function countHours(): Promise<FormState> {
     return { ok: result.behind > 0 ? `${upTo} ${result.behind} more hour${result.behind === 1 ? "" : "s"} to go: run it again.` : upTo }
   } catch (error) {
     return { error: error instanceof Error ? firstLine(error.message) : "The hours could not be counted." }
+  }
+}
+
+// Closes the reward: no hour after the last one counted earns, and everything in the vault that
+// has not been claimed, earned by a holder or not, goes on the list as one line for the address
+// typed here. It reads the chain and writes the list; it signs nothing and sends nothing.
+export async function closeVault(_previous: FormState, form: FormData): Promise<FormState> {
+  if (!(await isOwner())) return SIGNED_OUT
+  if (!vaultLive(tokenConfig())) return { error: "The vault is switched off on this server." }
+
+  // An address with a wrong letter in it would be paid all the same, so one written with capitals
+  // has to carry them in the right places.
+  const to = text(form, "to")
+  if (!isAddress(to)) return { error: "That is not an address, or one of its letters is wrong. Paste it again." }
+  if (form.get("sure") !== "yes") return { error: "Tick the box first: closing cannot be undone on this screen." }
+
+  try {
+    const result = await close(to as `0x${string}`)
+    refresh()
+    if ("refused" in result) return { error: result.refused }
+    return { ok: `Closed. No hour after ${hourLabel(result.closed.hour + 1)} earns, and everything not claimed is on your line.` }
+  } catch (error) {
+    return { error: error instanceof Error ? firstLine(error.message) : "The reward could not be closed." }
+  }
+}
+
+// Works the list of a closed reward out again from what the chain says each wallet has taken.
+// It reads the chain and writes the list; it signs nothing and sends nothing.
+export async function settleVault(): Promise<FormState> {
+  if (!(await isOwner())) return SIGNED_OUT
+  if (!vaultLive(tokenConfig())) return { error: "The vault is switched off on this server." }
+
+  try {
+    const result = await settle()
+    refresh()
+    if ("refused" in result) return { error: result.refused }
+    return { ok: "Done. The list is as the chain has it now." }
+  } catch (error) {
+    return { error: error instanceof Error ? firstLine(error.message) : "The list could not be worked out." }
   }
 }

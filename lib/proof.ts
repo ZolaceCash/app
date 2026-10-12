@@ -61,9 +61,11 @@ const NOTES: Record<string, Record<string, string>> = {
     hour: "The last hour counted.",
     block: "The last block of that hour.",
     balances: "Every wallet's balance of the token at that block, as the chain shows it to anyone.",
-    earned: "The list: each wallet with all it has earned since the vault began. Public, and each claim shows its wallet and amount on the chain.",
+    earned: "The list: each wallet with all it has earned since the vault began. Once the reward is closed: each wallet with what it took, and the owner's line with the rest. Public, and each claim shows its wallet and amount on the chain.",
     funded: "Everything put into the vault so far.",
     rates: "The vault's rate, each time the owner set it.",
+    closed:
+      "Empty while the reward runs. Once the owner has closed it: the last hour that earned, the owner's address that everything not claimed went to, how much nobody had earned and how much holders had earned by then, and when. All of it is shown on the vault's page and in the public list.",
   },
   products: {
     id: "A number for the item.",

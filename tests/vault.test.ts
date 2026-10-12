@@ -146,6 +146,15 @@ test("what the site says about the token follows the address it is given", async
     assert.match(said, /Nothing here is an offer/)
   })
   await withEnv({ TOKEN_ADDRESS: A, VAULT_ADDRESS: B }, () => assert.match(tokenStatement(tokenConfig()), /vault that pays its holders is open/))
+  // Once the owner has closed the reward the site must not go on calling the vault open.
+  await withEnv({ TOKEN_ADDRESS: A, VAULT_ADDRESS: B }, () => {
+    const said = tokenStatement(tokenConfig(), hourOf(Date.UTC(2026, 9, 12, 5) / 1000))
+    assert.doesNotMatch(said, /is open/)
+    assert.match(said, /is closed: no hour after 2026-10-12 06:00 UTC earns/)
+    assert.match(said, /what had not been claimed by then went back to the owner/)
+  })
+  // With no vault there is nothing to have closed.
+  await withEnv({ TOKEN_ADDRESS: A }, () => assert.match(tokenStatement(tokenConfig(), 1), /reward for its holders is not open/))
   await withEnv({ TOKEN_ADDRESS: A, TOKEN_CHAIN_ID: "46630" }, () => assert.match(tokenStatement(tokenConfig()), /on Robinhood Chain testnet/))
   // An address that is not one is no address: the site keeps saying there is no token.
   await withEnv({ TOKEN_ADDRESS: "0x1234" }, () => assert.match(tokenStatement(tokenConfig()), /There is no token today/))
@@ -399,6 +408,8 @@ function chainOf(story: {
   funded: { block: number; amount: bigint }[]
   rates: { block: number; rate: bigint; ceiling: bigint }[]
   now: () => number
+  // What each wallet has taken from the vault, as the contract would say.
+  taken?: Map<string, bigint>
 }): Chain {
   const tip = () => Math.floor((Math.floor(story.now() / 1000) - T0) / 60)
   const within = (block: number | bigint, from: bigint, to: bigint) => BigInt(block) >= from && BigInt(block) <= to
@@ -414,6 +425,7 @@ function chainOf(story: {
       story.rates.filter((entry) => within(entry.block, from, to)).map((entry) => ({ at: timeOf(entry.block), rate: entry.rate, ceiling: entry.ceiling })),
     vaultBegan: async () => (story.rates.length > 0 ? { block: BigInt(story.rates[0].block), at: timeOf(story.rates[0].block) } : null),
     neverEarn: async () => [ZERO, POOL],
+    takenBy: async (who) => story.taken?.get(who) ?? 0n,
   }
 }
 
@@ -549,5 +561,84 @@ test("with the vault switched off, or no contract at its address, nothing is cou
     const result = await store.advance(afterHour(3), 24, empty)
     assert.equal(result.hour, null)
     assert.match(result.note ?? "", /no vault contract/)
+  })
+})
+
+test("closing ends the reward and puts everything not claimed on the owner's line", async () => {
+  const store = await import("../lib/vault-store")
+  const vault = wallet(0xc105ed)
+  const OWNER = wallet(0xee)
+  let now = afterHour(3)
+  const taken = new Map<string, bigint>()
+  const story = {
+    now: () => now,
+    taken,
+    transfers: [move(ZERO, POOL, tokens(800_000_000), 1), move(ZERO, A, tokens(6_000_000), 1), move(ZERO, B, tokens(3_000_000), 2)],
+    rates: [{ block: 150, rate: 1000n, ceiling: 0n }],
+    funded: [{ block: 151, amount: 10_000n }],
+  }
+  const chain = chainOf(story)
+  const refused = async (closing: ReturnType<typeof store.close>) => ((await closing) as { refused: string }).refused
+
+  await withEnv({ TOKEN_ADDRESS: wallet(0x70), VAULT_ADDRESS: vault, TOKEN_DEPLOY_BLOCK: "0" }, async () => {
+    // Half of hour 2 and all of hour 3, for three lots: A has earned 3000 and B 1500.
+    assert.deepEqual(await store.advance(now, 24, chain), { counted: 2, hour: FIRST + 3, behind: 0 })
+    assert.deepEqual((await store.published())!.list, [
+      [A, "3000"],
+      [B, "1500"],
+    ])
+    assert.equal((await store.published())!.closed, null)
+    assert.equal(await store.closure(), null)
+    assert.match(await refused(store.settle(now, chain)), /not closed/)
+
+    // Not to an address that could never claim.
+    assert.match(await refused(store.close(vault, now, chain)), /could never claim/)
+    assert.match(await refused(store.close(ZERO as `0x${string}`, now, chain)), /could never claim/)
+    assert.equal((await store.published())!.closed, null)
+
+    // A had claimed 1000 of its 3000 before the closing; B nothing.
+    taken.set(A, 1000n)
+    const done = await store.close(OWNER, now, chain)
+    assert.deepEqual(done, { closed: { hour: FIRST + 3, to: OWNER, amount: "5500", earned: "4500", at: Math.floor(now / 1000) } })
+    let list = (await store.published())!
+    // Each wallet keeps what it took. Everything else, earned or not, is the owner's line.
+    assert.deepEqual(list.list, [
+      [A, "1000"],
+      [OWNER, "9000"],
+    ])
+    assert.equal(list.total, list.funded)
+    assert.equal(list.root, rootOf([{ wallet: A, amount: 1000n }, { wallet: OWNER, amount: 9000n }]))
+    assert.deepEqual(list.closed, "closed" in done && done.closed)
+    assert.equal((await store.closure())!.hour, FIRST + 3)
+    assert.match(await refused(store.close(OWNER, now, chain)), /closed already/)
+
+    // Later hours are counted and earn nothing, though the rate still runs and the wallets still hold.
+    now = afterHour(6)
+    assert.deepEqual(await store.advance(now, 24, chain), { counted: 3, hour: FIRST + 6, behind: 0 })
+    assert.deepEqual((await store.recentHours(3)).map((hour) => [hour.lots, hour.each]), [[3, "0"], [3, "0"], [3, "0"]])
+    assert.deepEqual((await store.published())!.list, list.list)
+
+    // B claims its 1500 with a list it had kept from before the closing. Worked out again, the
+    // owner's line gives that back, and the list still adds up to what was put in.
+    taken.set(B, 1500n)
+    assert.deepEqual(await store.settle(now, chain), done)
+    list = (await store.published())!
+    assert.deepEqual(list.list, [
+      [A, "1000"],
+      [B, "1500"],
+      [OWNER, "7500"],
+    ])
+    assert.equal(list.total, list.funded)
+
+    // The owner's own claims change nothing: its line is everything less what the others took.
+    taken.set(OWNER, 7500n)
+    await store.settle(now, chain)
+    assert.deepEqual((await store.published())!.list, list.list)
+  })
+
+  // With the vault switched off there is nothing to close.
+  await withEnv({}, async () => {
+    assert.match(await refused(store.close(OWNER, now, chain)), /switched off/)
+    assert.match(await refused(store.settle(now, chain)), /switched off/)
   })
 })

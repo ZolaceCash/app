@@ -15,8 +15,14 @@ const { vaultHours, vaultState } = schema
 // for a test.
 export type Chain = Pick<
   typeof onChain,
-  "firstBlockAt" | "fundedIn" | "neverEarn" | "onTheTokensNetwork" | "rateChangesIn" | "transfersIn" | "vaultBegan"
+  "firstBlockAt" | "fundedIn" | "neverEarn" | "onTheTokensNetwork" | "rateChangesIn" | "takenBy" | "transfersIn" | "vaultBegan"
 >
+
+// The reward, closed by the owner: the last hour that earned, the owner's address that everything
+// not claimed went to, and when, in seconds. `amount` is what nobody had earned by then and
+// `earned` what holders had earned by then, both as text; what holders had taken of it is on the
+// chain and on their lines of the list.
+export type Closed = { hour: number; to: `0x${string}`; amount: string; earned: string; at: number }
 
 // Where the count stands. Amounts are whole numbers too large for a plain number.
 type State = {
@@ -27,6 +33,7 @@ type State = {
   earned: Map<string, bigint>
   funded: bigint
   rates: RateChange[]
+  closed: Closed | null
 }
 
 const pack = (amounts: Map<string, bigint>) => JSON.stringify([...amounts].map(([wallet, amount]) => [wallet, amount.toString()]))
@@ -46,6 +53,7 @@ async function stored(vault: string): Promise<State | null> {
     earned: unpack(row.earned),
     funded: BigInt(row.funded),
     rates: (JSON.parse(row.rates) as [number, string, string][]).map(([at, rate, ceiling]) => ({ at, rate: BigInt(rate), ceiling: BigInt(ceiling) })),
+    closed: row.closed ? (JSON.parse(row.closed) as Closed) : null,
   }
 }
 
@@ -66,11 +74,13 @@ async function fresh(vault: string, chain: Chain): Promise<State | null> {
     earned: new Map(),
     funded: 0n,
     rates: [],
+    closed: null,
   }
 }
 
 // One hour, counted from the state the hour before left: who held how many lots through it, what
-// the rate allowed, what the vault had been given, and so what each lot earned. Null when the
+// the rate allowed, what the vault had been given, and so what each lot earned. Once the reward is
+// closed an hour is still counted, so the balances stay right, and earns nothing. Null when the
 // chain has not reached the end of the hour.
 async function count(state: State, skip: string[], now: number, chain: Chain) {
   const hour = state.hour + 1
@@ -84,12 +94,12 @@ async function count(state: State, skip: string[], now: number, chain: Chain) {
   const lots = held.reduce((sum, [, count]) => sum + count, 0)
   const funded = state.funded + (await chain.fundedIn(fromBlock, toBlock))
   const rates = [...state.rates, ...(await chain.rateChangesIn(fromBlock, toBlock))]
-  const each = shareOf(dueFor(rates, hour), lots, funded - sumOf(state.earned))
+  const each = state.closed ? 0n : shareOf(dueFor(rates, hour), lots, funded - sumOf(state.earned))
 
   const earned = new Map(state.earned)
   if (each > 0n) for (const [wallet, count] of held) earned.set(wallet, (earned.get(wallet) ?? 0n) + each * BigInt(count))
 
-  const next: State = { vault: state.vault, hour, block: toBlock, balances: balancesAfter(state.balances, transfers), earned, funded, rates }
+  const next: State = { vault: state.vault, hour, block: toBlock, balances: balancesAfter(state.balances, transfers), earned, funded, rates, closed: state.closed }
   const row = {
     hour,
     fromBlock: Number(fromBlock),
@@ -115,6 +125,7 @@ async function keep(state: State, row: typeof vaultHours.$inferInsert | null, st
     earned: pack(state.earned),
     funded: state.funded.toString(),
     rates: JSON.stringify(state.rates.map((change) => [change.at, change.rate.toString(), change.ceiling.toString()])),
+    closed: state.closed ? JSON.stringify(state.closed) : null,
   }
   // The hour and the state it leaves are written together or not at all: an hour counted twice
   // would pay twice.
@@ -133,14 +144,21 @@ export const hoursBehind = (hour: number, now = Date.now()) => Math.max(0, hourO
 
 export type Advance = { counted: number; hour: number | null; behind: number; note?: string }
 
-// One count at a time in this process: two at once would both count the same hour.
-const running = globalThis as unknown as { zolaceVaultCount?: Promise<Advance> }
+// One piece of work on the count at a time in this process: two at once would both count the
+// same hour, and a closing must not land in the middle of one.
+const running = globalThis as unknown as { zolaceVaultCount?: Promise<Advance>; zolaceVaultTurn?: Promise<unknown> }
+
+function inTurn<Result>(work: () => Promise<Result>): Promise<Result> {
+  const turn = (running.zolaceVaultTurn ?? Promise.resolve()).then(work, work)
+  running.zolaceVaultTurn = turn.catch(() => undefined)
+  return turn
+}
 
 // Brings the count up to the last hour that is over, at most `most` hours in one go. Safe to call
 // at any time and as often as one likes: an hour is never counted twice.
 export function advance(now = Date.now(), most = 24, chain: Chain = onChain): Promise<Advance> {
   if (!running.zolaceVaultCount) {
-    running.zolaceVaultCount = bringUp(now, most, chain).finally(() => {
+    running.zolaceVaultCount = inTurn(() => bringUp(now, most, chain)).finally(() => {
       running.zolaceVaultCount = undefined
     })
   }
@@ -173,6 +191,98 @@ async function bringUp(now: number, most: number, chain: Chain): Promise<Advance
   return { counted, hour: state.hour, behind: Math.max(0, last - state.hour) }
 }
 
+export type Closing = { closed: Closed } | { refused: string }
+
+const NOBODY = "0x0000000000000000000000000000000000000000"
+const DEAD = "0x000000000000000000000000000000000000dead"
+
+// Closes the reward, for good as far as this count goes: no hour after the last one counted
+// earns, and everything in the vault that has not been claimed goes to the owner. That is what
+// nobody had earned, and also what holders had earned and not taken: the site says of the vault
+// that what sits in it is not a holder's until it is claimed, and this is where that is used.
+//
+// The vault's contract has no function that withdraws, so it is done on the list: each wallet's
+// line is cut to what the chain says it has taken, and one line for the address the owner names
+// holds all the rest. That line is claimed like any other. Nothing is sent here and no key is
+// used; the list as it stands after this is signed when it is asked for, as every list is.
+export function close(to: `0x${string}`, now = Date.now(), chain: Chain = onChain): Promise<Closing> {
+  return inTurn(() => shut(to, now, chain))
+}
+
+async function shut(to: `0x${string}`, now: number, chain: Chain): Promise<Closing> {
+  const config = tokenConfig()
+  if (!vaultLive(config)) return { refused: "The vault is switched off." }
+  const vault = config.vault.toLowerCase()
+  const who = to.toLowerCase() as `0x${string}`
+  if (who === NOBODY || who === DEAD || who === vault) return { refused: "That address could never claim what is left." }
+
+  // Every hour that is over is counted first, so the record of what holders had earned is whole.
+  const count = await bringUp(now, 24, chain)
+  if (count.hour === null) return { refused: count.note ?? "The count has not started." }
+  if (count.behind > 0) return { refused: `${count.behind} hour${count.behind === 1 ? " is" : "s are"} still to be counted. Count the hours first.` }
+
+  const state = await stored(vault)
+  if (!state) return { refused: "The count has not started." }
+  if (state.closed) return { refused: "The reward is closed already." }
+
+  const closed: Closed = {
+    hour: state.hour,
+    to: who,
+    amount: (state.funded - sumOf(state.earned)).toString(),
+    earned: (sumOf(state.earned) - (state.earned.get(who) ?? 0n)).toString(),
+    at: Math.floor(now / 1000),
+  }
+  await keep({ ...state, earned: await settled(state, closed, chain), closed }, null, false)
+  return { closed }
+}
+
+// The list of a closed reward: every wallet with what the chain says it has taken, and the
+// owner's address with everything put into the vault less that.
+async function settled(state: State, closed: Closed, chain: Chain) {
+  const lines = new Map<string, bigint>()
+  let taken = 0n
+  for (const wallet of state.earned.keys()) {
+    if (wallet === closed.to) continue
+    const took = await chain.takenBy(wallet as `0x${string}`)
+    // Kept even at nothing, where it is on no list: a wallet that claims later with a list it
+    // had kept has to be asked about again.
+    lines.set(wallet, took)
+    taken += took
+  }
+  if (state.funded > taken) lines.set(closed.to, state.funded - taken)
+  return lines
+}
+
+// Works the list of a closed reward out again from the chain. A list signed before the closing
+// still passes the contract's check for as long as the signer is the same and the vault holds
+// enough, so a wallet that kept one can claim with it after the closing. When one did, the
+// owner's line is too large by that much and its claim would be refused; this puts it right.
+export function settle(now = Date.now(), chain: Chain = onChain): Promise<Closing> {
+  return inTurn(async () => {
+    const config = tokenConfig()
+    if (!vaultLive(config)) return { refused: "The vault is switched off." }
+
+    // What was put in is read up to the last hour, so nothing sent to the vault lately is missed.
+    const count = await bringUp(now, 24, chain)
+    if (count.behind > 0) return { refused: `${count.behind} hour${count.behind === 1 ? " is" : "s are"} still to be counted. Count the hours first.` }
+
+    const state = await stored(config.vault.toLowerCase())
+    if (!state?.closed) return { refused: "The reward is not closed." }
+    await keep({ ...state, earned: await settled(state, state.closed, chain) }, null, false)
+    return { closed: state.closed }
+  })
+}
+
+
+// Whether the reward is closed, for the pages that only have to say so.
+export async function closure(): Promise<Closed | null> {
+  const config = tokenConfig()
+  if (!vaultLive(config)) return null
+  const db = await getDb()
+  const [row] = await db.select({ vault: vaultState.vault, closed: vaultState.closed }).from(vaultState).where(eq(vaultState.id, 1))
+  return row && row.vault === config.vault.toLowerCase() && row.closed ? (JSON.parse(row.closed) as Closed) : null
+}
+
 export type Published = {
   // The hour the list runs to, and its root: what the signer signs.
   hour: number
@@ -180,8 +290,11 @@ export type Published = {
   // Everything the vault was given and everything earned by that hour, as text.
   funded: string
   total: string
-  // Every wallet that has earned anything, with all it has earned since the vault began.
+  // Every wallet that has earned anything, with all it has earned since the vault began. Once the
+  // reward is closed: every wallet with what it took, and the owner's address with all the rest.
   list: [string, string][]
+  // Null while the reward runs.
+  closed: Closed | null
 }
 
 // The list as it stands: the same for everyone, and all of it public.
@@ -197,6 +310,7 @@ export async function published(): Promise<Published | null> {
     funded: state.funded.toString(),
     total: sumOf(state.earned).toString(),
     list: lines.map((line) => [line.wallet, line.amount.toString()]),
+    closed: state.closed,
   }
 }
 

@@ -4,6 +4,7 @@ import { Suspense } from "react"
 import { CopyButton } from "@/components/site/copy-button"
 import { chainName, explorerUrl, tokenConfig, tokenStatement, type TokenConfig } from "@/lib/token"
 import { cn } from "@/lib/utils"
+import { closure } from "@/lib/vault-store"
 
 // Whether there is a token today, said the same way on every page that speaks of it. It is read
 // when the page is asked for, not when the site is built: setting TOKEN_ADDRESS where the server
@@ -14,14 +15,14 @@ import { cn } from "@/lib/utils"
 
 type Tone = "box" | "navy"
 
-function View({ config, tone }: { config: TokenConfig; tone: Tone }) {
+function View({ config, tone, closedAfter }: { config: TokenConfig; tone: Tone; closedAfter: number | null }) {
   const explorer = config.address ? explorerUrl(config.chainId, config.address) : null
   const navy = tone === "navy"
 
   return (
     <div className={navy ? "leading-relaxed" : "rounded-xl bg-accent p-5 leading-relaxed text-accent-foreground"}>
       {navy ? null : <span className="label-mono mb-2 block">Today</span>}
-      <p className={navy ? "text-pretty text-white/70" : "text-foreground/85"}>{tokenStatement(config)}</p>
+      <p className={navy ? "text-pretty text-white/70" : "text-foreground/85"}>{tokenStatement(config, closedAfter)}</p>
       {config.address ? (
         <div className={cn("mt-4 rounded-lg px-4 py-3", navy ? "bg-white/[0.07]" : "bg-background/60")}>
           <p className={cn("label-mono", navy ? "text-white/60" : "text-muted-foreground")}>
@@ -56,7 +57,9 @@ function View({ config, tone }: { config: TokenConfig; tone: Tone }) {
 
 async function Current({ tone }: { tone: Tone }) {
   await connection()
-  return <View config={tokenConfig()} tone={tone} />
+  // A database that does not answer must not take the address off the page.
+  const closed = await closure().catch(() => null)
+  return <View config={tokenConfig()} tone={tone} closedAfter={closed?.hour ?? null} />
 }
 
 export function TokenStatus({ tone = "box" }: { tone?: Tone }) {

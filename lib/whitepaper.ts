@@ -5,7 +5,7 @@ import type { Section } from "@/lib/content"
 // total privacy, claim an audit or a legal review, call the token private, or read as an offer of
 // a token.
 export const WHITEPAPER = {
-  version: "Draft 0.7",
+  version: "Draft 0.8",
   date: "12 October 2026",
   abstract:
     "Zolace is a shop for digital goods that asks for no account. A buyer picks an item priced in dollars, pays in shielded Zcash to an address made for that one order, and opens the item in the browser. The server holds a viewing key and nothing that can move funds. The token is on Robinhood Chain and apart from the shop: its holders earn by the hour in NVDA, a stock token on that chain, claimed from a contract. This paper describes the design, what the server can and cannot learn, the order in which it will be built, and what is still open.",
@@ -152,7 +152,7 @@ export const WHITEPAPER_SECTIONS: Section[] = [
           ["Holder reward", "NVDA, Robinhood's stock token for NVIDIA on the same chain, bought with that creator fee and put into a contract by the owner"],
           ["Minimum", "A wallet has to hold at least 3,000,000 tokens through a whole hour to earn that hour"],
           ["Counting", "A wallet counts with the lowest balance it had in the hour, and earns at most 0.01 USD an hour for every 3,000,000 tokens of it: twice as many earns twice that"],
-          ["Claiming", "A wallet takes what it has earned from the contract itself, whenever it likes. Nothing is sent to it"],
+          ["Claiming", "A wallet takes what it has earned from the contract itself, whenever it likes while the reward runs. Nothing is sent to it"],
         ],
       },
       {
@@ -162,7 +162,7 @@ export const WHITEPAPER_SECTIONS: Section[] = [
         p: "0.01 USD an hour for every 3,000,000 tokens is a ceiling, not a promise. The contract carries it as a rate in NVDA that the owner sets from NVDA's price, and an hour pays it only while the vault holds enough for all the tokens that count. When it does not, what is left is shared evenly, and then hours pay nothing until more is put in.",
       },
       {
-        p: "The token has no owner. Nobody can mint, stop transfers, block a wallet or move another wallet's tokens, because no such function exists. The vault's owner can set the rate and name the signer, and cannot take anything out: no function withdraws.",
+        p: "The token has no owner. Nobody can mint, stop transfers, block a wallet or move another wallet's tokens, because no such function exists. The vault's owner can set the rate and name the signer, and no function withdraws. The owner can close the reward at any time: from then on no hour earns, and everything in the vault that has not been claimed, including what holders had earned and not yet taken, goes on the public list as a line for the owner's address.",
       },
       {
         p: "The owner puts the reward into the vault from their own wallet, by a plain transfer. The server holds a viewing key for the shop and one key for this chain: the key that signs the hourly list. That key holds no funds and sends no transaction. It is still a power: whoever held it, or the owner's key, could sign a list of their own, and the contract would pay it, up to that limit for all wallets together. So what sits in the vault is not a holder's until it is claimed, and the owner keeps the vault to what the coming days need.",

@@ -179,6 +179,28 @@ export function SetRate({
   )
 }
 
+// Sets the rate to nothing, which also stops the contract's ceiling where it stands. For after
+// the reward is closed and the ceiling covers every line of the list: stopped earlier, a line
+// over the ceiling could not be claimed until a rate is set again.
+export function StopRate({ chainId, vault }: { chainId: number; vault: `0x${string}` }) {
+  const { busy, note, run } = useWallet(chainId)
+  const stop = () =>
+    run(async () => ({
+      to: vault,
+      data: encodeFunctionData({ abi: VAULT_ABI, functionName: "setRate", args: [0n] }),
+      done: "The rate is nothing now, and the ceiling stays where it is.",
+    }))
+
+  return (
+    <div className="space-y-3">
+      <Button type="button" variant="secondary" disabled={busy} onClick={stop}>
+        {busy ? "Waiting for the wallet" : "Set the rate to nothing from my wallet"}
+      </Button>
+      <Said note={note} />
+    </div>
+  )
+}
+
 // Names the key whose signature makes a list count. Every list signed by the key before it stops
 // counting at once.
 export function NameSigner({ chainId, vault, signer }: { chainId: number; vault: `0x${string}`; signer: `0x${string}` }) {

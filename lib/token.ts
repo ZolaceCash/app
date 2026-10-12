@@ -108,13 +108,18 @@ export const explorerUrl = (chainId: number, address: string) =>
 // What the site says about the token today, in each of its two states. Every page that speaks of
 // the token's state takes it from here (components/site/token-status.tsx), so setting or clearing
 // TOKEN_ADDRESS changes all of them at once and none is left saying the opposite.
-export function tokenStatement(config: TokenConfig) {
+//
+// `closedAfter` is the last hour that earned, once the owner has closed the reward (the vault's
+// own records have it, lib/vault-store.ts).
+export function tokenStatement(config: TokenConfig, closedAfter: number | null = null) {
   if (!config.address) {
     return "There is no token today and no contract address. No audit and no legal review has been done. Anything offered under this name today is not from this project."
   }
-  const reward = vaultLive(config)
-    ? "The vault that pays its holders is open."
-    : "The reward for its holders is not open: the vault's contract is not deployed."
+  const reward = !vaultLive(config)
+    ? "The reward for its holders is not open: the vault's contract is not deployed."
+    : closedAfter === null
+      ? "The vault that pays its holders is open."
+      : `The reward for its holders is closed: no hour after ${new Date((closedAfter + 1) * 3_600_000).toISOString().slice(0, 16).replace("T", " ")} UTC earns, and what had not been claimed by then went back to the owner.`
   return `The token is on ${chainName(config.chainId)}, at the address below. Its contract has not been audited and no legal review has been done. A token with this name at any other address is not this project's. ${reward} Nothing here is an offer.`
 }
 

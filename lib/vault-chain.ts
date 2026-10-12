@@ -176,18 +176,25 @@ export async function contractsAmong(wallets: `0x${string}`[]): Promise<Set<stri
   return found
 }
 
-// The vault's contract as it stands now: who signs, the rate, how far the ceiling has risen, what
-// was taken, and what the vault still holds.
+// What an address has taken from the vault so far.
+export async function takenBy(wallet: `0x${string}`) {
+  const { config, client } = live()
+  return (await client.readContract({ address: config.vault, abi: VAULT_ABI, functionName: "claimed", args: [wallet] })) as bigint
+}
+
+// The vault's contract as it stands now: who signs, the rate, how far the ceiling has risen and
+// for how many lots it counts, what was taken, and what the vault still holds.
 export async function vaultNow() {
   const { config, client } = live()
-  const read = <Name extends "signer" | "rate" | "ceiling" | "totalClaimed">(functionName: Name) =>
+  const read = <Name extends "signer" | "rate" | "lots" | "ceiling" | "totalClaimed">(functionName: Name) =>
     client.readContract({ address: config.vault, abi: VAULT_ABI, functionName })
-  const [signer, rate, ceiling, taken, holds] = await Promise.all([
+  const [signer, rate, lots, ceiling, taken, holds] = await Promise.all([
     read("signer"),
     read("rate"),
+    read("lots"),
     read("ceiling"),
     read("totalClaimed"),
     client.readContract({ address: config.reward.address, abi: REWARD_ABI, functionName: "balanceOf", args: [config.vault] }),
   ])
-  return { signer: signer as `0x${string}`, rate: rate as bigint, ceiling: ceiling as bigint, taken: taken as bigint, holds }
+  return { signer: signer as `0x${string}`, rate: rate as bigint, lots: lots as bigint, ceiling: ceiling as bigint, taken: taken as bigint, holds }
 }

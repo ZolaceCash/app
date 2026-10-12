@@ -23,6 +23,8 @@ type Vault = {
   root: `0x${string}` | null
   signature: `0x${string}` | null
   list: [string, string][]
+  // Set once the owner has closed the reward: whose line holds everything that was not claimed.
+  closed?: { to: string } | null
 }
 // `taken` is null when there is no wallet in this browser to ask the chain what was taken.
 type Mine = { index: number; earned: bigint; taken: bigint | null }
@@ -130,6 +132,8 @@ export function ClaimPanel({ live }: { live: boolean }) {
   const decimals = vault?.reward?.decimals ?? 18
   const show = (units: bigint) => `${formatUnitsShort(units, decimals, 9)} ${symbol}`
   const waiting = mine && mine.taken !== null ? mine.earned - mine.taken : null
+  const closed = vault?.closed ?? null
+  const owners = closed !== null && closed.to === wallet.toLowerCase()
 
   return (
     <div>
@@ -161,14 +165,15 @@ export function ClaimPanel({ live }: { live: boolean }) {
 
       {mine === null ? (
         <p className="mt-2 rounded-lg bg-secondary px-5 py-4 leading-relaxed text-muted-foreground">
-          This wallet has earned nothing so far. A wallet earns an hour when it held the minimum from the first block
-          of that hour to the last, and the list is made after each hour ends.
+          {closed
+            ? "This wallet has nothing on the list. The reward is closed, and what had not been claimed by then went back to the owner."
+            : "This wallet has earned nothing so far. A wallet earns an hour when it held the minimum from the first block of that hour to the last, and the list is made after each hour ends."}
         </p>
       ) : mine && vault ? (
         <div className="mt-2 rounded-lg bg-secondary px-5 py-4">
           <dl className="grid gap-x-6 gap-y-4 sm:grid-cols-3">
             <div>
-              <dt className="label-mono text-muted-foreground">Earned so far</dt>
+              <dt className="label-mono text-muted-foreground">{owners ? "On the owner's line" : closed ? "On its line" : "Earned so far"}</dt>
               <dd className="mt-1 font-mono text-sm font-medium break-all">{show(mine.earned)}</dd>
             </div>
             <div>
@@ -195,8 +200,9 @@ export function ClaimPanel({ live }: { live: boolean }) {
             {vault.hour !== null ? <span className="label-mono text-muted-foreground">Counted up to {hourLabel(vault.hour + 1)}</span> : null}
           </div>
           <p className="mt-4 text-sm leading-snug text-muted-foreground">
-            A claim costs the network&apos;s fee, whatever its size. What is earned stays waiting, so claiming now and
-            then costs less than claiming every hour.
+            A claim costs the network&apos;s fee, whatever its size. What is earned waits while the reward runs, so
+            claiming now and then costs less than claiming every hour. If the owner closes the reward, what was
+            not claimed goes back to the owner.
           </p>
         </div>
       ) : null}
