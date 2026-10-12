@@ -1,0 +1,312 @@
+<!doctype html>
+<!--
+  A short film for the post about keeping an order on your own device: a browser window on the
+  left, where a pressed button drops the order into a list, and the shop's server on the right,
+  which is sent nothing: what sets out towards it stops at a block, and its count stays at nought.
+  Drawn and encoded one frame at a time (encode.js); opened by compose.mjs with PAGE=kept.html.
+  ?still=<seconds> draws one moment and stops.
+  The two items and their prices are the shelf's on 12 Oct 2026. The order's name is made up, and
+  its secret is drawn as dots: a film is no place for one.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=Geist+Mono:wght@500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #09090b;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage" width="1920" height="1080"></canvas>
+    <script type="module">
+      const W = 1920
+      const H = 1080
+      const GROUND = "#09090b"
+      const TILE = "#15151a"
+      const RAISE = "#1e1e25"
+      const ICE = "#f4f4f6"
+      const QUIET = "rgba(244,244,246,0.58)"
+      const INDIGO = "#5567ea"
+      const BRAND = "#7b8cff"
+      const SANS = "Geist, system-ui, sans-serif"
+      const MONO = '"Geist Mono", ui-monospace, monospace'
+      const TOTAL = 12.6
+
+      const canvas = document.getElementById("stage")
+      const ctx = canvas.getContext("2d")
+      const clamp = (x, low = 0, high = 1) => Math.min(high, Math.max(low, x))
+      const easeOut = (x) => 1 - Math.pow(1 - clamp(x), 3)
+      const settle = (x) => {
+        const t = clamp(x)
+        const c = 1.7
+        return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2)
+      }
+      const rounded = (x, y, w, h, r) => {
+        ctx.beginPath()
+        ctx.roundRect(x, y, w, h, r)
+      }
+      const text = (value, x, y, font, colour, align = "left", spacing = "0px") => {
+        ctx.font = font
+        ctx.fillStyle = colour
+        ctx.textAlign = align
+        ctx.letterSpacing = spacing
+        ctx.fillText(value, x, y)
+      }
+      const rise = (value, x, y, size, font, colour, p, spacing = "0px") => {
+        if (p <= 0) return
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(0, y - size * 0.95, W, size * 1.22)
+        ctx.clip()
+        ctx.globalAlpha *= clamp(p * 1.6)
+        text(value, x, y + (1 - easeOut(p)) * size * 0.9, font, colour, "left", spacing)
+        ctx.restore()
+      }
+      const MARK = [
+        [8.1, 2, 22, 2, 13.25, 14.5, 10.65, 14.5, 15.9, 7, 4.6, 7],
+        [19.4, 17, 15.9, 22, 2, 22, 10.75, 9.5, 13.35, 9.5, 8.1, 17],
+        [5.5, 2, 7, 2, 3.5, 7, 2, 7],
+        [20.5, 17, 22, 17, 18.5, 22, 17, 22],
+      ]
+      const logo = (x, y, size, colour) => {
+        ctx.fillStyle = colour
+        const k = size / 24
+        for (const points of MARK) {
+          ctx.beginPath()
+          for (let i = 0; i < points.length; i += 2) ctx[i ? "lineTo" : "moveTo"](x + points[i] * k, y + points[i + 1] * k)
+          ctx.closePath()
+          ctx.fill()
+        }
+        text("zolace", x + size * 1.28, y + size * 0.86, `700 ${size * 0.95}px ${SANS}`, colour, "left", `${-size * 0.05}px`)
+      }
+
+      // Where things stand, and when each arrives.
+      const BROWSER = { x: 96, y: 372, w: 980, h: 520 }
+      const SERVER = { x: 1320, y: 430, w: 504, h: 404 }
+      const LINK = 2.0
+      const PRESS = 3.6
+      const ROWS = [
+        { at: 4.0, item: "US data eSIM, 1 GB, 7 days", price: "$5.99" },
+        { at: 5.3, item: "Discord Nitro, 1 month", price: "$11.99" },
+      ]
+      const SENDING = 5.0
+      const ASK = 9.6
+
+      function browser(time) {
+        const p = easeOut((time - 1.1) / 0.6)
+        if (p <= 0) return
+        const { x, y, w, h } = BROWSER
+        ctx.globalAlpha = p
+        ctx.fillStyle = TILE
+        rounded(x, y + (1 - p) * 30, w, h, 30)
+        ctx.fill()
+        // The window's bar: three marks and what the window is.
+        for (let i = 0; i < 3; i++) {
+          ctx.fillStyle = "#2c2c35"
+          rounded(x + 36 + i * 24, y + 34, 13, 13, 4)
+          ctx.fill()
+        }
+        text("YOUR BROWSER", x + w - 40, y + 48, `500 19px ${MONO}`, QUIET, "right", "1.6px")
+        ctx.globalAlpha = 1
+
+        // The order's link, and the button beside it.
+        const shown = easeOut((time - LINK) / 0.5)
+        if (shown > 0) {
+          const top = y + 84 + (1 - shown) * 18
+          ctx.globalAlpha = shown
+          ctx.fillStyle = RAISE
+          rounded(x + 36, top, w - 72, 78, 18)
+          ctx.fill()
+          text("/o/4e6f4z73…", x + 64, top + 48, `500 24px ${MONO}`, ICE, "left", "-0.4px")
+          const head = ctx.measureText("/o/4e6f4z73…").width
+          text("#••••••••••••", x + 64 + head, top + 48, `500 24px ${MONO}`, BRAND, "left", "-0.4px")
+          // The button: it is pressed, lights, and says what it did.
+          const pressed = time >= PRESS
+          const since = time - PRESS
+          const squeeze = pressed ? 1 - 0.07 * Math.sin(Math.PI * clamp(since / 0.28)) : 1
+          const bw = 318
+          const bx = x + w - 52 - bw
+          ctx.save()
+          ctx.translate(bx + bw / 2, top + 39)
+          ctx.scale(squeeze, squeeze)
+          ctx.fillStyle = pressed ? INDIGO : "#2c2c35"
+          rounded(-bw / 2, -25, bw, 50, 12)
+          ctx.fill()
+          text(pressed ? "KEPT ON THIS DEVICE" : "KEEP ON THIS DEVICE", 0, 7, `500 18px ${MONO}`, "#fff", "center", "1.5px")
+          ctx.restore()
+          // A square that opens out from the button as it is pressed.
+          if (pressed && since < 0.6) {
+            const out = easeOut(since / 0.6)
+            ctx.globalAlpha = (1 - out) * 0.9
+            ctx.strokeStyle = BRAND
+            ctx.lineWidth = 3
+            rounded(bx - out * 26, top + 14 - out * 26, bw + out * 52, 50 + out * 52, 12 + out * 14)
+            ctx.stroke()
+          }
+          ctx.globalAlpha = 1
+        }
+
+        // What it keeps: each order drops into the list.
+        const kept = ROWS.filter((row) => time >= row.at + 0.35).length
+        const listed = easeOut((time - (PRESS + 0.2)) / 0.5)
+        if (listed > 0) {
+          ctx.globalAlpha = listed
+          text(`KEPT HERE · ${kept}`, x + 40, y + 222, `500 19px ${MONO}`, QUIET, "left", "1.6px")
+          ctx.globalAlpha = 1
+        }
+        ROWS.forEach((row, at) => {
+          const q = (time - row.at) / 0.55
+          if (q <= 0) return
+          const top = y + 248 + at * 118 - (1 - settle(q)) * 70
+          ctx.globalAlpha = clamp(q * 2)
+          ctx.fillStyle = RAISE
+          rounded(x + 36, top, w - 72, 102, 18)
+          ctx.fill()
+          text(row.item, x + 64, top + 44, `500 28px ${SANS}`, ICE, "left", "-0.7px")
+          text(`${row.price} · KEPT JUST NOW`, x + 64, top + 78, `500 17px ${MONO}`, QUIET, "left", "1.4px")
+          ctx.fillStyle = INDIGO
+          rounded(x + w - 52 - 150, top + 27, 150, 48, 12)
+          ctx.fill()
+          text("OPEN", x + w - 52 - 75, top + 58, `500 18px ${MONO}`, "#fff", "center", "1.5px")
+          ctx.globalAlpha = 1
+        })
+      }
+
+      function server(time) {
+        const p = easeOut((time - 1.35) / 0.6)
+        if (p <= 0) return
+        const { x, y, w, h } = SERVER
+        ctx.globalAlpha = p * 0.92
+        ctx.fillStyle = "#111115"
+        rounded(x, y + (1 - p) * 30, w, h, 30)
+        ctx.fill()
+        ctx.globalAlpha = p
+        text("THE SHOP'S SERVER", x + 40, y + 62, `500 19px ${MONO}`, QUIET, "left", "1.6px")
+        text("0", x + 34, y + 226, `500 170px ${SANS}`, ICE, "left", "-9px")
+        text("ORDER LINKS RECEIVED", x + 40, y + 282, `500 19px ${MONO}`, BRAND, "left", "1.6px")
+        text("It is not sent the list,", x + 40, y + 332, `400 25px ${SANS}`, QUIET, "left", "-0.3px")
+        text("and is not asked about it.", x + 40, y + 364, `400 25px ${SANS}`, QUIET, "left", "-0.3px")
+        ctx.globalAlpha = 1
+      }
+
+      // The way from the browser to the server: marked out, and shut. What sets out stops at the block.
+      function between(time) {
+        const p = easeOut((time - 1.8) / 0.6)
+        if (p <= 0) return
+        const from = BROWSER.x + BROWSER.w + 18
+        const to = SERVER.x - 18
+        const y = 632
+        const block = (from + to) / 2
+        ctx.globalAlpha = p
+        ctx.fillStyle = "#34343f"
+        for (let x = from; x <= to; x += 18) if (Math.abs(x - block) > 40) ctx.fillRect(x, y - 2, 8, 4)
+        // The block: a square with a cross in it.
+        ctx.fillStyle = "#26262e"
+        rounded(block - 30, y - 30, 60, 60, 14)
+        ctx.fill()
+        ctx.strokeStyle = BRAND
+        ctx.lineWidth = 4
+        ctx.lineCap = "round"
+        ctx.beginPath()
+        ctx.moveTo(block - 11, y - 11)
+        ctx.lineTo(block + 11, y + 11)
+        ctx.moveTo(block + 11, y - 11)
+        ctx.lineTo(block - 11, y + 11)
+        ctx.stroke()
+        text("NEVER SENT", block, y + 66, `500 17px ${MONO}`, QUIET, "center", "1.5px")
+        ctx.globalAlpha = 1
+        // Squares that set out and get no further than the block.
+        if (time >= SENDING && time < ASK + 2) {
+          for (let n = 0; n < 3; n++) {
+            const life = ((time - SENDING + n * 0.42) % 1.26) / 1.26
+            const x = from + (block - 40 - from) * easeOut(life)
+            const fade = life < 0.75 ? 1 : 1 - (life - 0.75) / 0.25
+            const size = 12 * (life < 0.75 ? 1 : fade)
+            ctx.globalAlpha = fade * 0.95
+            ctx.fillStyle = BRAND
+            ctx.fillRect(x - size / 2, y - size / 2, size, size)
+          }
+          ctx.globalAlpha = 1
+        }
+      }
+
+      function draw(time) {
+        ctx.globalAlpha = 1
+        ctx.fillStyle = GROUND
+        ctx.fillRect(0, 0, W, H)
+        ctx.fillStyle = "rgba(255,255,255,0.06)"
+        const drift = (time * 5) % 28
+        for (let y = 14 - 28 + drift; y < H; y += 28) for (let x = 14; x < W; x += 28) ctx.fillRect(x, y, 1.5, 1.5)
+
+        const p = (from, length = 0.75) => clamp((time - from) / length)
+        ctx.globalAlpha = easeOut(p(0, 0.5))
+        logo(96, 76, 48, ICE)
+        text("NO ACCOUNT · NOTHING STORED FOR YOU ON OUR SIDE", W - 96, 112, `500 21px ${MONO}`, QUIET, "right", "1.8px")
+        ctx.globalAlpha = easeOut(p(0.25) * 1.4)
+        ctx.fillStyle = BRAND
+        ctx.fillRect(96, 214, 10, 10)
+        text("NEW IN THE SHOP", 122, 228, `500 23px ${MONO}`, BRAND, "left", "2px")
+        ctx.globalAlpha = 1
+        const font = `500 108px ${SANS}`
+        ctx.font = font
+        ctx.letterSpacing = "-5.8px"
+        const head = ctx.measureText("Keep it on ").width
+        rise("Keep it on ", 90, 332, 108, font, ICE, p(0.4), "-5.8px")
+        rise("your device.", 90 + head, 332, 108, font, BRAND, p(0.52), "-5.8px")
+
+        browser(time)
+        server(time)
+        between(time)
+
+        const asking = easeOut((time - ASK) / 0.5)
+        ctx.globalAlpha = easeOut(p(6.2, 0.6)) * (1 - asking)
+        text("Kept only when you ask. Lose the link and it is still here.", 96, 1000, `400 32px ${SANS}`, QUIET, "left", "-0.5px")
+        ctx.globalAlpha = 1
+        if (asking > 0) rise("Your orders. Your device. Not our server.", 94, 1004, 56, `500 56px ${SANS}`, ICE, clamp((time - ASK) / 0.6), "-2.4px")
+        ctx.globalAlpha = easeOut(p(1.3, 0.6))
+        text("ZOLACE.CASH/ORDERS", W - 96, 1000, `500 21px ${MONO}`, ICE, "right", "1.8px")
+        ctx.globalAlpha = 1
+
+        const left = TOTAL - time
+        if (left < 0.4) {
+          ctx.globalAlpha = 1 - clamp(left / 0.4)
+          ctx.fillStyle = GROUND
+          ctx.fillRect(0, 0, W, H)
+          ctx.globalAlpha = 1
+        }
+      }
+
+      await Promise.all([
+        document.fonts.load(`500 108px ${SANS}`),
+        document.fonts.load(`400 32px ${SANS}`),
+        document.fonts.load(`700 48px ${SANS}`),
+        document.fonts.load(`500 24px ${MONO}`),
+      ])
+      const asked = new URLSearchParams(location.search)
+      window.film = { total: TOTAL }
+      if (asked.has("still")) {
+        draw(Number(asked.get("still")))
+        window.done = true
+      } else {
+        const { encodeFilm } = await import("./encode.js")
+        const { blob, frames } = await encodeFilm({ canvas, total: TOTAL, bitrate: 8_000_000, ready: async () => {}, draw })
+        window.film.frames = frames
+        await fetch("out", { method: "POST", body: blob })
+        window.done = true
+      }
+    </script>
+  </body>
+</html>
