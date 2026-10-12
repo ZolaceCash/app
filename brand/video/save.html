@@ -1,0 +1,524 @@
+<!doctype html>
+<!--
+  A film for the post about saving an item as a file, in four scenes: the logo; a headline in the
+  middle of the screen; the order's page beside the file on the buyer's device, over a line of
+  days that runs from delivery to the day the server deletes the order, under a line of words
+  that changes three times; and a closing card with the name set large. The order of scenes is
+  the one the gift's film uses (gift.html); the third scene is this film's own.
+  Drawn and encoded one frame at a time (encode.js); opened by compose.mjs with PAGE=save.html.
+  ?still=<seconds> draws one moment and stops.
+  The item's name is the shelf's on 12 Oct 2026 and the file's words are the ones
+  lib/item-file.ts writes. The order is a sample: its name is made up, and its secret and its
+  item are drawn as dots. The film gives no number of days, because none is fixed.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=Geist+Mono:wght@500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #09090b;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage" width="1920" height="1080"></canvas>
+    <script type="module">
+      const W = 1920
+      const H = 1080
+      const GROUND = "#09090b"
+      const CARD = "#101014"
+      const RAISE = "#1c1c23"
+      const ICE = "#f4f4f6"
+      const INK = "#0b0b10"
+      const QUIET = "rgba(244,244,246,0.58)"
+      const INDIGO = "#5567ea"
+      const BRAND = "#7b8cff"
+      const NAVY = "#1f2358"
+      const SANS = "Geist, system-ui, sans-serif"
+      const MONO = '"Geist Mono", ui-monospace, monospace'
+      const TOTAL = 17.0
+
+      const canvas = document.getElementById("stage")
+      const ctx = canvas.getContext("2d")
+      const clamp = (x, low = 0, high = 1) => Math.min(high, Math.max(low, x))
+      const easeOut = (x) => 1 - Math.pow(1 - clamp(x), 3)
+      const easeBoth = (x) => {
+        const t = clamp(x)
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+      }
+      const settle = (x) => {
+        const t = clamp(x)
+        const c = 1.5
+        return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2)
+      }
+      const rounded = (x, y, w, h, r) => {
+        ctx.beginPath()
+        ctx.roundRect(x, y, w, h, r)
+      }
+      const text = (value, x, y, font, colour, align = "left", spacing = "0px") => {
+        ctx.font = font
+        ctx.fillStyle = colour
+        ctx.textAlign = align
+        ctx.letterSpacing = spacing
+        ctx.fillText(value, x, y)
+      }
+      const widthOf = (value, font, spacing = "0px") => {
+        ctx.font = font
+        ctx.letterSpacing = spacing
+        return ctx.measureText(value).width
+      }
+      // A line that rises into place from under its own baseline.
+      const rise = (value, x, y, size, font, colour, p, spacing = "0px", align = "left") => {
+        if (p <= 0) return
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(0, y - size * 0.95, W, size * 1.24)
+        ctx.clip()
+        ctx.globalAlpha *= clamp(p * 1.6)
+        text(value, x, y + (1 - easeOut(p)) * size * 0.9, font, colour, align, spacing)
+        ctx.restore()
+      }
+      const MARK = [
+        [8.1, 2, 22, 2, 13.25, 14.5, 10.65, 14.5, 15.9, 7, 4.6, 7],
+        [19.4, 17, 15.9, 22, 2, 22, 10.75, 9.5, 13.35, 9.5, 8.1, 17],
+        [5.5, 2, 7, 2, 3.5, 7, 2, 7],
+        [20.5, 17, 22, 17, 18.5, 22, 17, 22],
+      ]
+      // The mark alone: `shown` says how far each of its four pieces has come in.
+      const mark = (x, y, size, colour, shown = () => 1) => {
+        const k = size / 24
+        MARK.forEach((points, piece) => {
+          const p = shown(piece)
+          if (p <= 0) return
+          ctx.save()
+          ctx.globalAlpha *= clamp(p * 1.5)
+          ctx.translate(x + size / 2, y + size / 2)
+          const s = 0.6 + 0.4 * settle(p)
+          ctx.scale(s, s)
+          ctx.translate(-size / 2, -size / 2)
+          ctx.fillStyle = colour
+          ctx.beginPath()
+          for (let i = 0; i < points.length; i += 2) ctx[i ? "lineTo" : "moveTo"](points[i] * k, points[i + 1] * k)
+          ctx.closePath()
+          ctx.fill()
+          ctx.restore()
+        })
+      }
+      const logo = (x, y, size, colour) => {
+        mark(x, y, size, colour)
+        text("zolace", x + size * 1.28, y + size * 0.86, `700 ${size * 0.95}px ${SANS}`, colour, "left", `${-size * 0.05}px`)
+      }
+      const ground = (time, alpha = 1) => {
+        ctx.fillStyle = GROUND
+        ctx.fillRect(0, 0, W, H)
+        ctx.fillStyle = `rgba(255,255,255,${0.06 * alpha})`
+        const drift = (time * 5) % 28
+        for (let y = 14 - 28 + drift; y < H; y += 28) for (let x = 14; x < W; x += 28) ctx.fillRect(x, y, 1.5, 1.5)
+      }
+      // A small label in a tile, with the brand's square before it.
+      const pill = (label, x, y, alpha, centred = false) => {
+        if (alpha <= 0) return
+        const font = `500 21px ${MONO}`
+        const wide = widthOf(label, font, "1.4px") + 62
+        const left = centred ? x - wide / 2 : x
+        ctx.save()
+        ctx.globalAlpha *= alpha
+        ctx.fillStyle = RAISE
+        rounded(left, y, wide, 46, 12)
+        ctx.fill()
+        ctx.fillStyle = BRAND
+        ctx.fillRect(left + 18, y + 19, 9, 9)
+        text(label, left + 40, y + 31, font, ICE, "left", "1.4px")
+        ctx.restore()
+      }
+      const BAYER = [0, 32, 8, 40, 2, 34, 10, 42, 48, 16, 56, 24, 50, 18, 58, 26, 12, 44, 4, 36, 14, 46, 6, 38, 60, 28, 52, 20, 62, 30, 54, 22, 3, 35, 11, 43, 1, 33, 9, 41, 51, 19, 59, 27, 49, 17, 57, 25, 15, 47, 7, 39, 13, 45, 5, 37, 63, 31, 55, 23, 61, 29, 53, 21]
+      const threshold = (cx, cy) => (BAYER[(cy & 7) * 8 + (cx & 7)] + 0.5) / 64
+      const hash = (x, y) => {
+        const s = Math.sin(x * 127.1 + y * 311.7) * 43758.5453
+        return s - Math.floor(s)
+      }
+
+      // ------------------------------------------------------------ scene 1: the logo
+      const S1 = 2.5
+      function sceneLogo(time) {
+        ground(time)
+        const out = 1 - easeOut((time - (S1 - 0.45)) / 0.4)
+        ctx.globalAlpha = out
+        const size = 150
+        const font = `700 ${size * 0.95}px ${SANS}`
+        const spacing = `${-size * 0.05}px`
+        const wide = size * 1.28 + widthOf("zolace", font, spacing)
+        // The mark comes first, in the middle, and moves over as the name arrives.
+        const named = easeBoth((time - 0.75) / 0.55)
+        const x = W / 2 - size / 2 + (W / 2 - wide / 2 - (W / 2 - size / 2)) * named
+        const y = 430
+        mark(x, y, size, ICE, (piece) => (time - 0.15 - piece * 0.11) / 0.45)
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(x + size * 1.1, y - 40, wide, size + 80)
+        ctx.clip()
+        ctx.globalAlpha = out * easeOut((time - 0.8) / 0.5)
+        text("zolace", x + size * 1.28 - (1 - easeOut((time - 0.8) / 0.55)) * 90, y + size * 0.86, font, ICE, "left", spacing)
+        ctx.restore()
+        ctx.globalAlpha = out * easeOut((time - 1.3) / 0.5)
+        text("DIGITAL GOODS · NO ACCOUNT · PAID IN SHIELDED ZEC", W / 2, y + size + 92, `500 23px ${MONO}`, QUIET, "center", "3px")
+        ctx.globalAlpha = 1
+      }
+
+      // ------------------------------------------------------------ scene 2: the headline
+      const S2 = 6.3
+      function sceneHeadline(time) {
+        const t = time - S1
+        ground(time)
+        ctx.globalAlpha = easeOut(t / 0.4)
+        logo(96, 76, 48, ICE)
+        text("SAVE AS A FILE · NEW IN THE SHOP", W - 96, 112, `500 21px ${MONO}`, QUIET, "right", "1.8px")
+        ctx.globalAlpha = 1
+        pill("New in the shop", W / 2, 318, easeOut((t - 0.15) / 0.4), true)
+        const font = `500 168px ${SANS}`
+        rise("Order gone.", W / 2, 560, 168, font, ICE, clamp((t - 0.3) / 0.75), "-9px", "center")
+        rise("Item kept.", W / 2, 730, 168, font, BRAND, clamp((t - 0.5) / 0.75), "-9px", "center")
+        ctx.globalAlpha = easeOut((t - 1.1) / 0.6)
+        text("A finished order is deleted from our server after some days.", W / 2, 846, `400 34px ${SANS}`, QUIET, "center", "-0.5px")
+        text("Save the item as a file first. Your browser writes it; nothing is sent.", W / 2, 894, `400 34px ${SANS}`, QUIET, "center", "-0.5px")
+        ctx.globalAlpha = 1
+      }
+
+      // ------------------------------------------------------------ scene 3: the order, the file and the days
+      const S3 = 14.0
+      const WORDS = [
+        { at: 0, first: "Your item opens.", then: " Save it as a file." },
+        { at: 2.6, first: "Some days later,", then: " the server deletes the order." },
+        { at: 5.0, first: "The link is gone.", then: " The item is still yours." },
+      ]
+      const PRESSED = 1.2
+      const LANDED = 1.85
+      const DAYS_FROM = 2.9
+      const DELETED = 4.8
+      const ORDER = { x: 96, y: 232, w: 820, h: 560 }
+      const FILE = { x: 1000, y: 232, w: 824, h: 560 }
+      const LINE = { x: 96, y: 836, w: 1728, h: 150 }
+      const NAME = "zolace-discord-nitro-1-month-usd.txt"
+      const DOTS = "•••• •••• •••• ••••"
+      // What the saved file says, as lib/item-file.ts writes it; the item itself is drawn as dots.
+      const TEXT = [
+        ["Zolace: Discord Nitro, 1 month (USD)", "ice"],
+        ["Saved on 2026-10-12 (UTC)", "quiet"],
+        ["", ""],
+        ["THE ITEM", "quiet"],
+        [DOTS, "brand"],
+        ["", ""],
+        ["ABOUT THIS FILE", "quiet"],
+        ["Your browser made this file. It was not sent", "quiet"],
+        ["to the shop or to anyone else.", "quiet"],
+        ["It is not sealed: whoever can read it has the item.", "quiet"],
+      ]
+
+      const tick = (x, y, colour, width = 3.5) => {
+        ctx.strokeStyle = colour
+        ctx.lineWidth = width
+        ctx.lineCap = "round"
+        ctx.lineJoin = "round"
+        ctx.beginPath()
+        ctx.moveTo(x, y)
+        ctx.lineTo(x + 7, y + 7)
+        ctx.lineTo(x + 19, y - 7)
+        ctx.stroke()
+      }
+      function card(box, p, fill = CARD) {
+        const lift = (1 - settle(p)) * 90
+        ctx.globalAlpha = clamp(p * 1.8)
+        ctx.shadowColor = "rgba(8,10,40,0.55)"
+        ctx.shadowBlur = 50
+        ctx.shadowOffsetY = 24
+        ctx.fillStyle = fill
+        rounded(box.x, box.y + lift, box.w, box.h, 30)
+        ctx.fill()
+        ctx.shadowColor = "transparent"
+        return lift
+      }
+
+      function sceneDays(time) {
+        const t = time - S2
+        ground(time)
+        // The line of words, and the three marks that say which of them is on.
+        let on = 0
+        for (let i = 0; i < WORDS.length; i++) if (t >= WORDS[i].at) on = i
+        const words = WORDS[on]
+        const since = t - words.at
+        const font = `500 54px ${SANS}`
+        const head = widthOf(words.first, font, "-2.2px")
+        rise(words.first, 96, 132, 54, font, QUIET, clamp(since / 0.5), "-2.2px")
+        rise(words.then, 96 + head, 132, 54, font, ICE, clamp((since - 0.12) / 0.5), "-2.2px")
+        for (let i = 0; i < WORDS.length; i++) {
+          ctx.fillStyle = i === on ? BRAND : "#2a2a33"
+          rounded(W - 96 - (WORDS.length - i) * 44 + 8, 108, 36, 10, 5)
+          ctx.fill()
+        }
+
+        const gone = easeBoth((t - DELETED) / 0.5)
+        const days = easeBoth((t - DAYS_FROM) / (DELETED - DAYS_FROM))
+
+        // ---------------------------------------- the order's page, with the item open
+        const a = (t - 0.2) / 0.6
+        if (a > 0) {
+          const lift = card(ORDER, a)
+          const { x, w } = ORDER
+          const o = ORDER.y + lift
+          const shown = clamp(a * 1.8) * (1 - 0.93 * gone)
+          ctx.globalAlpha = shown
+          ctx.fillStyle = RAISE
+          rounded(x + 36, o + 34, w - 72, 52, 12)
+          ctx.fill()
+          const addr = "zolace.cash/o/7k2m9q4x…"
+          text(addr, x + 58, o + 67, `500 19px ${MONO}`, ICE, "left", "-0.2px")
+          text("#••••••••", x + 58 + widthOf(addr, `500 19px ${MONO}`, "-0.2px"), o + 67, `500 19px ${MONO}`, BRAND, "left", "-0.2px")
+          text("DISCORD NITRO, 1 MONTH (USD)", x + 36, o + 136, `500 17px ${MONO}`, QUIET, "left", "1.5px")
+          ctx.fillStyle = RAISE
+          rounded(x + 36, o + 158, w - 72, 112, 16)
+          ctx.fill()
+          text(DOTS, x + w / 2, o + 226, `500 36px ${MONO}`, ICE, "center", "2px")
+          // Copy, and the button this film is about.
+          ctx.fillStyle = INDIGO
+          rounded(x + 36, o + 292, 250, 60, 12)
+          ctx.fill()
+          text("COPY THE ITEM", x + 36 + 125, o + 329, `500 17px ${MONO}`, "#fff", "center", "1.5px")
+          const pressed = t >= PRESSED
+          const squeeze = pressed ? 1 - 0.07 * Math.sin(Math.PI * clamp((t - PRESSED) / 0.26)) : 1
+          // Until it is pressed the button is lit, a little, in turns: it is the one to look at.
+          const call = pressed ? 0 : 0.5 + 0.5 * Math.sin(t * 7)
+          ctx.save()
+          ctx.translate(x + 298 + 135, o + 322)
+          ctx.scale(squeeze, squeeze)
+          ctx.fillStyle = pressed ? BRAND : `rgba(123,140,255,${0.14 + 0.16 * call})`
+          rounded(-135, -30, 270, 60, 12)
+          ctx.fill()
+          if (pressed) tick(-58, 2, INK)
+          text(pressed ? "SAVED" : "SAVE AS A FILE", pressed ? -26 : 0, 7, `500 17px ${MONO}`, pressed ? INK : ICE, pressed ? "left" : "center", "1.5px")
+          ctx.restore()
+          ctx.globalAlpha = shown
+          ctx.fillStyle = "#16161c"
+          rounded(x + 36, o + 378, w - 72, 146, 16)
+          ctx.fill()
+          text("KEEP THE ITEM, NOT ONLY THE LINK", x + 62, o + 420, `500 16px ${MONO}`, ICE, "left", "1.5px")
+          text("The shop's server deletes a finished order after some days,", x + 62, o + 462, `400 22px ${SANS}`, QUIET, "left", "-0.3px")
+          text("and this link then opens nothing.", x + 62, o + 494, `400 22px ${SANS}`, QUIET, "left", "-0.3px")
+          // Once the order is deleted, the page has one thing to say.
+          if (gone > 0) {
+            ctx.globalAlpha = gone
+            ctx.fillStyle = "rgba(9,9,11,0.5)"
+            rounded(x, o, w, ORDER.h, 30)
+            ctx.fill()
+            rise("This link opens nothing.", x + w / 2, o + 280, 52, `500 52px ${SANS}`, ICE, clamp((t - DELETED) / 0.6), "-2px", "center")
+            ctx.globalAlpha = gone
+            text("THE ORDER WAS DELETED FROM THE SERVER", x + w / 2, o + 334, `500 17px ${MONO}`, QUIET, "center", "1.6px")
+          }
+          ctx.globalAlpha = 1
+        }
+
+        // ---------------------------------------- the file, on the buyer's own device
+        const b = (t - 0.4) / 0.6
+        if (b > 0) {
+          const woke = easeOut((t - LANDED) / 0.45)
+          const kept = easeOut((t - 5.3) / 0.5)
+          const lift = card(FILE, b)
+          const { x, w } = FILE
+          const o = FILE.y + lift
+          const shown = clamp(b * 1.8)
+          // Empty until the file lands: where it will be.
+          ctx.globalAlpha = shown * (1 - woke) * 0.9
+          text("NOTHING SAVED YET", x + w / 2, o + FILE.h / 2 + 6, `500 17px ${MONO}`, "rgba(244,244,246,0.3)", "center", "1.6px")
+          ctx.globalAlpha = shown * woke
+          ctx.fillStyle = RAISE
+          rounded(x + 28, o + 28, w - 56, 60, 14)
+          ctx.fill()
+          ctx.fillStyle = BRAND
+          ctx.fillRect(x + 50, o + 53, 10, 10)
+          text(NAME, x + 74, o + 66, `500 19px ${MONO}`, ICE, "left", "-0.2px")
+          text("ON YOUR DEVICE", x + w - 50, o + 65, `500 15px ${MONO}`, QUIET, "right", "1.4px")
+          TEXT.forEach(([line, tone], index) => {
+            if (!line) return
+            const p = clamp((t - (LANDED + 0.1 + index * 0.1)) / 0.4)
+            const item = tone === "brand"
+            const size = item ? 30 : 21
+            const colour = tone === "ice" ? ICE : item ? BRAND : QUIET
+            ctx.globalAlpha = shown
+            rise(line, x + 50, o + 138 + index * 38 + (item ? 4 : 0), size, `500 ${size}px ${MONO}`, colour, p, item ? "1.5px" : "-0.2px")
+          })
+          if (kept > 0) {
+            ctx.globalAlpha = shown * kept
+            ctx.fillStyle = BRAND
+            rounded(x + w - 50 - 196, o + 110, 196, 46, 12)
+            ctx.fill()
+            tick(x + w - 50 - 174, o + 134, INK)
+            text("STILL YOURS", x + w - 50 - 142, o + 140, `500 17px ${MONO}`, INK, "left", "1.4px")
+          }
+          ctx.globalAlpha = 1
+        }
+
+        // The file on its way from the button to the device.
+        const way = (t - (PRESSED + 0.08)) / (LANDED - PRESSED - 0.08)
+        if (way > 0 && way < 1) {
+          const e = easeBoth(way)
+          const fromX = ORDER.x + 298 + 135
+          const fromY = ORDER.y + 322
+          const toX = FILE.x + 190
+          const toY = FILE.y + 58
+          const x = fromX + (toX - fromX) * e
+          const y = fromY + (toY - fromY) * e - Math.sin(Math.PI * e) * 90
+          ctx.globalAlpha = Math.sin(Math.PI * clamp(way * 1.08))
+          ctx.fillStyle = ICE
+          rounded(x - 86, y - 24, 172, 48, 12)
+          ctx.fill()
+          ctx.fillStyle = INDIGO
+          ctx.fillRect(x - 66, y - 5, 10, 10)
+          text("item.txt", x + 8, y + 7, `500 19px ${MONO}`, INK, "center", "0px")
+          ctx.globalAlpha = 1
+        }
+
+        // ---------------------------------------- the days between delivery and deletion
+        const c = (t - 0.6) / 0.6
+        if (c > 0) {
+          const lift = card(LINE, c)
+          const { x, w } = LINE
+          const o = LINE.y + lift
+          const shown = clamp(c * 1.8)
+          ctx.globalAlpha = shown
+          text("DELIVERED", x + 40, o + 52, `500 17px ${MONO}`, days > 0 ? QUIET : ICE, "left", "1.5px")
+          text("SOME DAYS", x + w / 2, o + 52, `500 17px ${MONO}`, days > 0 && days < 1 ? BRAND : "rgba(244,244,246,0.3)", "center", "1.5px")
+          text("THE SERVER DELETES THE ORDER", x + w - 40, o + 52, `500 17px ${MONO}`, days >= 1 ? ICE : QUIET, "right", "1.5px")
+          const COUNT = 96
+          const from = x + 40
+          const span = w - 80
+          for (let i = 0; i < COUNT; i++) {
+            const at = i / (COUNT - 1)
+            ctx.fillStyle = at <= days && days > 0 ? BRAND : "#2a2a33"
+            ctx.fillRect(from + at * (span - 10), o + 92, 10, 10)
+          }
+          // The day it is.
+          ctx.fillStyle = ICE
+          rounded(from + days * (span - 10) - 4, o + 78, 18, 38, 6)
+          ctx.fill()
+          ctx.globalAlpha = 1
+        }
+
+        // What the file is not: said before the film moves on.
+        const foot = easeOut((t - 6.1) / 0.5)
+        if (foot > 0) {
+          ctx.globalAlpha = foot
+          text("WRITTEN BY YOUR BROWSER · SENT NOWHERE · NOT SEALED, SO KEEP IT SAFE", W / 2, 1036, `500 17px ${MONO}`, BRAND, "center", "1.6px")
+          ctx.globalAlpha = 1
+        }
+      }
+
+      // ------------------------------------------------------------ scene 4: the closing card
+      function sceneClose(time) {
+        const t = time - S3
+        ctx.fillStyle = "#050507"
+        ctx.fillRect(0, 0, W, H)
+        pill("zolace.cash/shop", 96, 150, easeOut((t - 0.15) / 0.4))
+        const font = `500 126px ${SANS}`
+        const head = widthOf("Order gone. ", font, "-6.8px")
+        rise("Order gone. ", 90, 372, 126, font, ICE, clamp((t - 0.25) / 0.7), "-6.8px")
+        rise("Item kept.", 90 + head, 372, 126, font, BRAND, clamp((t - 0.42) / 0.7), "-6.8px")
+        // The panel, with the name set so large that it runs off the bottom.
+        const up = settle((t - 0.35) / 0.8)
+        const top = 590 + (1 - up) * 420
+        ctx.fillStyle = INDIGO
+        rounded(96, top - 44, 470, 80, 20)
+        ctx.fill()
+        rounded(96, top, W - 192, 700, 36)
+        ctx.fill()
+        text("ZOLACE · DIGITAL GOODS", 126, top - 14, `500 18px ${MONO}`, "#fff", "left", "1.6px")
+        text("NO ACCOUNT · NO NAME · NO EMAIL · PAID IN SHIELDED ZEC", 136, top + 62, `500 19px ${MONO}`, "#fff", "left", "1.8px")
+        ctx.save()
+        rounded(96, top, W - 192, 700, 36)
+        ctx.clip()
+        const name = easeOut((t - 0.7) / 0.8)
+        ctx.globalAlpha = clamp(name * 1.4)
+        text("zolace", 118, top + 536 + (1 - name) * 160, `700 400px ${SANS}`, INK, "left", "-21px")
+        ctx.globalAlpha = 1
+        // The site's dither at the right, standing in a rising row.
+        ctx.fillStyle = NAVY
+        const cell = 22
+        const COLUMNS = 9
+        for (let cx = 0; cx < COLUMNS; cx++) {
+          const tall = 4 + Math.round(cx * 1.5 + hash(cx, 3) * 3)
+          for (let cy = 0; cy < tall; cy++) {
+            const p = (t - 1.0 - cx * 0.03 - cy * 0.02) / 0.25
+            if (p <= 0) continue
+            if (threshold(cx + 2, cy + 1) < 0.25 + (cy / tall) * 0.9) continue
+            ctx.globalAlpha = clamp(p)
+            ctx.fillRect(W - 96 - 60 - (COLUMNS - cx) * (cell + 6), H - 30 - cy * (cell + 6), cell, cell)
+          }
+        }
+        ctx.restore()
+        ctx.globalAlpha = 1
+      }
+
+      // ------------------------------------------------------------ the film
+      // A band of indigo that crosses the screen from the bottom, uncovering the next scene behind it.
+      function wipe(time, at, before, after) {
+        const p = (time - at) / 0.62
+        if (p <= 0) return before(time)
+        if (p >= 1) return after(time)
+        const e = easeBoth(p)
+        ;(e < 0.5 ? before : after)(time)
+        const height = H * 1.25
+        const y = H - e * (H + height)
+        ctx.globalAlpha = 1
+        ctx.fillStyle = INDIGO
+        ctx.fillRect(0, y, W, height)
+      }
+
+      function draw(time) {
+        ctx.globalAlpha = 1
+        ctx.shadowColor = "transparent"
+        if (time < S1) sceneLogo(time)
+        else if (time < S2 - 0.31) sceneHeadline(time)
+        else if (time < S2 + 0.31) wipe(time, S2 - 0.31, sceneHeadline, sceneDays)
+        else if (time < S3 - 0.31) sceneDays(time)
+        else if (time < S3 + 0.31) wipe(time, S3 - 0.31, sceneDays, sceneClose)
+        else sceneClose(time)
+        const left = TOTAL - time
+        if (left < 0.3) {
+          ctx.globalAlpha = 1 - clamp(left / 0.3)
+          ctx.fillStyle = "#050507"
+          ctx.fillRect(0, 0, W, H)
+          ctx.globalAlpha = 1
+        }
+      }
+
+      await Promise.all([
+        document.fonts.load(`500 168px ${SANS}`),
+        document.fonts.load(`400 34px ${SANS}`),
+        document.fonts.load(`700 150px ${SANS}`),
+        document.fonts.load(`500 24px ${MONO}`),
+      ])
+      const asked = new URLSearchParams(location.search)
+      window.film = { total: TOTAL }
+      if (asked.has("still")) {
+        draw(Number(asked.get("still")))
+        window.done = true
+      } else {
+        const { encodeFilm } = await import("./encode.js")
+        const { blob, frames } = await encodeFilm({ canvas, total: TOTAL, bitrate: 9_000_000, ready: async () => {}, draw })
+        window.film.frames = frames
+        await fetch("out", { method: "POST", body: blob })
+        window.done = true
+      }
+    </script>
+  </body>
+</html>
