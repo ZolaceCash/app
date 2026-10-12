@@ -66,6 +66,11 @@ if (network !== "mainnet" && network !== "testnet") {
   line(made.status === 200, "the engine knows the site's key", made.failed ?? `http ${made.status}`)
 }
 
+// Notices to the owner: only whether an address is set and has the right shape. Nothing is sent.
+const notify = (process.env.OWNER_NOTIFY_URL ?? "").trim()
+if (!notify) note("notices to the owner", "OWNER_NOTIFY_URL is empty: nothing tells you when an order waits")
+else line(/^https:\/\/[^\s]+$/.test(notify), "notices to the owner", /^https:\/\//.test(notify) ? "an address is set" : "the address has to start with https://")
+
 // Items made when paid: whether the supplier answers with the owner's key, and what is left there.
 const accessCode = (process.env.ESIMACCESS_CODE ?? "").trim()
 if (!accessCode) note("the eSIM supplier", "ESIMACCESS_CODE is empty: no item made when paid is sold")

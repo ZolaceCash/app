@@ -32,6 +32,14 @@ services:
       # made "when paid" is bought there out of the owner's balance as soon as its order is paid.
       # Empty: no such item is sold. It can spend that balance and nothing else.
       ESIMACCESS_CODE: ${ESIMACCESS_CODE:-}
+      # How many hours the owner has to buy an item that is bought after it is paid, and to hand it
+      # over. After that the payment is owed back. Empty: 12.
+      HAND_HOURS: ${HAND_HOURS:-}
+      # SECRET. Where the server sends a line when something waits for the owner (a paid order to
+      # buy an item for, a buyer's report, a refund that is due): the address of a notification
+      # service, such as an ntfy topic. The line names no order, no item and no amount. Whoever
+      # knows this address can read those lines. Empty: no notice is sent.
+      OWNER_NOTIFY_URL: ${OWNER_NOTIFY_URL:-}
       # The token's contract address (the CA) shown across the site. Empty: the site says there
       # is no token. Set it, redeploy, and every page that speaks of the token shows it.
       TOKEN_ADDRESS: ${TOKEN_ADDRESS:-}

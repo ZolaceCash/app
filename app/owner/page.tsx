@@ -1,12 +1,14 @@
 import type { Metadata } from "next";
 
 import { cannotBuyItem, handOverItem } from "@/app/owner/actions";
+import { testNotice } from "@/app/owner/notice-actions";
 import { ActionForm } from "@/components/owner/action-form";
 import { dollars, OwnerFrame, Panel, when } from "@/components/owner/frame";
 import { ZecIcon } from "@/components/site/chain-icons";
 import { countOrders, listOrders, listProblems, listRefundsDue } from "@/lib/admin";
 import type { Order } from "@/lib/db/schema";
 import { HAND_CODE_MAX, handHours, listToBuy } from "@/lib/orders";
+import { noticesOn } from "@/lib/owner-notify";
 import { requireOwner } from "@/lib/owner-session";
 import { formatZec } from "@/lib/price";
 import { cn } from "@/lib/utils";
@@ -134,6 +136,20 @@ export default async function OwnerOrders() {
           </li>
         ))}
       </ul>
+
+      <Panel className="mt-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-x-8 gap-y-4">
+          <div className="max-w-xl">
+            <p className="label-mono text-muted-foreground">Notices: {noticesOn() ? "on" : "off"}</p>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              {noticesOn()
+                ? "This server tells your phone when an order is paid and waits for its item, when a buyer reports a problem and when a refund is due. A notice names no order, no item and no amount."
+                : "Set OWNER_NOTIFY_URL where the server runs and it tells your phone when an order is paid and waits for its item, when a buyer reports a problem and when a refund is due. Until then nothing reaches you: look here."}
+            </p>
+          </div>
+          {noticesOn() ? <ActionForm action={testNotice} label="Send a test notice" busyLabel="Sending" variant="secondary" /> : null}
+        </div>
+      </Panel>
 
       <Panel className="mt-2.5">
         <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">

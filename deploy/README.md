@@ -236,6 +236,23 @@ it. Nothing tops that balance up but you. `node preflight.mjs` shows what is lef
 The key can spend the balance and nothing else, so keep the balance small. Run so far against a played
 supplier only (`tests/supplier.test.ts`): no eSIM has been bought through the shop yet.
 
+## Items you buy after they are paid for (gift cards)
+
+An item marked "I buy it myself after the order is paid" is sold with nothing in stock. Its order
+shows on the owner's screen (`/owner`) once the payment is three blocks deep, and not before: buy
+nothing for an order that is not listed there. You then buy the item wherever you buy it, paste it
+into the order and hand it over. What you paste is sealed to the buyer's key at once.
+
+- `HAND_HOURS` is how long you have (12 unless set). After that the order leaves your list and the
+  payment is owed back, so take such an item off the shelf while you cannot look.
+- `OWNER_NOTIFY_URL` makes the server tell your phone when an order waits. The simplest is ntfy:
+  install its app, subscribe to a topic with a long random name, and set
+  `OWNER_NOTIFY_URL=https://ntfy.sh/<that name>`. A Telegram bot address
+  (`https://api.telegram.org/bot<token>/sendMessage?chat_id=<id>`) and a Discord webhook work too.
+  The address is a secret: whoever knows it can read the notices. A notice names no order, no item
+  and no amount. After a restart, whatever still waits is said once more.
+- The owner's orders screen says whether notices are on and has a button that sends a test one.
+
 ## The contract address (CA), and the vault
 
 The site launches without a token: `TOKEN_ADDRESS` is empty, and every page that speaks of the token says

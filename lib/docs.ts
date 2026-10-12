@@ -341,6 +341,7 @@ export const DOCS: Doc[] = [
               "The app does not write IP addresses to its logs. The host it runs on, and the network in front of it, may keep access logs of their own.",
               "A network in front of the server (Cloudflare, in the planned setup) sees each request before the server does: your address and which pages you open. It never sees the part of a link after #.",
               "Orders are deleted some days after they are done.",
+              "When something waits for the owner (a paid order, a report, a refund), the server may send the owner's phone a line through a notification service. The line says that something waits. It names no order, no item and no amount.",
             ],
           },
           {
