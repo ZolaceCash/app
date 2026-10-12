@@ -1,0 +1,398 @@
+<!doctype html>
+<!--
+  A film for the post about a seller's own page. One link and what hangs from it: the page's
+  address is typed into a plate at the top; a rail drops from the plate and runs out to both edges
+  of the screen; six cards fall onto the rail on two strings each and swing until they hang still,
+  one per item the seller has on the shelf; a buyer, drawn as one light block, runs along the rail
+  and sets the cards it passes swinging, stops at one, and that card comes off its strings, turns
+  indigo and is paid for, straight to the seller; and a line of words stands under it all. No
+  other film here hangs anything or lets it swing.
+  Drawn and encoded one frame at a time (encode.js); opened by compose.mjs with PAGE=page.html.
+  ?still=<seconds> draws one moment and stops.
+  What it says is what is built (PLAN.md, "Other sellers"): every seller has a page at
+  /s/<name and six random characters> with what of theirs is on the shelf, and an order of an item
+  is paid to the seller's wallet. A seller's page is only found where selling is open, so POST IT
+  ONLY ONCE THE LIVE SITE SAYS "Selling / Open" ON /sell. The seller, the address, the items, the
+  prices and the amount are a sample and marked as one; the rate is a sample near 12 Oct 2026, and
+  the amount is worked out from it the way lib/price.ts does it.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=Geist+Mono:wght@500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #09090b;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage" width="1920" height="1080"></canvas>
+    <script type="module">
+      const W = 1920
+      const H = 1080
+      const GROUND = "#09090b"
+      const CARD = "#111114"
+      const RAISE = "#1c1c23"
+      const ICE = "#f4f4f6"
+      const QUIET = "rgba(244,244,246,0.58)"
+      const FAINT = "rgba(244,244,246,0.26)"
+      const INDIGO = "#5567ea"
+      const BRAND = "#7b8cff"
+      const SANS = "Geist, system-ui, sans-serif"
+      const MONO = '"Geist Mono", ui-monospace, monospace'
+      const TOTAL = 13.0
+
+      const canvas = document.getElementById("stage")
+      const ctx = canvas.getContext("2d")
+      const clamp = (x, low = 0, high = 1) => Math.min(high, Math.max(low, x))
+      const easeOut = (x) => 1 - Math.pow(1 - clamp(x), 3)
+      const easeBoth = (x) => {
+        const t = clamp(x)
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+      }
+      const mix = (a, b, p) => a + (b - a) * p
+      const rounded = (x, y, w, h, r) => {
+        ctx.beginPath()
+        ctx.roundRect(x, y, w, h, r)
+      }
+      const text = (value, x, y, font, colour, align = "left", spacing = "0px") => {
+        ctx.font = font
+        ctx.fillStyle = colour
+        ctx.textAlign = align
+        ctx.letterSpacing = spacing
+        ctx.fillText(value, x, y)
+      }
+      const widthOf = (value, font, spacing = "0px") => {
+        ctx.font = font
+        ctx.letterSpacing = spacing
+        return ctx.measureText(value).width
+      }
+      // A line of words that comes up from behind its own baseline.
+      const rise = (value, x, y, size, font, colour, p, spacing = "0px") => {
+        if (p <= 0) return
+        ctx.save()
+        const alpha = ctx.globalAlpha
+        ctx.beginPath()
+        ctx.rect(0, y - size * 0.95, W, size * 1.24)
+        ctx.clip()
+        ctx.globalAlpha = alpha * clamp(p * 1.6)
+        text(value, x, y + (1 - easeOut(p)) * size * 0.9, font, colour, "left", spacing)
+        ctx.restore()
+      }
+      const MARK = [
+        [8.1, 2, 22, 2, 13.25, 14.5, 10.65, 14.5, 15.9, 7, 4.6, 7],
+        [19.4, 17, 15.9, 22, 2, 22, 10.75, 9.5, 13.35, 9.5, 8.1, 17],
+        [5.5, 2, 7, 2, 3.5, 7, 2, 7],
+        [20.5, 17, 22, 17, 18.5, 22, 17, 22],
+      ]
+      const mark = (x, y, size, colour) => {
+        const k = size / 24
+        ctx.fillStyle = colour
+        for (const points of MARK) {
+          ctx.beginPath()
+          for (let i = 0; i < points.length; i += 2) ctx[i ? "lineTo" : "moveTo"](x + points[i] * k, y + points[i + 1] * k)
+          ctx.closePath()
+          ctx.fill()
+        }
+      }
+      const logo = (x, y, size, colour) => {
+        mark(x, y, size, colour)
+        text("zolace", x + size * 1.28, y + size * 0.86, `700 ${size * 0.95}px ${SANS}`, colour, "left", `${-size * 0.05}px`)
+      }
+      // The site's ground: a faint grid of dots.
+      const dots = (() => {
+        const tile = document.createElement("canvas")
+        tile.width = tile.height = 34
+        const pen = tile.getContext("2d")
+        pen.fillStyle = "rgba(255,255,255,0.06)"
+        pen.fillRect(16, 16, 2, 2)
+        return ctx.createPattern(tile, "repeat")
+      })()
+
+      // ------------------------------------------------------------ the sample
+      const SELLER = "KEY CORNER"
+      const ADDRESS = [
+        { value: "zolace.cash", colour: ICE },
+        { value: "/s/", colour: QUIET },
+        { value: "key-corner", colour: BRAND },
+        { value: "-a1b2c3", colour: QUIET },
+      ]
+      const ITEMS = [
+        { name: "Game key", price: "$12.00", left: 2 },
+        { name: "Licence key", price: "$29.00", left: 5 },
+        { name: "Gift card", price: "$25.00", left: 3 },
+        { name: "VPN voucher", price: "$9.00", left: 8 },
+        { name: "Template pack", price: "$15.00", left: 4 },
+        { name: "eBook", price: "$7.00", left: 9 },
+      ]
+      const PICKED = 2
+      const RATE = 1307.28
+      const zat = Math.ceil((25 / RATE) * 100_000_000)
+      const AMOUNT = (zat / 100_000_000).toFixed(8).replace(/0+$/, "")
+
+      // ------------------------------------------------------------ when things happen
+      const TYPE = { from: 0.45, to: 1.85 }
+      const TOLD = 2.0 // whose page it is
+      const DROP = { from: 2.25, to: 2.5 } // the rail's hanger drops from the plate
+      const RUN = { from: 2.45, to: 3.15 } // the rail runs out to both edges
+      const FALL = { from: 3.1, every: 0.36, takes: 0.5 } // the cards fall onto it
+      const WORDS = 5.9
+      const BUYER = { from: 7.2, to: 8.3 } // the buyer runs along the rail
+      const TAKEN = 8.4 // the card comes off its strings
+      const PAID = 8.95
+      const LAST = 9.9
+
+      // ------------------------------------------------------------ where things are
+      const PLATE = { x: 96, y: 168, h: 104 }
+      const RAIL = 372
+      const HANG = 48 // how long the strings are
+      const TAG = { w: 270, h: 290, gap: 26, x: 85 }
+      const centre = (index) => TAG.x + index * (TAG.w + TAG.gap) + TAG.w / 2
+      const landed = (index) => FALL.from + index * FALL.every + FALL.takes
+      // When the buyer passes over each card on its way to the one it stops at.
+      const buyerAt = (time) => mix(-40, centre(PICKED), easeBoth((time - BUYER.from) / (BUYER.to - BUYER.from)))
+      const passed = ITEMS.map((_, index) => {
+        if (index > PICKED) return Infinity
+        // The moment the run reaches this card's middle, found by stepping through it.
+        for (let t = BUYER.from; t <= BUYER.to; t += 0.01) if (buyerAt(t) >= centre(index) - 4) return t
+        return BUYER.to
+      })
+
+      // ------------------------------------------------------------ the plate with the address
+      function plate(time) {
+        const shown = easeOut((time - 0.2) / 0.5)
+        if (shown <= 0) return 0
+        const font = `500 50px ${MONO}`
+        const whole = ADDRESS.map((part) => part.value).join("")
+        const wide = widthOf(whole, font, "-0.5px") + 96
+        ctx.globalAlpha = shown
+        ctx.fillStyle = RAISE
+        rounded(PLATE.x, PLATE.y + (1 - shown) * 20, wide, PLATE.h, 22)
+        ctx.fill()
+        const letters = Math.floor(clamp((time - TYPE.from) / (TYPE.to - TYPE.from)) * whole.length)
+        let at = PLATE.x + 46
+        let left = letters
+        for (const part of ADDRESS) {
+          const piece = part.value.slice(0, Math.max(0, left))
+          text(piece, at, PLATE.y + 69, font, part.colour, "left", "-0.5px")
+          at += widthOf(piece, font, "-0.5px")
+          left -= part.value.length
+        }
+        if (letters < whole.length && Math.floor(time * 2.6) % 2 === 0) {
+          ctx.fillStyle = ICE
+          ctx.fillRect(at + 4, PLATE.y + 28, 4, 50)
+        }
+        // Whose page it is, said beside the plate once the address stands.
+        const told = easeOut((time - TOLD) / 0.5)
+        ctx.globalAlpha = told
+        ctx.fillStyle = BRAND
+        ctx.fillRect(PLATE.x + wide + 36, PLATE.y + 28, 10, 10)
+        text(`${SELLER}'S PAGE`, PLATE.x + wide + 60, PLATE.y + 40, `500 20px ${MONO}`, ICE, "left", "1.7px")
+        text("ONE LINK TO SHARE · A SAMPLE", PLATE.x + wide + 36, PLATE.y + 78, `500 20px ${MONO}`, QUIET, "left", "1.7px")
+        ctx.globalAlpha = 1
+        return wide
+      }
+
+      // ------------------------------------------------------------ the rail and what hangs from it
+      function rail(time) {
+        const drop = easeOut((time - DROP.from) / (DROP.to - DROP.from))
+        if (drop <= 0) return
+        ctx.fillStyle = INDIGO
+        const from = PLATE.y + PLATE.h
+        ctx.fillRect(PLATE.x + 60, from, 10, (RAIL - from) * drop)
+        const run = easeOut((time - RUN.from) / (RUN.to - RUN.from))
+        if (run <= 0) return
+        const at = PLATE.x + 65
+        ctx.fillRect(at - (at + 30) * run, RAIL, (at + 30) * run + (W + 30 - at) * run, 10)
+      }
+
+      function tags(time) {
+        ITEMS.forEach((item, index) => {
+          const start = FALL.from + index * FALL.every
+          const fall = (time - start) / FALL.takes
+          if (fall <= 0) return
+          const since = time - landed(index)
+          // It swings from the fall, and again when the buyer passes over it.
+          let angle = since > 0 ? 0.15 * Math.exp(-2.1 * since) * Math.cos(7.2 * since) * (index % 2 ? -1 : 1) : 0
+          const kicked = time - passed[index]
+          if (kicked > 0 && index !== PICKED) angle += 0.085 * Math.exp(-2.4 * kicked) * Math.sin(8.4 * kicked)
+          const picked = index === PICKED
+          const taken = picked ? easeOut((time - TAKEN) / 0.55) : 0
+          const paid = picked ? easeOut((time - PAID) / 0.5) : 0
+          const lit = picked ? 0 : clamp(1 - Math.abs(kicked - 0.1) / 0.3) * 0.5
+
+          ctx.save()
+          // While it falls it is only seen below the rail: it comes down out of the rail itself,
+          // not through the plate and the corner above it.
+          if (fall < 1) {
+            ctx.beginPath()
+            ctx.rect(0, RAIL + 10, W, H)
+            ctx.clip()
+          }
+          ctx.translate(centre(index), RAIL + 5)
+          ctx.rotate(angle * (1 - taken))
+          ctx.translate(0, -(1 - easeOut(fall)) * 560)
+          // The two strings, until the card is taken off them.
+          ctx.globalAlpha = 1 - taken
+          ctx.fillStyle = FAINT
+          ctx.fillRect(-78, 0, 4, HANG)
+          ctx.fillRect(74, 0, 4, HANG)
+          ctx.globalAlpha = 1
+
+          const x = -TAG.w / 2
+          const y = HANG + taken * 62
+          ctx.fillStyle = RAISE
+          rounded(x, y, TAG.w, TAG.h, 22)
+          ctx.fill()
+          if (lit > 0) {
+            ctx.globalAlpha = lit
+            ctx.fillStyle = "#34343f"
+            rounded(x, y, TAG.w, TAG.h, 22)
+            ctx.fill()
+            ctx.globalAlpha = 1
+          }
+          if (taken > 0) {
+            ctx.globalAlpha = taken
+            ctx.fillStyle = INDIGO
+            rounded(x, y, TAG.w, TAG.h, 22)
+            ctx.fill()
+            ctx.globalAlpha = 1
+          }
+          const label = `500 15px ${MONO}`
+          const soft = picked && taken > 0.5 ? "rgba(255,255,255,0.76)" : QUIET
+          text(`0${index + 1}`, x + 24, y + 42, label, soft, "left", "1.3px")
+          // How many are left, and for the one that was ordered, that it was.
+          const chip = picked && taken > 0.5 ? "ORDERED" : `${item.left} LEFT`
+          const chipWide = widthOf(chip, label, "1.3px") + 24
+          ctx.fillStyle = picked && taken > 0.5 ? "rgba(255,255,255,0.2)" : CARD
+          rounded(x + TAG.w - 22 - chipWide, y + 20, chipWide, 34, 7)
+          ctx.fill()
+          text(chip, x + TAG.w - 22 - chipWide + 12, y + 42, label, picked && taken > 0.5 ? "#ffffff" : BRAND, "left", "1.3px")
+          text(item.name, x + 22, y + 150, `500 34px ${SANS}`, ICE, "left", "-1.4px")
+          text(item.price, x + 22, y + TAG.h - 34, `500 42px ${MONO}`, ICE, "left", "-1.6px")
+          text("IN ZEC", x + TAG.w - 24, y + TAG.h - 38, label, soft, "right", "1.3px")
+
+          // Under the card that was ordered: where its payment went.
+          if (paid > 0) {
+            const font = `500 17px ${MONO}`
+            const line = `+ ${AMOUNT} ZEC`
+            const to = "PAID TO THE SELLER'S WALLET"
+            const wide = Math.max(widthOf(line, `500 26px ${MONO}`, "-0.4px"), widthOf(to, font, "1.4px")) + 48
+            ctx.globalAlpha = paid
+            ctx.fillStyle = ICE
+            rounded(-wide / 2, y + TAG.h + 16 + (1 - paid) * 18, wide, 92, 16)
+            ctx.fill()
+            text(to, 0, y + TAG.h + 50 + (1 - paid) * 18, font, "rgba(11,11,16,0.6)", "center", "1.4px")
+            text(line, 0, y + TAG.h + 88 + (1 - paid) * 18, `500 26px ${MONO}`, "#0b0b10", "center", "-0.4px")
+            ctx.globalAlpha = 1
+          }
+          ctx.restore()
+        })
+      }
+
+      // The buyer: one light block that comes in from the left edge along the rail.
+      function buyer(time) {
+        if (time < BUYER.from) return
+        const gone = clamp((time - TAKEN) / 0.35)
+        if (gone >= 1) return
+        const x = buyerAt(time)
+        for (let i = 6; i >= 1; i--) {
+          const behind = buyerAt(time - i * 0.035)
+          const size = 20 - i * 2.2
+          ctx.globalAlpha = (1 - i / 7) * 0.6 * (1 - gone)
+          ctx.fillStyle = BRAND
+          ctx.fillRect(behind - size / 2, RAIL + 5 - size / 2, size, size)
+        }
+        ctx.globalAlpha = 1 - gone
+        ctx.fillStyle = ICE
+        ctx.fillRect(x - 17, RAIL + 5 - 17, 34, 34)
+        if (x > 70) {
+          const wide = widthOf("A BUYER", `500 16px ${MONO}`, "1.4px") + 26
+          ctx.fillStyle = ICE
+          rounded(x - wide / 2, RAIL - 62, wide, 34, 7)
+          ctx.fill()
+          text("A BUYER", x, RAIL - 39, `500 16px ${MONO}`, "#0b0b10", "center", "1.4px")
+        }
+        ctx.globalAlpha = 1
+      }
+
+      // ------------------------------------------------------------ the film
+      function draw(time) {
+        ctx.globalAlpha = 1
+        ctx.fillStyle = GROUND
+        ctx.fillRect(0, 0, W, H)
+        ctx.fillStyle = dots
+        ctx.fillRect(0, 0, W, H)
+
+        rail(time)
+        tags(time)
+        buyer(time)
+        plate(time)
+
+        // The words under it all, and at the end where to start.
+        const font = `500 104px ${SANS}`
+        const first = "One link. "
+        rise(first, 92, 1000, 104, font, ICE, (time - WORDS) / 0.6, "-5.6px")
+        rise("Your whole shelf.", 92 + widthOf(first, font, "-5.6px"), 1000, 104, font, BRAND, (time - WORDS - 0.16) / 0.6, "-5.6px")
+        const last = easeOut((time - LAST) / 0.6)
+        ctx.globalAlpha = last
+        text("EVERY SELLER GETS ONE", W - 96, 944, `500 19px ${MONO}`, QUIET, "right", "1.6px")
+        text("zolace.cash/sell", W - 96, 1000 + (1 - last) * 12, `500 46px ${SANS}`, ICE, "right", "-1.8px")
+        ctx.globalAlpha = 1
+
+        // The corner: the logo and what the film is about, from the first frame to the last.
+        ctx.globalAlpha = easeOut(time / 0.4)
+        logo(96, 66, 46, ICE)
+        const state = "SELLERS · A PAGE OF YOUR OWN"
+        const stateFont = `500 19px ${MONO}`
+        const stateWide = widthOf(state, stateFont, "1.6px") + 62
+        ctx.fillStyle = RAISE
+        rounded(W - 96 - stateWide, 58, stateWide, 46, 12)
+        ctx.fill()
+        ctx.fillStyle = BRAND
+        ctx.fillRect(W - 96 - stateWide + 18, 77, 9, 9)
+        text(state, W - 96 - stateWide + 40, 88, stateFont, ICE, "left", "1.6px")
+        ctx.globalAlpha = 1
+
+        const remaining = TOTAL - time
+        if (remaining < 0.3) {
+          ctx.globalAlpha = 1 - clamp(remaining / 0.3)
+          ctx.fillStyle = "#050507"
+          ctx.fillRect(0, 0, W, H)
+          ctx.globalAlpha = 1
+        }
+      }
+
+      await Promise.all([
+        document.fonts.load(`500 104px ${SANS}`),
+        document.fonts.load(`400 38px ${SANS}`),
+        document.fonts.load(`700 46px ${SANS}`),
+        document.fonts.load(`500 50px ${MONO}`),
+      ])
+      const asked = new URLSearchParams(location.search)
+      window.film = { total: TOTAL, amount: AMOUNT }
+      if (asked.has("still")) {
+        draw(Number(asked.get("still")))
+        window.done = true
+      } else {
+        const { encodeFilm } = await import("./encode.js")
+        const { blob, frames } = await encodeFilm({ canvas, total: TOTAL, bitrate: 9_000_000, ready: async () => {}, draw })
+        window.film.frames = frames
+        await fetch("out", { method: "POST", body: blob })
+        window.done = true
+      }
+    </script>
+  </body>
+</html>
