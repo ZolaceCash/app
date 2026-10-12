@@ -1,0 +1,245 @@
+<!doctype html>
+<!--
+  A short film for the post about the vault page's "In and out": two panels, what was put into the
+  vault and what it has paid out. The first counts up to what the chain has and its one entry
+  slides in with its transaction; the second stands at nothing and waits for the first claim.
+  Drawn and encoded one frame at a time (encode.js); opened by compose.mjs with PAGE=ledger.html.
+  ?still=<seconds> draws one moment and stops.
+  The figures are the chain's on 12 Oct 2026: one top-up of 0.434866777 NVDA, transaction
+  0xc285cc8c…52f95de5, from 0x3ad9…af21 on 11 Oct at 18:53 UTC, and no claim. Change PUT below
+  when the vault has more, and do not post this once a claim exists: the film says there is none.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=Geist+Mono:wght@500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #09090b;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage" width="1920" height="1080"></canvas>
+    <script type="module">
+      const W = 1920
+      const H = 1080
+      const GROUND = "#09090b"
+      const TILE = "#15151a"
+      const RAISE = "#1e1e25"
+      const ICE = "#f4f4f6"
+      const QUIET = "rgba(244,244,246,0.58)"
+      const INDIGO = "#5567ea"
+      const BRAND = "#7b8cff"
+      const SANS = "Geist, system-ui, sans-serif"
+      const MONO = '"Geist Mono", ui-monospace, monospace'
+      const TOTAL = 12.6
+      // What the chain has.
+      const PUT = { amount: 0.4349, when: "2026-10-11 18:53 UTC", from: "0x3ad9…af21", tx: "0xc285cc8c…52f95de5" }
+
+      const canvas = document.getElementById("stage")
+      const ctx = canvas.getContext("2d")
+      const clamp = (x, low = 0, high = 1) => Math.min(high, Math.max(low, x))
+      const easeOut = (x) => 1 - Math.pow(1 - clamp(x), 3)
+      const easeBoth = (x) => {
+        const t = clamp(x)
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+      }
+      const rounded = (x, y, w, h, r) => {
+        ctx.beginPath()
+        ctx.roundRect(x, y, w, h, r)
+      }
+      const text = (value, x, y, font, colour, align = "left", spacing = "0px") => {
+        ctx.font = font
+        ctx.fillStyle = colour
+        ctx.textAlign = align
+        ctx.letterSpacing = spacing
+        ctx.fillText(value, x, y)
+      }
+      const rise = (value, x, y, size, font, colour, p, spacing = "0px") => {
+        if (p <= 0) return
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(0, y - size * 0.95, W, size * 1.22)
+        ctx.clip()
+        ctx.globalAlpha *= clamp(p * 1.6)
+        text(value, x, y + (1 - easeOut(p)) * size * 0.9, font, colour, "left", spacing)
+        ctx.restore()
+      }
+      const MARK = [
+        [8.1, 2, 22, 2, 13.25, 14.5, 10.65, 14.5, 15.9, 7, 4.6, 7],
+        [19.4, 17, 15.9, 22, 2, 22, 10.75, 9.5, 13.35, 9.5, 8.1, 17],
+        [5.5, 2, 7, 2, 3.5, 7, 2, 7],
+        [20.5, 17, 22, 17, 18.5, 22, 17, 22],
+      ]
+      const logo = (x, y, size, colour) => {
+        ctx.fillStyle = colour
+        const k = size / 24
+        for (const points of MARK) {
+          ctx.beginPath()
+          for (let i = 0; i < points.length; i += 2) ctx[i ? "lineTo" : "moveTo"](x + points[i] * k, y + points[i + 1] * k)
+          ctx.closePath()
+          ctx.fill()
+        }
+        text("zolace", x + size * 1.28, y + size * 0.86, `700 ${size * 0.95}px ${SANS}`, colour, "left", `${-size * 0.05}px`)
+      }
+
+      // The two panels: where they stand, and when each part of them arrives.
+      const PANEL = { y: 376, w: 852, h: 384, r: 30 }
+      const LEFT = 96
+      const RIGHT = W - 96 - PANEL.w
+      const COUNT = { from: 1.7, length: 1.7 }
+      const ENTRY = 3.3
+      const WAIT = 4.5
+      const ASK = 8.7
+
+      function panel(x, time, arrive, label) {
+        const p = easeOut((time - arrive) / 0.6)
+        if (p <= 0) return 0
+        ctx.globalAlpha = p
+        ctx.fillStyle = TILE
+        rounded(x, PANEL.y + (1 - p) * 34, PANEL.w, PANEL.h, PANEL.r)
+        ctx.fill()
+        text(label, x + 44, PANEL.y + 66 + (1 - p) * 34, `500 21px ${MONO}`, QUIET, "left", "1.8px")
+        ctx.globalAlpha = 1
+        return p
+      }
+      // A line of the book: a raised tile with two rows of words.
+      function entry(x, p, topLeft, topRight, bottomLeft, bottomRight, colour) {
+        if (p <= 0) return
+        const y = PANEL.y + 236 + (1 - easeOut(p)) * 30
+        ctx.globalAlpha = clamp(p * 1.5)
+        ctx.fillStyle = RAISE
+        rounded(x + 32, y, PANEL.w - 64, 116, 18)
+        ctx.fill()
+        text(topLeft, x + 60, y + 46, `500 24px ${MONO}`, colour, "left", "-0.4px")
+        if (topRight) text(topRight, x + PANEL.w - 60, y + 46, `500 21px ${MONO}`, BRAND, "right", "-0.3px")
+        if (bottomLeft) text(bottomLeft, x + 60, y + 88, `500 19px ${MONO}`, QUIET, "left", "1.2px")
+        if (bottomRight) text(bottomRight, x + PANEL.w - 60, y + 88, `500 19px ${MONO}`, QUIET, "right", "0px")
+        ctx.globalAlpha = 1
+      }
+
+      function draw(time) {
+        ctx.globalAlpha = 1
+        ctx.fillStyle = GROUND
+        ctx.fillRect(0, 0, W, H)
+        ctx.fillStyle = "rgba(255,255,255,0.06)"
+        const drift = (time * 5) % 28
+        for (let y = 14 - 28 + drift; y < H; y += 28) for (let x = 14; x < W; x += 28) ctx.fillRect(x, y, 1.5, 1.5)
+
+        const p = (from, length = 0.75) => clamp((time - from) / length)
+        ctx.globalAlpha = easeOut(p(0, 0.5))
+        logo(96, 76, 48, ICE)
+        text("THE VAULT · HOLDERS' REWARD IN NVDA", W - 96, 112, `500 21px ${MONO}`, QUIET, "right", "1.8px")
+        ctx.globalAlpha = easeOut(p(0.25) * 1.4)
+        ctx.fillStyle = BRAND
+        ctx.fillRect(96, 214, 10, 10)
+        text("NEW ON THE VAULT PAGE", 122, 228, `500 23px ${MONO}`, BRAND, "left", "2px")
+        ctx.globalAlpha = 1
+        const font = `500 108px ${SANS}`
+        ctx.font = font
+        ctx.letterSpacing = "-5.8px"
+        const head = ctx.measureText("In and ").width
+        rise("In and ", 90, 332, 108, font, ICE, p(0.4), "-5.8px")
+        rise("out.", 90 + head, 332, 108, font, BRAND, p(0.52), "-5.8px")
+        ctx.globalAlpha = easeOut(p(0.9, 0.6))
+        text("Every top-up and every claim, each with its transaction.", W - 96, 322, `400 30px ${SANS}`, QUIET, "right", "-0.5px")
+        ctx.globalAlpha = 1
+
+        // Put in: the amount counts up, then its one entry slides in.
+        if (panel(LEFT, time, 1.1, "PUT IN") > 0) {
+          const counted = PUT.amount * easeBoth((time - COUNT.from) / COUNT.length)
+          ctx.globalAlpha = easeOut(p(1.3, 0.5))
+          text(counted.toFixed(4), LEFT + 38, PANEL.y + 196, `500 132px ${SANS}`, ICE, "left", "-7px")
+          const wide = ctx.measureText(PUT.amount.toFixed(4)).width
+          text("NVDA", LEFT + 38 + wide + 22, PANEL.y + 196, `500 34px ${MONO}`, BRAND, "left", "-0.5px")
+          ctx.globalAlpha = 1
+          entry(LEFT, (time - ENTRY) / 0.6, PUT.amount.toFixed(4) + " NVDA", PUT.when, "FROM " + PUT.from, PUT.tx, ICE)
+        }
+        // Paid out: nothing yet. The nought breathes while it waits.
+        if (panel(RIGHT, time, 1.3, "PAID OUT") > 0) {
+          const breath = time > WAIT ? 0.55 + 0.45 * (0.5 + 0.5 * Math.cos((time - WAIT) * 3.4)) : 1
+          ctx.globalAlpha = easeOut(p(1.5, 0.5)) * breath
+          text("0", RIGHT + 38, PANEL.y + 196, `500 132px ${SANS}`, ICE, "left", "-7px")
+          ctx.globalAlpha = easeOut(p(1.5, 0.5))
+          const wide = ctx.measureText("0").width
+          text("NVDA", RIGHT + 38 + wide + 22, PANEL.y + 196, `500 34px ${MONO}`, BRAND, "left", "-0.5px")
+          // The mark that waits where the next figure would be typed.
+          if (time > WAIT && Math.floor((time - WAIT) * 2) % 2 === 0) {
+            ctx.fillStyle = INDIGO
+            ctx.fillRect(RIGHT + 38 + wide + 170, PANEL.y + 98, 10, 100)
+          }
+          ctx.globalAlpha = 1
+          entry(RIGHT, (time - WAIT) / 0.6, "No wallet has claimed yet.", "", "THE FIRST CLAIM LANDS HERE", "", QUIET)
+        }
+
+        // What is still in the vault: a bar that fills as the amount counts up.
+        const bar = easeOut(p(1.6, 0.6))
+        if (bar > 0) {
+          const y = PANEL.y + PANEL.h + 52
+          const filled = easeBoth((time - COUNT.from) / COUNT.length)
+          ctx.globalAlpha = bar
+          text("STILL IN THE VAULT", 96, y + 8, `500 21px ${MONO}`, QUIET, "left", "1.8px")
+          text(`${(PUT.amount * filled).toFixed(4)} NVDA`, W - 96, y + 8, `500 21px ${MONO}`, ICE, "right", "0.6px")
+          ctx.fillStyle = "#26262e"
+          rounded(96, y + 30, W - 192, 12, 6)
+          ctx.fill()
+          if (filled > 0) {
+            ctx.fillStyle = BRAND
+            rounded(96, y + 30, Math.max(12, (W - 192) * filled), 12, 6)
+            ctx.fill()
+          }
+          ctx.globalAlpha = 1
+        }
+
+        // The last line: where the page is, and then the question.
+        const asking = easeOut((time - ASK) / 0.5)
+        ctx.globalAlpha = easeOut(p(5.4, 0.6)) * (1 - asking)
+        text("Read from the chain, where anyone can read the same.", 96, 1000, `400 32px ${SANS}`, QUIET, "left", "-0.5px")
+        ctx.globalAlpha = 1
+        if (asking > 0) rise("Who moves the second number first?", 94, 1004, 56, `500 56px ${SANS}`, ICE, clamp((time - ASK) / 0.6), "-2.4px")
+        ctx.globalAlpha = easeOut(p(1.3, 0.6))
+        text("ZOLACE.CASH/VAULT", W - 96, 1000, `500 21px ${MONO}`, ICE, "right", "1.8px")
+        ctx.globalAlpha = 1
+
+        const left = TOTAL - time
+        if (left < 0.4) {
+          ctx.globalAlpha = 1 - clamp(left / 0.4)
+          ctx.fillStyle = GROUND
+          ctx.fillRect(0, 0, W, H)
+          ctx.globalAlpha = 1
+        }
+      }
+
+      await Promise.all([
+        document.fonts.load(`500 132px ${SANS}`),
+        document.fonts.load(`400 32px ${SANS}`),
+        document.fonts.load(`700 48px ${SANS}`),
+        document.fonts.load(`500 24px ${MONO}`),
+      ])
+      const asked = new URLSearchParams(location.search)
+      window.film = { total: TOTAL }
+      if (asked.has("still")) {
+        draw(Number(asked.get("still")))
+        window.done = true
+      } else {
+        const { encodeFilm } = await import("./encode.js")
+        const { blob, frames } = await encodeFilm({ canvas, total: TOTAL, bitrate: 8_000_000, ready: async () => {}, draw })
+        window.film.frames = frames
+        await fetch("out", { method: "POST", body: blob })
+        window.done = true
+      }
+    </script>
+  </body>
+</html>
