@@ -7,6 +7,7 @@ import { ZecIcon } from "@/components/site/chain-icons"
 import { ProblemForm } from "@/components/shop/problem-form"
 import { Qr } from "@/components/shop/qr"
 import { RefundForm } from "@/components/shop/refund-form"
+import { KeepHere } from "@/components/shop/keep-here"
 import { CopyButton } from "@/components/site/copy-button"
 import { DotLabel, PillLink } from "@/components/site/primitives"
 import { Button } from "@/components/ui/button"
@@ -459,7 +460,7 @@ export function OrderView({ id }: { id: string }) {
       </div>
 
       {order.state !== "expired" && order.state !== "refunded" ? (
-        <KeepTheLink delivered={order.state === "delivered"} />
+        <KeepTheLink delivered={order.state === "delivered"} id={order.id} item={order.product} priceCents={order.priceCents} />
       ) : null}
     </div>
   )
@@ -499,7 +500,7 @@ function Message({ title, children }: { title: string; children: React.ReactNode
 }
 
 // The link is the receipt, and also the gift: whoever has all of it can open the order.
-function KeepTheLink({ delivered }: { delivered: boolean }) {
+function KeepTheLink({ delivered, id, item, priceCents }: { delivered: boolean; id: string; item: string; priceCents: number }) {
   const href = useSyncExternalStore(
     subscribeHash,
     () => window.location.href,
@@ -525,6 +526,7 @@ function KeepTheLink({ delivered }: { delivered: boolean }) {
         <CopyButton text={href} variant="secondary" className="mt-4">
           Copy the link
         </CopyButton>
+        <KeepHere id={id} secret={secret ?? ""} item={item} priceCents={priceCents} />
       </div>
 
       <div className="cut rounded-3xl bg-card p-6 md:p-8">

@@ -95,6 +95,24 @@ export const DOCS: Doc[] = [
           },
         ],
       },
+      {
+        id: "keeping-it-on-your-device",
+        heading: "Keeping it on your device",
+        blocks: [
+          {
+            p: "The order's page can have your browser keep the link, if you ask it to. Nothing is kept until you press the button, and what is kept stays in that browser: it is never sent to the shop, and the shop cannot give it back.",
+          },
+          {
+            p: "The kept links are listed on the page Orders on this device. That page reads the browser's own storage and does not ask the server about any order, so the server cannot tell that several orders share a buyer.",
+          },
+          {
+            list: [
+              "Anyone who uses that browser can open what it keeps. Do not keep an order on a shared device.",
+              "Clearing the browser's data clears the list, so save the link somewhere else too if you still need the order.",
+            ],
+          },
+        ],
+      },
     ],
   },
   {

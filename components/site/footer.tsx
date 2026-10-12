@@ -12,6 +12,7 @@ const LINKS = [
   { href: "/#token", label: "The token" },
   { href: "/vault", label: "The vault" },
   { href: "/shop", label: "Browse the shelves" },
+  { href: "/orders", label: "Orders on this device" },
 ]
 
 const READ = [
