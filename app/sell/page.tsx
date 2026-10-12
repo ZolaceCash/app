@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Minus } from "lucide-react";
 
+import { TrySelling } from "@/components/sell/try-selling";
 import { PageHead, PageShell } from "@/components/site/page-shell";
 import { DotLabel, PillLink } from "@/components/site/primitives";
 import { Reveal } from "@/components/site/reveal";
@@ -49,6 +50,10 @@ export default function Sell() {
             </p>
           </Reveal>
         ))}
+      </div>
+
+      <div className="mt-2.5">
+        <TrySelling />
       </div>
 
       <div className="mt-2.5 grid items-start gap-2.5 lg:grid-cols-[minmax(0,1fr)_24rem]">
