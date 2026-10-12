@@ -336,7 +336,7 @@ export function OrderView({ id }: { id: string }) {
               <p className="label-mono text-muted-foreground">{order.product}</p>
               {item && "text" in item ? (
                 <>
-                  <ItemView text={item.text}>
+                  <ItemView text={item.text} product={order.product} goneAfter={order.goneAfter}>
                     <PillLink href="/shop" variant="secondary" size="lg">
                       Back to the shop
                     </PillLink>

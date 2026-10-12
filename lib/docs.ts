@@ -329,6 +329,22 @@ export const DOCS: Doc[] = [
         ],
       },
       {
+        id: "saving-the-item",
+        heading: "Saving the item",
+        blocks: [
+          {
+            p: "The order's link works only while the server still has the order, and a finished order is deleted some days after it is done. The link then opens nothing: not for you, and not for someone you sent it to as a gift. So the page with the open item has a button that saves it as a file, and it says from which day the server may delete the order.",
+          },
+          {
+            list: [
+              "The file is written by your browser, on your device. Nothing is sent to the shop for it.",
+              "It holds the item and how to use it. It leaves out the price, the order and the link.",
+              "It is plain text and not sealed: whoever can read the file has the item. Keep it as you would keep the item itself.",
+            ],
+          },
+        ],
+      },
+      {
         id: "two-kinds-of-goods",
         heading: "Three kinds of goods",
         blocks: [

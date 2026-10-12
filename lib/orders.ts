@@ -588,6 +588,10 @@ export type OrderView = {
   // Paid and deep enough, and the owner is buying the item by hand: when it has to be handed over
   // by, after which the payment is owed back. Null for any other order.
   handBy: number | null
+  // For a delivered order: the time from which the server may delete it. The link opens nothing
+  // once it has, so the page tells whoever holds the item to save it first. It is the earliest
+  // time, not the exact one: an order with a refund owed or a report unanswered is kept longer.
+  goneAfter: number | null
   address: string
   createdAt: number
   expiresAt: number
@@ -631,6 +635,7 @@ export async function readOrder(id: string, now = Date.now()): Promise<OrderView
       : null,
     making: product?.kind === "supplier" && order.state === "confirmed" && confirmations >= CONFIRMATIONS_NEEDED,
     handBy: product?.kind === "hand" && order.state === "confirmed" && order.readyAt !== null ? order.readyAt + handWaitMs() : null,
+    goneAfter: order.state === "delivered" && order.closedAt !== null ? order.closedAt + RETENTION_MS : null,
     address: order.address,
     createdAt: order.createdAt,
     expiresAt: order.expiresAt,

@@ -95,7 +95,7 @@ export function GiftView({ id }: { id: string }) {
               </p>
               {item && "text" in item ? (
                 <>
-                  <ItemView text={item.text} />
+                  <ItemView text={item.text} product={order.product} goneAfter={order.goneAfter} />
                   <p className="mt-6 leading-relaxed text-muted-foreground">
                     Opened in this browser, with the secret from the link. The server keeps a sealed copy it
                     cannot read.

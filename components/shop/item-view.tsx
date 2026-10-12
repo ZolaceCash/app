@@ -1,21 +1,30 @@
 "use client"
 
 import { Qr } from "@/components/shop/qr"
+import { SaveItem } from "@/components/shop/save-item"
 import { CopyButton } from "@/components/site/copy-button"
+import { esimParts } from "@/lib/item-file"
 import { cn } from "@/lib/utils"
 
-// An eSIM's activation code is one line, LPA:1$<where the profile is fetched>$<its code>. A phone
-// that is given it by hand often asks for the two parts apart. Null when the line is not of that
-// shape, and the whole line is then all there is to show.
-export function esimParts(text: string) {
-  const [head, address, code] = text.trim().split("$")
-  return head === "LPA:1" && address && code ? { address, code } : null
-}
-
 // An item that was opened in this browser, laid out for use: an eSIM as a QR code and as its two
-// parts, anything else as the code it is, and a button that copies it. The order's page shows it
-// to the buyer and a gift's page to whoever was sent the link. `children` stand beside the button.
-export function ItemView({ text, children }: { text: string; children?: React.ReactNode }) {
+// parts, anything else as the code it is, a button that copies it and one that saves it as a file
+// named after `product`. The order's page shows it to the buyer and a gift's page to whoever was
+// sent the link. `children` stand beside the buttons. `goneAfter` is when the server may delete
+// the order (OrderView.goneAfter): the page then says so, because the link opens nothing after it.
+// A day, as the reader's own calendar has it.
+const day = (at: number) => new Date(at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+
+export function ItemView({
+  text,
+  product,
+  goneAfter = null,
+  children,
+}: {
+  text: string
+  product: string
+  goneAfter?: number | null
+  children?: React.ReactNode
+}) {
   const esim = esimParts(text)
 
   return (
@@ -67,8 +76,16 @@ export function ItemView({ text, children }: { text: string; children?: React.Re
         <CopyButton text={text} size="lg">
           Copy the item
         </CopyButton>
+        <SaveItem product={product} text={text} variant="outline" size="lg" />
         {children}
       </div>
+      <p className="mt-4 rounded-xl bg-secondary p-5 text-sm leading-snug text-muted-foreground">
+        <span className="label-mono mb-2 block text-foreground">Keep the item, not only the link</span>
+        {goneAfter === null ? "The shop deletes a finished order from its server some days after it is done" : `The shop's server may delete this order from ${day(goneAfter)}`}
+        , and this link then opens nothing. Save the item before that: the file is written by your
+        browser, on this device, and is sent nowhere. It is not sealed, so whoever can read it has
+        the item.
+      </p>
     </>
   )
 }

@@ -70,6 +70,24 @@ test("a test order runs from checkout to the item opening with the link's secret
   assert.match(item, /^TEST-[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/)
 })
 
+test("a delivered order says from when the server may delete it, and no other order does", async () => {
+  const now = later()
+  const { result } = await place("test-item", now)
+  assert.ok(result.ok)
+
+  assert.equal((await orders.readOrder(result.id, now + 1000))?.goneAfter, null)
+  assert.ok(await orders.payTestOrder(result.id, now + 2000))
+  assert.equal((await orders.readOrder(result.id, now + 3000))?.goneAfter, null)
+
+  const delivered = await orders.readOrder(result.id, now + MINUTE)
+  assert.equal(delivered?.state, "delivered")
+  // Seven days after it was handed over, unless ORDER_RETENTION_DAYS says otherwise.
+  const days = Number(process.env.ORDER_RETENTION_DAYS ?? 7)
+  assert.equal(delivered?.goneAfter, now + MINUTE + days * 24 * 60 * MINUTE)
+  // Reading it again later does not move the time.
+  assert.equal((await orders.readOrder(result.id, now + 90 * MINUTE))?.goneAfter, delivered?.goneAfter)
+})
+
 test("after delivery the server no longer has the readable item", async () => {
   const now = later()
   const { result } = await place("test-item", now)
