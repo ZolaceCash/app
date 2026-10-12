@@ -44,6 +44,12 @@ shop, and every open order page is a question every few seconds.
 - 11 Oct 2026, the whole stack from the compose file, on testnet: the engine built from this folder, the
   viewing key registered by `engine-setup`, the site's own check passing, an order placed through nginx
   and given an address of its own, and the engine restarted without registering twice or losing the order.
+- 12 Oct 2026, with a second viewing key: the engine built with both patches was given three viewing
+  keys as three merchants (the shop's and two sellers'), and made addresses for each from its own key. An
+  order of a seller's item, placed on the site in a browser, was paid from the public faucet (transaction
+  `9663f5c9...1b915a84`, block 4,492,410): 12,500,000 zatoshi against 77,633 asked. Seen in under a
+  minute, confirmed, handed over at three blocks. The engine lists that invoice under the seller's key
+  and not under the shop's.
 - Not run: a second payment to a paid invoice against the real engine (the faucet pays once a day; the
   shop's side of it is tested against a played engine in `tests/payment.test.ts`), a payment after the
   price lock, a paid order through the compose stack, and anything on mainnet.

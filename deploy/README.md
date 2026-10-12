@@ -255,8 +255,10 @@ what such an order is owed back is the seller's to send, and it is never on your
   seller and a hash of the secret in the seller's link. Lose the engine's volume and every seller has to
   sign up again with a new wallet.
 - The engine takes about two sign-ups a minute. A third is told to wait.
-- Run so far on testnet only, and without a paid order: nobody has paid a seller's order through the
-  shop yet. Do that once on testnet, with a second wallet, before `SELLING=open` on mainnet.
+- Run on testnet, 12 Oct 2026: one order of a seller's item, paid from a public faucet with far more than
+  the price. Seen within a minute, handed over at three blocks, the item opened in the buyer's browser;
+  the excess was owed by the seller, on the seller's desk, and never on the owner's refunds screen. Not
+  run on mainnet.
 
 ## Items you buy after they are paid for (gift cards)
 
