@@ -115,7 +115,7 @@ export function SellerDesk() {
 
   const owing = desk.orders.filter((order) => order.owedZat > 0 && !order.refunded)
   const reports = desk.orders.filter((order) => order.problem && !order.problem.answered)
-  const canList = !desk.closed
+  const canList = !desk.closed && desk.left === null
 
   return (
     <div className="space-y-2.5">
@@ -126,13 +126,15 @@ export function SellerDesk() {
         </DotLabel>
         <h1 className="mt-5 text-4xl leading-[1.02] font-medium tracking-[-0.04em] text-balance md:text-6xl">{desk.name}</h1>
         <p className="mt-6 max-w-2xl leading-relaxed text-pretty text-muted-foreground">
-          {desk.closed
+          {desk.left !== null
+            ? "You stopped selling here. Your items are off the shelf and your unsold codes are deleted. What you owe buyers and what they reported is still here to deal with; once the last of your orders has been deleted, so is everything else the shop kept about you."
+            : desk.closed
             ? "The shop has closed this seller. None of your items can be ordered and nothing can be listed. What you owe buyers and what they reported is still here to deal with."
             : desk.open
               ? "Orders of your items are paid straight to your wallet. The shop holds none of it, so what an order is owed back is yours to send."
               : "Selling is not open on this server right now, or it runs on another network than your key. Your items are kept and are not on the shelf."}
         </p>
-        {desk.page ? <YourPage page={desk.page} live={desk.open && !desk.closed} /> : null}
+        {desk.page && desk.left === null ? <YourPage page={desk.page} live={desk.open && !desk.closed} /> : null}
         <ul className="mt-6 flex flex-wrap gap-1.5">
           <li className="label-mono rounded-md bg-secondary px-3 py-2">
             {desk.items.length} of {desk.limits.maxItems} items
@@ -165,7 +167,8 @@ export function SellerDesk() {
 
         <div className="space-y-2.5 lg:sticky lg:top-24">
           {canList && desk.items.length < desk.limits.maxItems ? <NewItem act={act} most={desk.limits.maxPriceCents} /> : null}
-          <Notices where={desk.notice} act={act} />
+          {desk.left === null ? <Notices where={desk.notice} act={act} /> : null}
+          {desk.left === null ? <StopSelling act={act} /> : null}
           <section className="cut rounded-3xl bg-ice p-6 text-ink md:p-8">
             <p className="label-mono">Not sold here</p>
             <ul className="mt-6 space-y-3 leading-snug">
@@ -317,6 +320,27 @@ function Notices({ where, act }: { where: string | null; act: Act }) {
           </p>
         </div>
       ) : null}
+    </section>
+  )
+}
+
+// Stopping for good. It is said in full before the button, because nothing brings the codes back.
+function StopSelling({ act }: { act: Act }) {
+  return (
+    <section className={PANEL}>
+      <DotLabel>Stop selling</DotLabel>
+      <ul className="mt-5 space-y-2.5 text-sm leading-snug text-muted-foreground">
+        <li>Every item of yours comes off the shelf, and your page is no longer found.</li>
+        <li>Every code that is not sold and not set aside for an order is deleted. The address you are told at is forgotten.</li>
+        <li>An order that is already placed still runs to its end. What you owe buyers and what they reported stays here until you have dealt with it.</li>
+        <li>Once the last of your orders has been deleted, the shop deletes the rest: your items, your name, and the viewing key its payment engine kept.</li>
+      </ul>
+      <DeskForm label="Stop selling here" variant="outline" className="mt-5 space-y-4" onSend={(form) => act({ do: "leave", sure: form.get("sure") === "yes" })}>
+        <label className="flex items-start gap-3 leading-snug">
+          <input type="checkbox" name="sure" value="yes" className="mt-1 size-4 accent-[var(--primary)]" />
+          <span>I want to stop selling here. This cannot be undone.</span>
+        </label>
+      </DeskForm>
     </section>
   )
 }

@@ -31,6 +31,9 @@ export const sellers = sqliteTable("sellers", {
   notifyUrl: text("notify_url"),
   // When the shop's owner closed this seller. Their items are off the shelf from then on.
   closedAt: integer("closed_at"),
+  // When the seller stopped selling here themselves. Their items are off the shelf, their unsold
+  // codes are gone, and this row goes too once the last of their orders has been deleted.
+  leftAt: integer("left_at"),
 })
 
 export const products = sqliteTable("products", {

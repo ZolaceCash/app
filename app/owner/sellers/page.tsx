@@ -20,6 +20,7 @@ const HOW = [
   "Closing a seller takes all their items off the shelf and lets them list nothing. Their desk still opens, so they can deal with what they owe buyers.",
   "An order that was already paid still runs to its end either way.",
   "You cannot read a seller's codes, change their items or see their viewing key.",
+  "A seller can stop selling themselves. They stay on this list until the last of their orders has been deleted; then everything about them is.",
 ];
 
 // Who is asking is read from the request before any row of this screen is read.
@@ -56,7 +57,7 @@ export default async function OwnerSellers() {
               <Panel key={seller.id}>
                 <div className="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
                   <h2 className="text-2xl font-medium tracking-[-0.035em]">
-                    {seller.slug && open && !seller.closedAt ? (
+                    {seller.slug && open && !seller.closedAt && !seller.leftAt ? (
                       <Link href={`/s/${seller.slug}`} className="underline-offset-4 hover:text-brand hover:underline">
                         {seller.name}
                       </Link>
@@ -65,7 +66,7 @@ export default async function OwnerSellers() {
                     )}
                   </h2>
                   <p className={seller.closedAt ? "label-mono text-destructive" : "label-mono text-muted-foreground"}>
-                    {seller.closedAt ? `Closed ${when(seller.closedAt)}` : seller.network === "testnet" ? "Test network" : "Selling"}
+                    {seller.leftAt ? `Stopped selling ${when(seller.leftAt)}` : seller.closedAt ? `Closed ${when(seller.closedAt)}` : seller.network === "testnet" ? "Test network" : "Selling"}
                   </p>
                 </div>
                 <ul className="mt-5 flex flex-wrap gap-1.5">

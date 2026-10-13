@@ -1,5 +1,5 @@
 import { setNotice, testNotice } from "@/lib/seller-notify";
-import { addCodes, addItem, clearCodes, desk, saveItem, sellerAnswer, sellerOf, sellerRefunded } from "@/lib/sellers";
+import { addCodes, addItem, clearCodes, desk, leave, saveItem, sellerAnswer, sellerOf, sellerRefunded } from "@/lib/sellers";
 
 // A seller's desk. There is no session and no cookie: every request carries the secret of the
 // seller's link in its Authorization header, and whoever holds it is the seller. The secret is in
@@ -62,6 +62,9 @@ export async function POST(request: Request) {
     const address = text(body.address, 400);
     const kept = address === null ? { ok: false as const, error: "That address is too long." } : await setNotice(seller, address);
     result = kept.ok ? { ok: true, said: address?.trim() ? "Saved. Send a test line to see that it arrives." : "Removed. Nothing is sent any more." } : kept;
+  } else if (body.do === "leave") {
+    const done = body.sure === true ? await leave(seller) : { ok: false as const, error: "Tick the box first: this cannot be undone." };
+    result = done.ok ? { ok: true, said: "You have stopped selling here." } : done;
   } else if (body.do === "test-notice") {
     const sent = await testNotice(seller);
     result = sent.ok ? { ok: true, said: "A test line was sent." } : sent;

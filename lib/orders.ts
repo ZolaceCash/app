@@ -91,7 +91,7 @@ export async function createOrder(input: {
   if (product.sellerId) {
     const [seller] = await db.select().from(sellers).where(eq(sellers.id, product.sellerId))
     const theirs = seller ? sellerEngine(seller.engineKey) : null
-    if (!sellingOn() || !seller || seller.closedAt !== null || product.takenDownAt !== null || product.kind !== "stock") {
+    if (!sellingOn() || !seller || seller.closedAt !== null || seller.leftAt !== null || product.takenDownAt !== null || product.kind !== "stock") {
       return { ok: false, reason: "no-product" }
     }
     if (!theirs || seller.network !== pay.network) return { ok: false, reason: "no-product" }
@@ -787,12 +787,14 @@ export async function listItems(now = Date.now()): Promise<ShelfItem[]> {
   // A made-up item is not shown where real money is taken: it could only be refused.
   const real = engine().network === "mainnet"
   const made = engine().network !== "stand-in" && supplierOn()
-  // Another seller's item is on the shelf only while selling is open, the seller was not closed,
+  // Another seller's item is on the shelf only while selling is open, the seller was not closed and has not left,
   // the item was not taken down and the seller's key is of the network payments run on.
   const selling = sellingOn()
   const network = engine().network
   const sellerRows = selling ? await db.select().from(sellers) : []
-  const sellerOf = new Map(sellerRows.filter((row) => row.closedAt === null && row.network === network).map((row) => [row.id, row]))
+  const sellerOf = new Map(
+    sellerRows.filter((row) => row.closedAt === null && row.leftAt === null && row.network === network).map((row) => [row.id, row])
+  )
   const rows = (await db.select().from(products).where(eq(products.active, true))).filter(
     (row) =>
       !(real && row.kind === "test") &&

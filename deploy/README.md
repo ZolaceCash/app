@@ -272,6 +272,12 @@ what such an order is owed back is the seller's to send, and it is never on your
   send. No other address is taken, so the server cannot be made to call anything else. The same round
   that looks after your own orders, every minute, moves the sellers' orders along. The address is kept
   readable in the database: the server has to send to it.
+- A seller can stop selling at their desk. At once their items are off the shelf, their unsold codes
+  and their notice address are deleted and their page is not found. Once the last of their orders has
+  been deleted (7 days after it is done, later if a refund is owed or a report unanswered), the server
+  has the engine delete the viewing key it kept for them and deletes their items and their row. That
+  last step needs the engine built with `leave.patch`: until the engine is rebuilt, such a seller stays
+  on your list as "stopped selling", and is deleted by itself once it is.
 - `/owner/sellers` lists every seller with their items, the reports buyers made that the seller has not
   answered, and the refunds they have not sent. There you take an item down or close a seller. You
   cannot read a seller's codes or change their items.

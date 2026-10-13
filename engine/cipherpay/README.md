@@ -1,7 +1,7 @@
 # CipherPay, as the shop's payment engine
 
 CipherPay itself is not in this repository: it is `atmospherelabs-dev/cipherpay-api` on GitHub (MIT), used
-at commit `f6f022d` with the three patches kept here. The shop talks to it through `lib/cipherpay.ts`.
+at commit `f6f022d` with the four patches kept here. The shop talks to it through `lib/cipherpay.ts`.
 
 - `nu7.patch`: moves CipherPay to the Zcash libraries that know the NU7 upgrade, and reads each transaction
   with the consensus branch the transaction names instead of assuming NU6.3. Without it CipherPay drops
@@ -15,6 +15,10 @@ at commit `f6f022d` with the three patches kept here. The shop talks to it throu
   route wants a dashboard session, so the shop's key was answered with 401 and the invoice the shop
   refused (a price that disagrees, an address of the wrong network) stayed open with no order behind it.
   The key cancels only invoices of its own merchant; another's is refused.
+- `leave.patch`: lets a merchant's own key delete that merchant: the viewing key the engine kept for
+  them and every invoice of theirs. Unpatched, that route too wants a dashboard session. The shop uses it
+  for a seller who stopped selling, once none of their orders is kept any more, and never with its own
+  key (`lib/payment.ts` refuses that).
 - `Dockerfile`: builds the engine from this folder alone. It fetches CipherPay at that commit, applies the
   two patches and compiles with `Cargo.lock`, the dependency versions of the build that was run against
   the chain. The first build takes ten minutes or more and a few gigabytes of memory; later ones come
@@ -57,6 +61,11 @@ shop, and every open order page is a question every few seconds.
 - 13 Oct 2026, built from this folder with `cancel.patch` and run on testnet: the shop's key cancelled its
   own pending invoice (the invoice then reads expired), another merchant's key and no key were refused,
   and an order the shop refused for its price left no open invoice behind.
+- 13 Oct 2026, built from this folder with `leave.patch` and run on testnet: a seller's key had the
+  engine delete that merchant (its key then opens nothing, and the scanner drops their viewing key), the
+  shop's own key was refused by the shop before it reached the engine, and the same viewing key signed up
+  again afterwards. Through the site in a browser: a seller stopped at their desk and was gone from the
+  shop's database and from the engine within the minute.
 - Not run: a second payment to a paid invoice against the real engine (the faucet pays once a day; the
   shop's side of it is tested against a played engine in `tests/payment.test.ts`), a payment after the
   price lock, a paid order through the compose stack, and anything on mainnet.

@@ -1,0 +1,13 @@
+diff --git a/src/api/billing_routes.rs b/src/api/billing_routes.rs
+index 22a591b..33ceaa8 100644
+--- a/src/api/billing_routes.rs
++++ b/src/api/billing_routes.rs
+@@ -173,7 +173,7 @@ pub async fn delete_account(
+     pool: web::Data<SqlitePool>,
+     config: web::Data<crate::config::Config>,
+ ) -> actix_web::HttpResponse {
+-    let merchant = match auth::require_full_session(&req, pool.get_ref()).await {
++    let merchant = match auth::require_full_or_session(&req, pool.get_ref()).await {
+         Ok(merchant) => merchant,
+         Err(response) => return response,
+     };

@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs"
 
-import { cipherpay, register } from "@/lib/cipherpay"
+import { cipherpay, forget, register } from "@/lib/cipherpay"
 import { engineFit, type Fit } from "@/lib/engine-fit"
 import { toZat } from "@/lib/price"
 
@@ -127,6 +127,15 @@ export function sellerEngine(key: string): PaymentEngine | null {
 export async function engineFitNow(now = Date.now()): Promise<Fit | null> {
   const set = settings()
   return set ? engineFit(set.scanUrl, now) : null
+}
+
+// Has the engine delete what it kept for a seller who left: their viewing key and their invoices.
+// Never the shop's own: a key that is the shop's is refused here, whoever asks.
+export async function forgetViewingKey(key: string): Promise<"gone" | "kept" | "unavailable"> {
+  const set = settings()
+  if (!set) return "unavailable"
+  if (!key || key === set.key) return "kept"
+  return forget(set, key)
 }
 
 export type Registered =

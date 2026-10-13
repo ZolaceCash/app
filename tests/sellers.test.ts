@@ -45,6 +45,8 @@ const merchants = new Map<string, string>() // viewing key -> the engine's key f
 const depth = new Map<string, number>()
 const asked: { url: string; method: string; body: string; key: string | null }[] = []
 let registering: "ok" | "busy" | "down" = "ok"
+// Whether the engine is the build that lets a key delete its own merchant (engine/cipherpay/leave.patch).
+let engineForgets = true
 let serial = 0
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status })
@@ -71,6 +73,16 @@ globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const made = `cpay_sk_seller_${merchants.size + 1}`
     merchants.set(ufvk, made)
     return json({ merchant_id: `m-${merchants.size}`, api_key: made, dashboard_token: "dash", webhook_secret: "whsec" }, 201)
+  }
+
+  // A key the engine no longer knows opens nothing.
+  const asking = (key ?? "").replace("Bearer ", "")
+  if (asking.startsWith("cpay_sk_seller_") && ![...merchants.values()].includes(asking)) return json({ error: "Not authenticated" }, 401)
+  if (url.endsWith("/api/invoices") && method === "GET") return json({ invoices: [] })
+  if (url.endsWith("/api/merchants/me/delete") && method === "POST") {
+    if (!engineForgets) return json({ error: "Not authenticated" }, 401)
+    for (const [viewing, made] of merchants) if (made === asking) merchants.delete(viewing)
+    return json({ status: "deleted" })
   }
 
   if (url.endsWith("/api/invoices") && method === "POST") {
@@ -149,6 +161,7 @@ beforeEach(() => {
   delete process.env.SELLER_MAX_ITEMS
   delete process.env.SELLERS_MAX
   registering = "ok"
+  engineForgets = true
   asked.length = 0
   cipherpay.forgetHealth()
 })
@@ -568,4 +581,109 @@ test("a seller whose name has no plain letters still gets a page", async () => {
   const who = await seller("Ключи")
   assert.match(who.row.slug!, /^seller-[0-9a-f]{6}$/)
   assert.equal((await sellers.storefront(who.row.slug!, clock))?.name, "Ключи")
+})
+
+// ---------------------------------------------------------------- stopping
+
+test("a seller stops selling: off the shelf at once, and deleted for good once their orders are", async () => {
+  const who = await seller("Leaving Soon")
+  const stays = await seller("Staying Put")
+  const item = await listed(who, ["LEAVE-CODE-1", "LEAVE-CODE-2", "LEAVE-CODE-3"])
+  const theirs = await listed(stays, ["STAY-CODE-1"])
+  const now = later()
+
+  // One order is placed and paid before they stop; its code is set aside for it.
+  const { made, result } = await order(item.slug, now)
+  assert.ok(result.ok)
+  const row = await rowOf(result.id)
+
+  assert.deepEqual(await sellers.leave(who.row, now + MINUTE), { ok: true, removed: 2 })
+  const left = (await sellers.sellerOf(who.token))!
+  assert.equal(left.leftAt, now + MINUTE)
+  assert.equal((await sellers.leave(left, now + 2 * MINUTE)).ok, false)
+
+  // At once: nothing of theirs can be ordered, their page is gone, they can list nothing.
+  assert.equal(await orders.getItem(item.slug, now + 2 * MINUTE), null)
+  assert.deepEqual((await order(item.slug, now + 2 * MINUTE)).result, { ok: false, reason: "no-product" })
+  assert.equal(await sellers.storefront(who.row.slug!, now + 2 * MINUTE), null)
+  const same = { name: "Game key", blurb: "", price: "10", shelf: "licences" }
+  assert.equal((await sellers.addItem(left, same)).ok, false)
+  assert.equal((await sellers.addCodes(left, item.id, "MORE")).ok, false)
+  assert.equal((await sellers.saveItem(left, item.id, { ...same, active: true })).ok, false)
+  // The unsold codes are deleted, not kept: only the one set aside for the order is left.
+  const kept = await db.select().from(schema.stock).where(eq(schema.stock.productId, item.id))
+  assert.deepEqual(kept.map((code) => code.state), ["held"])
+  // The other seller is untouched.
+  assert.ok(await orders.getItem(theirs.slug, now + 2 * MINUTE))
+
+  // The order that was already placed still runs to its end.
+  pay(row.engineRef!, PRICE)
+  mine(row.engineRef!, 3)
+  const delivered = await orders.readOrder(result.id, now + 5 * MINUTE)
+  assert.equal(delivered?.state, "delivered")
+  assert.equal(await seal.openSealed(made.secret, delivered!.wrappedKey, delivered!.sealed!), "LEAVE-CODE-1")
+  const desk = await sellers.desk(left, now + 6 * MINUTE)
+  assert.equal(desk.left, now + MINUTE)
+  assert.equal(desk.open, false)
+  assert.equal(desk.orders.length, 1)
+
+  // While an order of theirs is kept, they are too.
+  assert.equal(await sellers.forgetLeft(), 0)
+  assert.ok(await sellers.sellerOf(who.token))
+
+  // The order is deleted (as it is some days after it is done): now everything about them goes.
+  await db.delete(schema.orders).where(eq(schema.orders.id, result.id))
+  asked.length = 0
+  assert.equal(await sellers.forgetLeft(), 1)
+  // The engine was asked, with the seller's own key, to delete what it kept for them.
+  const deleted = asked.find((call) => call.url.endsWith("/api/merchants/me/delete"))
+  assert.equal(deleted?.key, `Bearer ${who.engineKey}`)
+  assert.equal(merchants.has(who.viewing), false)
+  assert.equal(await sellers.sellerOf(who.token), null)
+  assert.equal((await db.select().from(schema.products).where(eq(schema.products.sellerId, who.row.id))).length, 0)
+  assert.equal((await db.select().from(schema.stock).where(eq(schema.stock.productId, item.id))).length, 0)
+  const all = JSON.stringify([await db.select().from(schema.sellers), await db.select().from(schema.products)])
+  assert.ok(!all.includes("Leaving Soon") && !all.includes(who.engineKey))
+  // The seller who stayed is still there, and so is the engine's key for them.
+  assert.ok(await sellers.sellerOf(stays.token))
+  assert.equal(merchants.has(stays.viewing), true)
+
+  // The same wallet can sign up again once it is forgotten.
+  const again = await sellers.join({ name: "Back Again", viewingKey: who.viewing, agreed: true }, now + 10 * MINUTE)
+  assert.ok(again.ok)
+})
+
+test("a seller who left is kept while the engine cannot forget them, and the shop's own key is never deleted", async () => {
+  const who = await seller()
+  await listed(who, ["GONE-CODE-1"])
+  await sellers.leave(who.row, clock)
+
+  // An engine without the patch refuses: nothing is deleted here, so the key to try again with is kept.
+  engineForgets = false
+  assert.equal(await sellers.forgetLeft(), 0)
+  assert.ok(await sellers.sellerOf(who.token))
+  // No answer at all: the same.
+  engineForgets = true
+  registering = "down"
+  const played = globalThis.fetch
+  globalThis.fetch = (async () => {
+    throw new Error("connection refused")
+  }) as typeof fetch
+  try {
+    assert.equal(await sellers.forgetLeft(), 0)
+  } finally {
+    globalThis.fetch = played
+  }
+  assert.ok(await sellers.sellerOf(who.token))
+
+  // A row that somehow held the shop's own key would not have the engine delete the shop.
+  await db.update(schema.sellers).set({ engineKey: SHOP_KEY }).where(eq(schema.sellers.id, who.row.id))
+  asked.length = 0
+  assert.equal(await sellers.forgetLeft(), 0)
+  assert.equal(asked.filter((call) => call.url.endsWith("/api/merchants/me/delete")).length, 0)
+  await db.update(schema.sellers).set({ engineKey: who.engineKey }).where(eq(schema.sellers.id, who.row.id))
+
+  // With the engine able to: gone.
+  assert.equal(await sellers.forgetLeft(), 1)
+  assert.equal(await sellers.sellerOf(who.token), null)
 })

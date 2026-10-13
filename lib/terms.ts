@@ -89,6 +89,7 @@ export const TERMS: Term[] = [
       "An item's price and how many items a seller lists are limited. The sign-up page states the limits.",
       "A seller's orders are paid to the seller. So what such an order is owed back is the seller's to send, and a buyer's report is the seller's to answer.",
       "The shop takes no share of a seller's orders at the start. Whether a fee comes later is not decided.",
+      "A seller can stop selling at any time, at their desk. Their items come off the shelf and their unsold codes are deleted at once; once the last of their orders has been deleted, so is everything else the shop kept about them.",
     ],
   },
   {

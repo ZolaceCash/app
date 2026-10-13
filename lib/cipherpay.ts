@@ -80,6 +80,22 @@ export async function register(config: Pick<Config, "url">, viewingKey: string):
   return { ok: true, key }
 }
 
+// A seller who stopped selling is taken out of the engine: the viewing key it kept for them is
+// deleted, with every invoice of theirs. "gone": the engine no longer knows the key to it, now or
+// already. "kept": the engine knows it and would not delete it (a build without
+// engine/cipherpay/leave.patch answers so). "unavailable": no answer.
+export async function forget(config: Pick<Config, "url">, key: string): Promise<"gone" | "kept" | "unavailable"> {
+  const headers = { Authorization: `Bearer ${key}`, "Content-Type": "application/json" }
+  // Whether the engine still knows the key at all: its list of invoices answers to it.
+  const known = await ask(`${config.url}/api/invoices`, { headers })
+  if (!known) return "unavailable"
+  if (known.status === 401) return "gone"
+  if (known.status !== 200) return "unavailable"
+  const deleted = await ask(`${config.url}/api/merchants/me/delete`, { method: "POST", headers })
+  if (!deleted) return "unavailable"
+  return deleted.status === 200 ? "gone" : "kept"
+}
+
 export function cipherpay(config: Config): PaymentEngine {
   const authorised = { Authorization: `Bearer ${config.key}`, "Content-Type": "application/json" }
 

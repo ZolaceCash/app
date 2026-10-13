@@ -1,5 +1,6 @@
 import { ownerTick } from "@/lib/owner-notify";
 import { sellerTick } from "@/lib/seller-notify";
+import { forgetLeft } from "@/lib/sellers";
 
 // Every minute the server looks at what waits for the owner: paid orders whose item has to be
 // bought are moved along (onto the owner's list, or owed back when their time is up), and the
@@ -13,6 +14,10 @@ const tick = async () => {
   });
   await sellerTick().catch((error) => {
     console.error("sellers: the round did not finish:", error instanceof Error ? error.message : error);
+  });
+  // A seller who stopped selling is deleted for good once none of their orders is kept any more.
+  await forgetLeft().catch((error) => {
+    console.error("sellers: forgetting did not finish:", error instanceof Error ? error.message : error);
   });
 };
 

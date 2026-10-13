@@ -1,12 +1,12 @@
 import { createHash, randomBytes } from "node:crypto"
 
-import { and, asc, desc, eq, gt, isNotNull, isNull, ne, sql } from "drizzle-orm"
+import { and, asc, desc, eq, gt, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm"
 
 import { parsePrice, parseShelf, REPLY_MAX } from "@/lib/admin"
 import { getDb, schema } from "@/lib/db"
 import type { Order, Seller, ShelfSlug } from "@/lib/db/schema"
 import { listItems, owedWhy, sweepSeller, type OwedWhy, type ShelfItem } from "@/lib/orders"
-import { engine, registerViewingKey } from "@/lib/payment"
+import { engine, forgetViewingKey, registerViewingKey } from "@/lib/payment"
 import { noticeWhere } from "@/lib/seller-notify"
 import { sellerLimits, sellingOn } from "@/lib/selling"
 import { viewingKey } from "@/lib/zcash-address"
@@ -110,11 +110,15 @@ function checkItem(input: ItemInput): { ok: true; name: string; blurb: string; p
 const slugFor = (name: string) => linkName(name, "item", 4)
 
 const CLOSED = "The shop has closed this seller. Nothing can be listed."
+const LEFT = "You stopped selling here. To sell again, sign up again."
+// Why this seller can list nothing, or null when they can.
+const shut = (seller: Seller) => (seller.leftAt !== null ? LEFT : seller.closedAt !== null ? CLOSED : null)
 
 // A new item of this seller's. It starts off the shelf, so codes can be put in before anyone can
 // order it.
 export async function addItem(seller: Seller, input: ItemInput): Promise<Result> {
-  if (seller.closedAt !== null) return { ok: false, error: CLOSED }
+  const why = shut(seller)
+  if (why) return { ok: false, error: why }
   const item = checkItem(input)
   if (!item.ok) return item
 
@@ -140,7 +144,8 @@ export async function addItem(seller: Seller, input: ItemInput): Promise<Result>
 const mine = (seller: Seller, id: number) => and(eq(products.id, id), eq(products.sellerId, seller.id))
 
 export async function saveItem(seller: Seller, id: number, input: ItemInput & { active: boolean }): Promise<Result> {
-  if (seller.closedAt !== null) return { ok: false, error: CLOSED }
+  const why = shut(seller)
+  if (why) return { ok: false, error: why }
   const item = checkItem(input)
   if (!item.ok) return item
 
@@ -159,7 +164,8 @@ export async function saveItem(seller: Seller, id: number, input: ItemInput & { 
 // Puts codes behind an item, one per line of what the seller pasted. Each is kept readable until
 // its order is paid, then sealed to the buyer and wiped.
 export async function addCodes(seller: Seller, id: number, text: string): Promise<Result & { added?: number }> {
-  if (seller.closedAt !== null) return { ok: false, error: CLOSED }
+  const why = shut(seller)
+  if (why) return { ok: false, error: why }
   const codes = text
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -247,6 +253,8 @@ export type Desk = {
   // Selling is open on this server and this seller's key is of the network payments run on.
   open: boolean
   closed: boolean
+  // The seller stopped selling here themselves: when. Null while they sell.
+  left: number | null
   limits: { maxPriceCents: number; maxItems: number }
   items: DeskItem[]
   orders: DeskOrder[]
@@ -282,8 +290,9 @@ export async function desk(seller: Seller, now = Date.now()): Promise<Desk> {
     page: seller.slug,
     notice: noticeWhere(seller.notifyUrl),
     network: seller.network,
-    open: sellingOn() && engine().network === seller.network,
+    open: sellingOn() && engine().network === seller.network && seller.leftAt === null,
     closed: seller.closedAt !== null,
+    left: seller.leftAt,
     limits: { maxPriceCents: limits.maxPriceCents, maxItems: limits.maxItems },
     items: rows.map((row) => ({
       id: row.id,
@@ -372,6 +381,51 @@ export async function sellerAnswer(seller: Seller, ref: string, answer: { refund
   return done.length > 0 ? { ok: true } : { ok: false, error: "That report is not waiting for an answer any more." }
 }
 
+// ---------------------------------------------------------------- stopping
+
+// The seller stops selling here, for good. At once: every item of theirs is off the shelf, every
+// code that is not sold and not set aside for an order is deleted, the address they are told at
+// is forgotten, and their page is not found. An order that is already placed still runs to its
+// end with the code that was set aside for it, and what they owe buyers and what buyers reported
+// stays on their desk to deal with. The rest goes later, by itself (forgetLeft).
+export async function leave(seller: Seller, now = Date.now()): Promise<Result & { removed?: number }> {
+  if (seller.leftAt !== null) return { ok: false, error: "You have stopped selling here already." }
+  const db = await getDb()
+  const theirs = (await db.select({ id: products.id }).from(products).where(eq(products.sellerId, seller.id))).map((row) => row.id)
+  let removed = 0
+  if (theirs.length > 0) {
+    await db.update(products).set({ active: false }).where(eq(products.sellerId, seller.id))
+    removed = (await db.delete(stock).where(and(inArray(stock.productId, theirs), eq(stock.state, "free"))).returning({ id: stock.id })).length
+  }
+  await db.update(sellers).set({ leftAt: now, notifyUrl: null }).where(eq(sellers.id, seller.id))
+  return { ok: true, removed }
+}
+
+// What is left of sellers who stopped, once none of their orders is kept any more (an order is
+// deleted days after it is done, and never while a refund is owed or a report unanswered): the
+// payment engine deletes the viewing key it kept for them, and then their items, the rows of the
+// codes that were handed over and their own row are deleted here. Nothing of them remains. Run
+// every minute by the server itself. A seller the engine would not or could not forget is kept
+// and tried again: their row is what still holds the key to do it with.
+export async function forgetLeft(): Promise<number> {
+  const db = await getDb()
+  const gone = await db.select().from(sellers).where(isNotNull(sellers.leftAt))
+  let forgotten = 0
+  for (const seller of gone) {
+    const [{ count }] = await db.select({ count: sql<number>`count(*)` }).from(orders).where(eq(orders.sellerId, seller.id))
+    if (count > 0) continue
+    if ((await forgetViewingKey(seller.engineKey)) !== "gone") continue
+    const theirs = (await db.select({ id: products.id }).from(products).where(eq(products.sellerId, seller.id))).map((row) => row.id)
+    if (theirs.length > 0) {
+      await db.delete(stock).where(inArray(stock.productId, theirs))
+      await db.delete(products).where(eq(products.sellerId, seller.id))
+    }
+    await db.delete(sellers).where(eq(sellers.id, seller.id))
+    forgotten += 1
+  }
+  return forgotten
+}
+
 // ---------------------------------------------------------------- the seller's own page
 
 export type Storefront = { name: string; slug: string; items: ShelfItem[] }
@@ -385,7 +439,7 @@ export async function storefront(slug: string, now = Date.now()): Promise<Storef
   if (!sellingOn() || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug) || slug.length > 60) return null
   const db = await getDb()
   const [seller] = await db.select().from(sellers).where(eq(sellers.slug, slug))
-  if (!seller || seller.closedAt !== null || seller.network !== engine().network) return null
+  if (!seller || seller.closedAt !== null || seller.leftAt !== null || seller.network !== engine().network) return null
   const items = (await listItems(now)).filter((item) => item.sellerSlug === slug)
   return { name: seller.name, slug, items }
 }
@@ -399,6 +453,7 @@ export type OwnerSeller = {
   network: "testnet" | "mainnet"
   createdAt: number
   closedAt: number | null
+  leftAt: number | null
   items: { id: number; slug: string; name: string; priceCents: number; active: boolean; takenDown: boolean; free: number }[]
   delivered: number
   // What this seller owes buyers and has not said was sent, as the payment engine saw it.
@@ -434,6 +489,7 @@ export async function listSellers(): Promise<OwnerSeller[]> {
       network: seller.network,
       createdAt: seller.createdAt,
       closedAt: seller.closedAt,
+      leftAt: seller.leftAt,
       items: items
         .filter((item) => item.sellerId === seller.id)
         .map((item) => ({

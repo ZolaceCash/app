@@ -50,6 +50,7 @@ export const PLAINLY = [
   "A viewing key shows the shop every payment that arrives for it, not only the ones made here. Use a wallet made for selling here.",
   "Your viewing key passes through the shop's server to its payment engine, which keeps the half that sees incoming payments, encrypted. The site itself does not keep it.",
   "The shop still knows what any order here tells it: the item, the amount and the buyer's IP address.",
+  "You can stop selling at any time, at your desk: your items come off the shelf, your unsold codes are deleted, and once your last order here has been deleted, so is everything else the shop kept about you.",
   "No audit and no legal review of this exist.",
 ] as const
 

@@ -91,6 +91,7 @@ const NOTES: Record<string, Record<string, string>> = {
     created_at: "When the seller signed up.",
     notify_url: "Where the seller asked to be told when something waits for them, if they gave an address: a notification service's. The lines sent there name no order, no item, no amount and no buyer.",
     closed_at: "When the shop's owner closed the seller, if they did.",
+    left_at: "When the seller stopped selling here themselves, if they did. This whole row is deleted once the last of their orders has been.",
   },
 }
 

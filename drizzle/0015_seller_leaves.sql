@@ -1,0 +1,1 @@
+ALTER TABLE `sellers` ADD `left_at` integer;
