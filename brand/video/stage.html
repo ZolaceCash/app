@@ -1,0 +1,445 @@
+<!doctype html>
+<!--
+  A film for the post about the terms and the roadmap. The stages stand side by side in one long
+  row, far wider than the screen, and the film walks along it: past the four that were done, on to
+  stage 03, where it stops; the stage's three lines are ticked off, the terms come up beside it as
+  a light sheet with their twelve headings, a "done" block is stamped onto the stage and the count
+  at the foot goes from four to five; then it walks on to stage 04, the one in turn, with the
+  token's stage dark at the edge. No other film here walks sideways or stamps anything.
+  Drawn and encoded one frame at a time (encode.js); opened by compose.mjs with PAGE=stage.html.
+  ?still=<seconds> draws one moment and stops.
+  What it says is lib/roadmap.ts and lib/terms.ts as they stand on 13 Oct 2026: five of seven
+  stages done, stage 03 closed by the terms, an order kept 7 days and an item from stock sold for
+  a real payment (that last on the owner's word), stage 04 in turn. It says that no lawyer has
+  reviewed the terms, as the page does, and it does not say whether selling is open.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=Geist+Mono:wght@500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #09090b;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage" width="1920" height="1080"></canvas>
+    <script type="module">
+      const W = 1920
+      const H = 1080
+      const GROUND = "#09090b"
+      const CARD = "#111114"
+      const RAISE = "#1c1c23"
+      const ICE = "#f4f4f6"
+      const INK = "#0b0b10"
+      const QUIET = "rgba(244,244,246,0.58)"
+      const FAINT = "rgba(244,244,246,0.2)"
+      const INDIGO = "#5567ea"
+      const BRAND = "#7b8cff"
+      const SANS = "Geist, system-ui, sans-serif"
+      const MONO = '"Geist Mono", ui-monospace, monospace'
+      const TOTAL = 13.4
+
+      const canvas = document.getElementById("stage")
+      const ctx = canvas.getContext("2d")
+      const clamp = (x, low = 0, high = 1) => Math.min(high, Math.max(low, x))
+      const easeOut = (x) => 1 - Math.pow(1 - clamp(x), 3)
+      const easeBoth = (x) => {
+        const t = clamp(x)
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+      }
+      const mix = (a, b, p) => a + (b - a) * p
+      const rounded = (x, y, w, h, r) => {
+        ctx.beginPath()
+        ctx.roundRect(x, y, w, h, r)
+      }
+      const text = (value, x, y, font, colour, align = "left", spacing = "0px") => {
+        ctx.font = font
+        ctx.fillStyle = colour
+        ctx.textAlign = align
+        ctx.letterSpacing = spacing
+        ctx.fillText(value, x, y)
+      }
+      const widthOf = (value, font, spacing = "0px") => {
+        ctx.font = font
+        ctx.letterSpacing = spacing
+        return ctx.measureText(value).width
+      }
+      // A line of words that comes up from behind its own baseline.
+      const rise = (value, x, y, size, font, colour, p, spacing = "0px") => {
+        if (p <= 0) return
+        ctx.save()
+        const alpha = ctx.globalAlpha
+        ctx.beginPath()
+        ctx.rect(-20000, y - size * 0.95, 40000, size * 1.24)
+        ctx.clip()
+        ctx.globalAlpha = alpha * clamp(p * 1.6)
+        text(value, x, y + (1 - easeOut(p)) * size * 0.9, font, colour, "left", spacing)
+        ctx.restore()
+      }
+      const wrap = (value, font, wide, spacing = "0px") => {
+        const lines = []
+        let line = ""
+        for (const word of value.split(" ")) {
+          const next = line ? `${line} ${word}` : word
+          if (line && widthOf(next, font, spacing) > wide) {
+            lines.push(line)
+            line = word
+          } else line = next
+        }
+        if (line) lines.push(line)
+        return lines
+      }
+      const MARK = [
+        [8.1, 2, 22, 2, 13.25, 14.5, 10.65, 14.5, 15.9, 7, 4.6, 7],
+        [19.4, 17, 15.9, 22, 2, 22, 10.75, 9.5, 13.35, 9.5, 8.1, 17],
+        [5.5, 2, 7, 2, 3.5, 7, 2, 7],
+        [20.5, 17, 22, 17, 18.5, 22, 17, 22],
+      ]
+      const mark = (x, y, size, colour) => {
+        const k = size / 24
+        ctx.fillStyle = colour
+        for (const points of MARK) {
+          ctx.beginPath()
+          for (let i = 0; i < points.length; i += 2) ctx[i ? "lineTo" : "moveTo"](x + points[i] * k, y + points[i + 1] * k)
+          ctx.closePath()
+          ctx.fill()
+        }
+      }
+      const logo = (x, y, size, colour) => {
+        mark(x, y, size, colour)
+        text("zolace", x + size * 1.28, y + size * 0.86, `700 ${size * 0.95}px ${SANS}`, colour, "left", `${-size * 0.05}px`)
+      }
+      // The site's ground: a faint grid of dots, which walks with the row.
+      const dots = (() => {
+        const tile = document.createElement("canvas")
+        tile.width = tile.height = 34
+        const pen = tile.getContext("2d")
+        pen.fillStyle = "rgba(255,255,255,0.06)"
+        pen.fillRect(16, 16, 2, 2)
+        return ctx.createPattern(tile, "repeat")
+      })()
+
+      // ------------------------------------------------------------ the row of stages (lib/roadmap.ts)
+      const EARLY = [
+        { code: "P", title: "The preview", when: "The site says plainly what exists and what does not." },
+        { code: "00", title: "Try the payment engines", when: "A payment to a one-time shielded address was seen and confirmed on testnet." },
+        { code: "01", title: "The shop's skeleton", when: "One test order ran from checkout to the item opening in the browser." },
+        { code: "02", title: "Real payments", when: "An order paid in full has run on both networks." },
+      ]
+      const THIRD = ["The first real goods, and one sold for a real payment", "The docs give the rules as they run", "The terms are written. An order is kept 7 days"]
+      const FOURTH = ["Built: items bought to order, and gift links", "Built: other sellers, paid to their own wallets", "Not built: AI credit keys, paying from other coins"]
+      // The terms' twelve headings (lib/terms.ts).
+      const TERMS = [
+        "What these are",
+        "An order",
+        "Price and payment",
+        "What is owed back to you",
+        "An item is sold as it is",
+        "Items bought after you pay",
+        "An item of another seller",
+        "Selling here",
+        "What the shop may do",
+        "The law where you are",
+        "What is kept, and for how long",
+        "Changes",
+      ]
+
+      // Where each thing stands in the row, in the row's own measure.
+      const TOP = 360
+      const TALL = 470
+      const SMALL = 640
+      const at = (index) => index * (SMALL + 90)
+      const X3 = at(4) + 40
+      const SHEET = X3 + 760 + 36
+      const X4 = SHEET + 760 + 150
+      const X5 = X4 + 900 + 110
+
+      // ------------------------------------------------------------ when things happen
+      const WALK = { from: 1.2, to: 3.4 } // to stage 03
+      const TICK = [3.8, 4.6, 5.4]
+      const SHEET_AT = 4.7
+      const STAMP = 6.6
+      const SAID = 7.3
+      const ON = { from: 8.7, to: 10.0 } // on to stage 04
+      const FOURTH_AT = [10.1, 10.5, 10.9]
+      const LAST = 11.3
+      // How far the row has been walked: where the screen's left margin stands in the row.
+      const walked = (time) => {
+        const first = easeBoth((time - WALK.from) / (WALK.to - WALK.from))
+        const second = easeBoth((time - ON.from) / (ON.to - ON.from))
+        return mix(mix(0, X3, first), X4 - 330, second)
+      }
+
+      const chip = (label, x, y, fill, colour) => {
+        const font = `500 16px ${MONO}`
+        const wide = widthOf(label, font, "1.5px") + 28
+        ctx.fillStyle = fill
+        rounded(x, y, wide, 38, 8)
+        ctx.fill()
+        text(label, x + 14, y + 25, font, colour, "left", "1.5px")
+        return wide
+      }
+      const numeral = (code, x, colour) => text(code, x - 6, 316, `500 150px ${MONO}`, colour, "left", "-8px")
+
+      function early(time) {
+        EARLY.forEach((stage, index) => {
+          const p = easeOut((time - 0.25 - index * 0.14) / 0.6)
+          if (p <= 0) return
+          const x = at(index)
+          ctx.globalAlpha = p
+          numeral(stage.code, x, "rgba(244,244,246,0.86)")
+          ctx.fillStyle = RAISE
+          rounded(x, TOP + (1 - p) * 30, SMALL, TALL, 28)
+          ctx.fill()
+          const y = TOP + (1 - p) * 30
+          chip("DONE", x + 36, y + 36, CARD, QUIET)
+          text(stage.title, x + 34, y + 152, `500 44px ${SANS}`, ICE, "left", "-1.9px")
+          text("DONE WHEN", x + 36, y + 226, `500 15px ${MONO}`, QUIET, "left", "1.5px")
+          wrap(stage.when, `500 27px ${SANS}`, SMALL - 76, "-0.5px").forEach((line, row) => {
+            text(line, x + 36, y + 272 + row * 37, `500 27px ${SANS}`, QUIET, "left", "-0.5px")
+          })
+          ctx.globalAlpha = 1
+        })
+      }
+
+      function third(time) {
+        const stamped = (time - STAMP) / 0.24
+        // The tile takes the blow of the stamp.
+        const blow = time > STAMP && time < STAMP + 0.5 ? Math.sin((time - STAMP) * 60) * 7 * Math.exp(-(time - STAMP) * 9) : 0
+        const done = time >= STAMP
+        ctx.save()
+        ctx.translate(blow, blow * 0.4)
+        numeral("03", X3, done ? "rgba(244,244,246,0.86)" : BRAND)
+        ctx.fillStyle = RAISE
+        rounded(X3, TOP, 760, TALL, 28)
+        ctx.fill()
+        chip("STAGE 03", X3 + 36, TOP + 36, CARD, QUIET)
+        text("Open the shop", X3 + 34, TOP + 158, `500 62px ${SANS}`, ICE, "left", "-3px")
+        THIRD.forEach((line, index) => {
+          const ticked = easeOut((time - TICK[index]) / 0.35)
+          const y = TOP + 214 + index * 78
+          ctx.fillStyle = CARD
+          rounded(X3 + 36, y, 688, 64, 14)
+          ctx.fill()
+          // The box, and the block that fills it when the line is ticked.
+          ctx.fillStyle = "rgba(244,244,246,0.14)"
+          ctx.fillRect(X3 + 58, y + 21, 22, 22)
+          if (ticked > 0) {
+            ctx.fillStyle = BRAND
+            const size = 22 * ticked
+            ctx.fillRect(X3 + 69 - size / 2, y + 32 - size / 2, size, size)
+          }
+          text(line, X3 + 100, y + 41, `500 25px ${SANS}`, ticked > 0.5 ? ICE : QUIET, "left", "-0.5px")
+        })
+
+        // The stamp: a light block that comes down large and lands askew.
+        if (stamped > 0) {
+          const land = easeOut(stamped)
+          const size = mix(2.7, 1, land)
+          ctx.save()
+          ctx.translate(X3 + 760 - 150, TOP + 70)
+          ctx.rotate(-0.12)
+          ctx.scale(size, size)
+          ctx.globalAlpha = clamp(stamped * 3)
+          ctx.fillStyle = ICE
+          rounded(-112, -44, 224, 88, 14)
+          ctx.fill()
+          text("DONE", 0, 22, `500 60px ${MONO}`, INK, "center", "6px")
+          ctx.restore()
+          // The flash of the landing.
+          const flash = clamp(1 - Math.abs(time - STAMP - 0.2) / 0.22)
+          if (flash > 0) {
+            ctx.globalAlpha = flash * 0.16
+            ctx.fillStyle = "#ffffff"
+            rounded(X3, TOP, 760, TALL, 28)
+            ctx.fill()
+          }
+          ctx.globalAlpha = 1
+        }
+        ctx.restore()
+      }
+
+      function sheet(time) {
+        const up = easeOut((time - SHEET_AT) / 0.7)
+        if (up <= 0) return
+        const y = TOP - 112 + (1 - up) * 760
+        ctx.globalAlpha = clamp(up * 2)
+        ctx.fillStyle = ICE
+        rounded(SHEET, y, 760, TALL + 112, 28)
+        ctx.fill()
+        ctx.fillStyle = INDIGO
+        ctx.fillRect(SHEET + 40, y + 46, 11, 11)
+        text("THE SHOP'S TERMS · 12 PARTS", SHEET + 64, y + 58, `500 18px ${MONO}`, INK, "left", "1.6px")
+        text("zolace.cash/terms", SHEET + 720, y + 58, `500 18px ${MONO}`, "rgba(11,11,16,0.56)", "right", "0.4px")
+        // The twelve headings, written in one after another, in two columns.
+        TERMS.forEach((heading, index) => {
+          const p = easeOut((time - SHEET_AT - 0.35 - index * 0.11) / 0.3)
+          if (p <= 0) return
+          const column = index < 6 ? 0 : 1
+          const row = index % 6
+          const hx = SHEET + 40 + column * 350
+          const hy = y + 124 + row * 58
+          ctx.globalAlpha = clamp(up * 2) * p
+          text(String(index + 1).padStart(2, "0"), hx, hy, `500 15px ${MONO}`, "rgba(11,11,16,0.5)", "left", "1px")
+          text(heading, hx + 38 + (1 - p) * 14, hy + 2, `500 23px ${SANS}`, INK, "left", "-0.6px")
+        })
+        const said = easeOut((time - SHEET_AT - 1.8) / 0.5)
+        ctx.globalAlpha = clamp(up * 2) * said
+        ctx.fillStyle = INK
+        rounded(SHEET + 40, y + TALL + 112 - 96, 680, 60, 12)
+        ctx.fill()
+        text("NO LAWYER HAS REVIEWED THEM. THE PAGE SAYS SO FIRST.", SHEET + 380, y + TALL + 112 - 58, `500 17px ${MONO}`, ICE, "center", "1.3px")
+        ctx.globalAlpha = 1
+      }
+
+      function fourth(time) {
+        numeral("04", X4, BRAND)
+        ctx.fillStyle = INDIGO
+        rounded(X4, TOP, 900, TALL, 28)
+        ctx.fill()
+        chip("STAGE 04 · NOW", X4 + 40, TOP + 36, "rgba(255,255,255,0.18)", "#ffffff")
+        text("More goods", X4 + 36, TOP + 172, `500 84px ${SANS}`, "#ffffff", "left", "-4.4px")
+        FOURTH.forEach((line, index) => {
+          const p = easeOut((time - FOURTH_AT[index]) / 0.45)
+          if (p <= 0) return
+          const y = TOP + 232 + index * 72
+          ctx.globalAlpha = p
+          ctx.fillStyle = "#ffffff"
+          ctx.fillRect(X4 + 42, y + 2, 11, 11)
+          text(line, X4 + 72 + (1 - p) * 20, y + 16, `500 30px ${SANS}`, "#ffffff", "left", "-0.8px")
+          ctx.globalAlpha = 1
+        })
+
+        // The token's stage, dark at the edge: behind a gate.
+        numeral("05", X5, FAINT)
+        ctx.fillStyle = CARD
+        rounded(X5, TOP, SMALL, TALL, 28)
+        ctx.fill()
+        chip("GATED", X5 + 36, TOP + 36, RAISE, QUIET)
+        text("The token", X5 + 34, TOP + 152, `500 44px ${SANS}`, QUIET, "left", "-1.9px")
+      }
+
+      // ------------------------------------------------------------ the foot: the count, and the words
+      function foot(time) {
+        const shown = easeOut((time - 0.4) / 0.5)
+        ctx.globalAlpha = shown
+        const done = time >= STAMP ? 5 : 4
+        for (let i = 0; i < 7; i++) {
+          const lit = i < done
+          // The fifth square fills as the stamp lands.
+          const fresh = i === 4 ? easeOut((time - STAMP) / 0.4) : 1
+          ctx.fillStyle = "rgba(244,244,246,0.14)"
+          ctx.fillRect(96 + i * 44, 918, 32, 32)
+          if (lit) {
+            ctx.fillStyle = i === 4 ? BRAND : ICE
+            const size = 32 * fresh
+            ctx.fillRect(96 + i * 44 + 16 - size / 2, 934 - size / 2, size, size)
+          }
+        }
+        ctx.fillStyle = time >= ON.to ? INDIGO : "rgba(85,103,234,0.5)"
+        ctx.fillRect(96 + 5 * 44 + 8, 926, 16, 16)
+        text(`${done} OF 7 DONE`, 96, 1000, `500 20px ${MONO}`, ICE, "left", "1.7px")
+        text("NO DATES · A STAGE ENDS WHEN ITS TEST PASSES", 290, 1000, `500 20px ${MONO}`, QUIET, "left", "1.7px")
+        ctx.globalAlpha = 1
+
+        // The words on the right of the foot: what just happened, then what comes.
+        const font = `500 78px ${SANS}`
+        const first = clamp((ON.to - 0.2 - time) / 0.3)
+        if (time > SAID && first > 0) {
+          ctx.globalAlpha = first
+          const wide = widthOf("Stage 03, done.", font, "-4px")
+          rise("Stage 03, done.", W - 96 - wide, 990, 78, font, ICE, (time - SAID) / 0.55, "-4px")
+          ctx.globalAlpha = 1
+        }
+        if (time > ON.to - 0.1) {
+          const one = "Now: "
+          const two = "more goods."
+          const wide = widthOf(one + two, font, "-4px")
+          rise(one, W - 96 - wide, 990, 78, font, ICE, (time - ON.to + 0.1) / 0.55, "-4px")
+          rise(two, W - 96 - wide + widthOf(one, font, "-4px"), 990, 78, font, BRAND, (time - ON.to) / 0.55, "-4px")
+          const last = easeOut((time - LAST) / 0.5)
+          ctx.globalAlpha = last
+          text("zolace.cash/roadmap", W - 96, 908, `500 22px ${MONO}`, QUIET, "right", "0.6px")
+          ctx.globalAlpha = 1
+        }
+      }
+
+      // ------------------------------------------------------------ the film
+      function draw(time) {
+        ctx.globalAlpha = 1
+        ctx.fillStyle = GROUND
+        ctx.fillRect(0, 0, W, H)
+        const gone = walked(time)
+        ctx.save()
+        ctx.translate(180 - gone, 0)
+        // The dots walk with the row, a little slower: they are further away.
+        ctx.save()
+        ctx.translate(gone * 0.45, 0)
+        ctx.fillStyle = dots
+        ctx.fillRect(-400, 0, 12000, H)
+        ctx.restore()
+        early(time)
+        third(time)
+        sheet(time)
+        fourth(time)
+        ctx.restore()
+
+        foot(time)
+
+        // The corner: the logo and what the film is about, from the first frame to the last.
+        ctx.globalAlpha = easeOut(time / 0.4)
+        logo(96, 66, 46, ICE)
+        const state = "THE ROADMAP · THE TERMS"
+        const stateFont = `500 19px ${MONO}`
+        const stateWide = widthOf(state, stateFont, "1.6px") + 62
+        ctx.fillStyle = RAISE
+        rounded(W - 96 - stateWide, 58, stateWide, 46, 12)
+        ctx.fill()
+        ctx.fillStyle = BRAND
+        ctx.fillRect(W - 96 - stateWide + 18, 77, 9, 9)
+        text(state, W - 96 - stateWide + 40, 88, stateFont, ICE, "left", "1.6px")
+        ctx.globalAlpha = 1
+
+        const remaining = TOTAL - time
+        if (remaining < 0.3) {
+          ctx.globalAlpha = 1 - clamp(remaining / 0.3)
+          ctx.fillStyle = "#050507"
+          ctx.fillRect(0, 0, W, H)
+          ctx.globalAlpha = 1
+        }
+      }
+
+      await Promise.all([
+        document.fonts.load(`500 84px ${SANS}`),
+        document.fonts.load(`400 38px ${SANS}`),
+        document.fonts.load(`700 46px ${SANS}`),
+        document.fonts.load(`500 150px ${MONO}`),
+      ])
+      const asked = new URLSearchParams(location.search)
+      window.film = { total: TOTAL }
+      if (asked.has("still")) {
+        draw(Number(asked.get("still")))
+        window.done = true
+      } else {
+        const { encodeFilm } = await import("./encode.js")
+        const { blob, frames } = await encodeFilm({ canvas, total: TOTAL, bitrate: 9_000_000, ready: async () => {}, draw })
+        window.film.frames = frames
+        await fetch("out", { method: "POST", body: blob })
+        window.done = true
+      }
+    </script>
+  </body>
+</html>
