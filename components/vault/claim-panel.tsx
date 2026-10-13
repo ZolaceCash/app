@@ -81,12 +81,26 @@ export function ClaimPanel({ live }: { live: boolean }) {
       let taken: bigint | null = null
       const eth = provider()
       if (eth && body.live) {
-        const answer = await call(
-          eth,
-          body.vault,
-          encodeFunctionData({ abi: VAULT_ABI, functionName: "claimed", args: [address as `0x${string}`] })
-        ).catch(() => null)
-        if (answer) taken = decodeFunctionResult({ abi: VAULT_ABI, functionName: "claimed", data: answer })
+        // A wallet answers for the network it is on. On another one there is no vault at this
+        // address and the answer is empty, which is not a list that failed to load.
+        const here = (await eth.request({ method: "eth_chainId" }).catch(() => null)) as string | null
+        if (here === null || Number(here) !== body.chainId) {
+          setNote({
+            text: `The wallet in this browser is on another network, so what was taken could not be read. Switch it to network ${body.chainId} and look again.`,
+            bad: true,
+          })
+        } else {
+          const answer = await call(
+            eth,
+            body.vault,
+            encodeFunctionData({ abi: VAULT_ABI, functionName: "claimed", args: [address as `0x${string}`] })
+          ).catch(() => null)
+          try {
+            if (answer) taken = decodeFunctionResult({ abi: VAULT_ABI, functionName: "claimed", data: answer })
+          } catch {
+            taken = null
+          }
+        }
       }
       setMine({ index, earned: BigInt(body.list[index][1]), taken })
     } catch {
