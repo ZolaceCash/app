@@ -1,0 +1,383 @@
+<!doctype html>
+<!--
+  A film for the post about a shelf having a page of its own. A cabinet of six drawers stands on
+  the left, one per shelf, each with its name and how many items are on it. A visitor, drawn as
+  one light block, goes to a drawer's handle and presses it; the drawer turns indigo and a tray
+  slides out of it across the screen, with that shelf's address at its head and its items lying in
+  it; the tray slides back and the next drawer is opened. Three are opened: one with two items,
+  one with one, and one that is empty and says so. No other film here has a cabinet or anything
+  that slides out and back.
+  Drawn and encoded one frame at a time (encode.js); opened by compose.mjs with PAGE=shelf.html.
+  ?still=<seconds> draws one moment and stops.
+  What it says is what is built (PLAN.md, "The first real item, and shelves that follow the
+  stock"): each of the six shelves has a page at /shop/shelf/<slug> with its own items, a count
+  and the lowest price, and a shelf with nothing on it has its page all the same. The six names
+  are the shop's. The items, their prices and the seller on them are a sample and marked as one.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=Geist+Mono:wght@500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #09090b;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage" width="1920" height="1080"></canvas>
+    <script type="module">
+      const W = 1920
+      const H = 1080
+      const GROUND = "#09090b"
+      const CARD = "#111114"
+      const RAISE = "#1c1c23"
+      const ICE = "#f4f4f6"
+      const QUIET = "rgba(244,244,246,0.58)"
+      const FAINT = "rgba(244,244,246,0.22)"
+      const INDIGO = "#5567ea"
+      const BRAND = "#7b8cff"
+      const SANS = "Geist, system-ui, sans-serif"
+      const MONO = '"Geist Mono", ui-monospace, monospace'
+      const TOTAL = 13.6
+
+      const canvas = document.getElementById("stage")
+      const ctx = canvas.getContext("2d")
+      const clamp = (x, low = 0, high = 1) => Math.min(high, Math.max(low, x))
+      const easeOut = (x) => 1 - Math.pow(1 - clamp(x), 3)
+      const easeBoth = (x) => {
+        const t = clamp(x)
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+      }
+      const mix = (a, b, p) => a + (b - a) * p
+      const rounded = (x, y, w, h, r) => {
+        ctx.beginPath()
+        ctx.roundRect(x, y, w, h, r)
+      }
+      const text = (value, x, y, font, colour, align = "left", spacing = "0px") => {
+        ctx.font = font
+        ctx.fillStyle = colour
+        ctx.textAlign = align
+        ctx.letterSpacing = spacing
+        ctx.fillText(value, x, y)
+      }
+      const widthOf = (value, font, spacing = "0px") => {
+        ctx.font = font
+        ctx.letterSpacing = spacing
+        return ctx.measureText(value).width
+      }
+      // A line of words that comes up from behind its own baseline.
+      const rise = (value, x, y, size, font, colour, p, spacing = "0px") => {
+        if (p <= 0) return
+        ctx.save()
+        const alpha = ctx.globalAlpha
+        ctx.beginPath()
+        ctx.rect(0, y - size * 0.95, W, size * 1.24)
+        ctx.clip()
+        ctx.globalAlpha = alpha * clamp(p * 1.6)
+        text(value, x, y + (1 - easeOut(p)) * size * 0.9, font, colour, "left", spacing)
+        ctx.restore()
+      }
+      const wrap = (value, font, wide, spacing = "0px") => {
+        const lines = []
+        let line = ""
+        for (const word of value.split(" ")) {
+          const next = line ? `${line} ${word}` : word
+          if (line && widthOf(next, font, spacing) > wide) {
+            lines.push(line)
+            line = word
+          } else line = next
+        }
+        if (line) lines.push(line)
+        return lines
+      }
+      const MARK = [
+        [8.1, 2, 22, 2, 13.25, 14.5, 10.65, 14.5, 15.9, 7, 4.6, 7],
+        [19.4, 17, 15.9, 22, 2, 22, 10.75, 9.5, 13.35, 9.5, 8.1, 17],
+        [5.5, 2, 7, 2, 3.5, 7, 2, 7],
+        [20.5, 17, 22, 17, 18.5, 22, 17, 22],
+      ]
+      const mark = (x, y, size, colour) => {
+        const k = size / 24
+        ctx.fillStyle = colour
+        for (const points of MARK) {
+          ctx.beginPath()
+          for (let i = 0; i < points.length; i += 2) ctx[i ? "lineTo" : "moveTo"](x + points[i] * k, y + points[i + 1] * k)
+          ctx.closePath()
+          ctx.fill()
+        }
+      }
+      const logo = (x, y, size, colour) => {
+        mark(x, y, size, colour)
+        text("zolace", x + size * 1.28, y + size * 0.86, `700 ${size * 0.95}px ${SANS}`, colour, "left", `${-size * 0.05}px`)
+      }
+      // The site's ground: a faint grid of dots.
+      const dots = (() => {
+        const tile = document.createElement("canvas")
+        tile.width = tile.height = 34
+        const pen = tile.getContext("2d")
+        pen.fillStyle = "rgba(255,255,255,0.06)"
+        pen.fillRect(16, 16, 2, 2)
+        return ctx.createPattern(tile, "repeat")
+      })()
+
+      // ------------------------------------------------------------ the six shelves, and a sample of what is on them
+      const SHELVES = [
+        { slug: "vouchers", name: "Vouchers", items: [] },
+        { slug: "licences", name: "Software licences", items: [] },
+        {
+          slug: "gift-cards",
+          name: "Gift cards",
+          items: [
+            { name: "Gift card $10", price: "$11.90", tag: "BOUGHT TO ORDER", seller: null },
+            { name: "Game gift card", price: "$25.00", tag: "3 LEFT", seller: "KEY CORNER" },
+          ],
+        },
+        { slug: "ai-credit", name: "AI credit keys", items: [] },
+        { slug: "esim", name: "eSIM", items: [{ name: "US eSIM, 1 GB for 7 days", price: "$5.99", tag: "1 LEFT", seller: null }] },
+        { slug: "gift-links", name: "Gift links", items: [] },
+      ]
+      // Which drawers are opened, and when: the handle is pressed, the tray comes out, stays, goes back.
+      const OPENED = [
+        { shelf: 2, press: 2.2, out: 2.35, back: 5.0 },
+        { shelf: 4, press: 5.75, out: 5.9, back: 8.1 },
+        { shelf: 3, press: 8.85, out: 9.0, back: 10.7 },
+      ]
+      const SLIDE = 0.65
+      const WORDS_BACK = 11.3
+      const LAST = 11.9
+
+      // ------------------------------------------------------------ where things are
+      const BAR = { x: 96, y: 176, w: 610, h: 116, gap: 14 }
+      const barY = (index) => BAR.y + index * (BAR.h + BAR.gap)
+      const TRAY = { x: BAR.x + BAR.w, w: W - 96 - (BAR.x + BAR.w), h: 440 }
+      const trayY = (index) => clamp(barY(index) + BAR.h / 2 - TRAY.h / 2, BAR.y, barY(5) + BAR.h - TRAY.h)
+      const handle = (index) => ({ x: BAR.x + BAR.w - 44, y: barY(index) + BAR.h / 2 })
+      // How far out each drawer's tray is at a moment: 0 shut, 1 all the way.
+      const out = (entry, time) => easeOut((time - entry.out) / SLIDE) * (1 - easeBoth((time - entry.back) / 0.5))
+
+      // ------------------------------------------------------------ the cabinet
+      function cabinet(time) {
+        SHELVES.forEach((shelf, index) => {
+          const p = easeOut((time - 0.2 - index * 0.09) / 0.55)
+          if (p <= 0) return
+          const y = barY(index)
+          const opened = OPENED.find((entry) => entry.shelf === index)
+          const open = opened ? out(opened, time) : 0
+          const x = BAR.x - (1 - p) * 120
+          ctx.globalAlpha = p
+          ctx.fillStyle = RAISE
+          rounded(x, y, BAR.w, BAR.h, 22)
+          ctx.fill()
+          if (open > 0) {
+            ctx.globalAlpha = p * clamp(open * 3)
+            ctx.fillStyle = INDIGO
+            ctx.beginPath()
+            ctx.roundRect(x, y, BAR.w, BAR.h, [22, 0, 0, 22])
+            ctx.fill()
+            ctx.globalAlpha = p
+          }
+          const lit = open > 0.3
+          text(`0${index + 1}`, x + 32, y + 50, `500 17px ${MONO}`, lit ? "rgba(255,255,255,0.76)" : QUIET, "left", "1.4px")
+          text(shelf.name, x + 30, y + 92, `500 38px ${SANS}`, lit ? "#ffffff" : ICE, "left", "-1.6px")
+          // How many are on it, and the handle.
+          const count = shelf.items.length
+          const label = count === 0 ? "NOTHING YET" : count === 1 ? "1 ITEM" : `${count} ITEMS`
+          text(label, x + BAR.w - 92, y + 50, `500 16px ${MONO}`, count === 0 ? FAINT : lit ? "#ffffff" : BRAND, "right", "1.4px")
+          const pressed = opened ? clamp(1 - Math.abs(time - opened.press - 0.08) / 0.16) : 0
+          ctx.fillStyle = lit ? "rgba(255,255,255,0.9)" : "rgba(244,244,246,0.26)"
+          rounded(x + BAR.w - 64 + pressed * 5, y + BAR.h / 2 - 22, 12, 44, 6)
+          ctx.fill()
+          ctx.globalAlpha = 1
+        })
+      }
+
+      // ------------------------------------------------------------ a tray, out of its drawer
+      function tray(entry, time) {
+        const open = out(entry, time)
+        if (open <= 0.001) return
+        const shelf = SHELVES[entry.shelf]
+        const y = trayY(entry.shelf)
+        const wide = TRAY.w * open
+        ctx.save()
+        // Only as much of the tray as has come out of the drawer is seen.
+        ctx.beginPath()
+        ctx.rect(TRAY.x, 0, wide, H)
+        ctx.clip()
+        // What is in it comes out with it, from the left.
+        const x = TRAY.x - (1 - open) * TRAY.w
+        ctx.fillStyle = CARD
+        ctx.beginPath()
+        ctx.roundRect(x, y, TRAY.w, TRAY.h, [0, 26, 26, 0])
+        ctx.fill()
+        ctx.fillStyle = INDIGO
+        ctx.fillRect(x, y, 12, TRAY.h)
+
+        // Its head: the shelf's own address, and what is on it.
+        const head = `500 21px ${MONO}`
+        text("zolace.cash", x + 48, y + 60, head, ICE, "left", "0.4px")
+        text(`/shop/shelf/${shelf.slug}`, x + 48 + widthOf("zolace.cash", head, "0.4px"), y + 60, head, BRAND, "left", "0.4px")
+        const count = shelf.items.length
+        const lowest = count > 0 ? shelf.items.map((item) => item.price).sort((a, b) => Number(a.slice(1)) - Number(b.slice(1)))[0] : null
+        const said = count === 0 ? "NOTHING ON SALE" : `${count === 1 ? "1 ITEM" : `${count} ITEMS`} ON SALE · FROM ${lowest}`
+        text(said, x + TRAY.w - 40, y + 60, `500 17px ${MONO}`, QUIET, "right", "1.5px")
+
+        if (count === 0) {
+          // An empty shelf has its page all the same, and says so.
+          const p = easeOut((time - entry.out - 0.45) / 0.5)
+          ctx.globalAlpha = p
+          text("Nothing here yet.", x + 46, y + 222, `500 72px ${SANS}`, ICE, "left", "-3.6px")
+          text("A shelf has prices once its first item is in stock.", x + 48, y + 286, `500 30px ${SANS}`, QUIET, "left", "-0.7px")
+          ctx.globalAlpha = 1
+        }
+        shelf.items.forEach((item, index) => {
+          const p = easeOut((time - entry.out - 0.4 - index * 0.16) / 0.45)
+          if (p <= 0) return
+          const cx = x + 48 + index * 432
+          const cy = y + 104 + (1 - p) * 36
+          ctx.globalAlpha = p
+          ctx.fillStyle = RAISE
+          rounded(cx, cy, 410, 296, 22)
+          ctx.fill()
+          const label = `500 15px ${MONO}`
+          text(`0${index + 1}`, cx + 26, cy + 44, label, QUIET, "left", "1.3px")
+          const chipWide = widthOf(item.tag, label, "1.3px") + 24
+          ctx.fillStyle = CARD
+          rounded(cx + 410 - 24 - chipWide, cy + 22, chipWide, 34, 7)
+          ctx.fill()
+          text(item.tag, cx + 410 - 24 - chipWide + 12, cy + 44, label, BRAND, "left", "1.3px")
+          wrap(item.name, `500 36px ${SANS}`, 360, "-1.4px").forEach((line, row) => {
+            text(line, cx + 24, cy + 120 + row * 42, `500 36px ${SANS}`, ICE, "left", "-1.4px")
+          })
+          if (item.seller) {
+            text("SOLD BY", cx + 26, cy + 204, label, QUIET, "left", "1.3px")
+            text(item.seller, cx + 26 + widthOf("SOLD BY ", label, "1.3px"), cy + 204, label, ICE, "left", "1.3px")
+          }
+          text(item.price, cx + 24, cy + 262, `500 50px ${MONO}`, ICE, "left", "-1.8px")
+          text("IN ZEC", cx + 410 - 26, cy + 258, label, QUIET, "right", "1.3px")
+          ctx.globalAlpha = 1
+        })
+        ctx.restore()
+      }
+
+      // The visitor: one light block that goes from handle to handle.
+      function visitor(time) {
+        const stops = [{ at: 1.3, x: W + 60, y: 560 }, ...OPENED.map((entry) => ({ at: entry.press, ...handle(entry.shelf) }))]
+        if (time < stops[0].at) return
+        let from = stops[0]
+        let to = stops[1]
+        for (let i = 1; i < stops.length; i++) {
+          if (time >= stops[i].at) from = stops[i]
+          to = stops[Math.min(i + (time >= stops[i].at ? 1 : 0), stops.length - 1)]
+          if (time < stops[i].at) {
+            to = stops[i]
+            break
+          }
+        }
+        const travel = 0.7
+        const p = from === to ? 1 : easeBoth((time - (to.at - travel)) / travel)
+        const x = mix(from.x, to.x, p)
+        const y = mix(from.y, to.y, p)
+        const gone = clamp((time - OPENED.at(-1).back - 0.4) / 0.4)
+        if (gone >= 1) return
+        ctx.globalAlpha = 1 - gone
+        ctx.fillStyle = ICE
+        ctx.fillRect(x - 14, y - 14, 28, 28)
+        ctx.globalAlpha = 1
+      }
+
+      // ------------------------------------------------------------ the words, where no tray is out
+      function words(time) {
+        const anyOut = Math.max(...OPENED.map((entry) => out(entry, time)))
+        const first = clamp((2.25 - time) / 0.3)
+        const again = time > WORDS_BACK ? 1 : 0
+        const shown = time < 2.3 ? first : again
+        if (shown <= 0 || anyOut > 0.02) return
+        const since = time < 2.3 ? time - 0.6 : time - WORDS_BACK
+        ctx.globalAlpha = shown
+        const font = `500 122px ${SANS}`
+        rise("Six shelves.", 806, 470, 122, font, ICE, since / 0.6, "-6.8px")
+        rise("Each one opens.", 806, 600, 122, font, BRAND, (since - 0.16) / 0.6, "-6.8px")
+        ctx.globalAlpha = 1
+        if (time > WORDS_BACK) {
+          const last = easeOut((time - LAST) / 0.6)
+          ctx.globalAlpha = last
+          text("A PAGE PER SHELF · ITS ITEMS, A COUNT, THE LOWEST PRICE", 812, 690, `500 19px ${MONO}`, QUIET, "left", "1.6px")
+          text("zolace.cash/shop", 808, 770 + (1 - last) * 12, `500 50px ${SANS}`, ICE, "left", "-2px")
+          ctx.globalAlpha = 1
+        }
+      }
+
+      // ------------------------------------------------------------ the film
+      function draw(time) {
+        ctx.globalAlpha = 1
+        ctx.fillStyle = GROUND
+        ctx.fillRect(0, 0, W, H)
+        ctx.fillStyle = dots
+        ctx.fillRect(0, 0, W, H)
+
+        words(time)
+        for (const entry of OPENED) tray(entry, time)
+        cabinet(time)
+        visitor(time)
+
+        const noted = easeOut((time - 1.0) / 0.5)
+        ctx.globalAlpha = noted
+        text("THE SIX SHELVES ARE THE SHOP'S · THE ITEMS IN THEM ARE A SAMPLE", 96, 1000, `500 17px ${MONO}`, QUIET, "left", "1.5px")
+        ctx.globalAlpha = 1
+
+        // The corner: the logo and what the film is about, from the first frame to the last.
+        ctx.globalAlpha = easeOut(time / 0.4)
+        logo(96, 66, 46, ICE)
+        const state = "THE SHOP · OPEN A SHELF"
+        const stateFont = `500 19px ${MONO}`
+        const stateWide = widthOf(state, stateFont, "1.6px") + 62
+        ctx.fillStyle = RAISE
+        rounded(W - 96 - stateWide, 58, stateWide, 46, 12)
+        ctx.fill()
+        ctx.fillStyle = BRAND
+        ctx.fillRect(W - 96 - stateWide + 18, 77, 9, 9)
+        text(state, W - 96 - stateWide + 40, 88, stateFont, ICE, "left", "1.6px")
+        ctx.globalAlpha = 1
+
+        const remaining = TOTAL - time
+        if (remaining < 0.3) {
+          ctx.globalAlpha = 1 - clamp(remaining / 0.3)
+          ctx.fillStyle = "#050507"
+          ctx.fillRect(0, 0, W, H)
+          ctx.globalAlpha = 1
+        }
+      }
+
+      await Promise.all([
+        document.fonts.load(`500 122px ${SANS}`),
+        document.fonts.load(`400 38px ${SANS}`),
+        document.fonts.load(`700 46px ${SANS}`),
+        document.fonts.load(`500 44px ${MONO}`),
+      ])
+      const asked = new URLSearchParams(location.search)
+      window.film = { total: TOTAL }
+      if (asked.has("still")) {
+        draw(Number(asked.get("still")))
+        window.done = true
+      } else {
+        const { encodeFilm } = await import("./encode.js")
+        const { blob, frames } = await encodeFilm({ canvas, total: TOTAL, bitrate: 9_000_000, ready: async () => {}, draw })
+        window.film.frames = frames
+        await fetch("out", { method: "POST", body: blob })
+        window.done = true
+      }
+    </script>
+  </body>
+</html>
