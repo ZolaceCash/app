@@ -29,7 +29,7 @@ const STEPS: Step[] = [
     name: "Open",
     badge: "Sealed",
     body: "The item is encrypted to a key your browser made and opens on the order page. The server keeps a sealed copy only.",
-    points: ["Opens in your browser", "Ciphertext on the server", "Deleted after some days"],
+    points: ["Opens in your browser", "Ciphertext on the server", "Deleted after 7 days"],
     screen: <ItemMock />,
   },
 ]

@@ -81,7 +81,7 @@ export function ItemView({
       </div>
       <p className="mt-4 rounded-xl bg-secondary p-5 text-sm leading-snug text-muted-foreground">
         <span className="label-mono mb-2 block text-foreground">Keep the item, not only the link</span>
-        {goneAfter === null ? "The shop deletes a finished order from its server some days after it is done" : `The shop's server may delete this order from ${day(goneAfter)}`}
+        {goneAfter === null ? "The shop deletes a finished order from its server 7 days after it is done" : `The shop's server may delete this order from ${day(goneAfter)}`}
         , and this link then opens nothing. Save the item before that: the file is written by your
         browser, on this device, and is sent nowhere. It is not sealed, so whoever can read it has
         the item.

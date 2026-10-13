@@ -36,7 +36,7 @@ const NOTES: Record<string, Record<string, string>> = {
     expires_at: "When the price lock runs out.",
     seen_at: "When the payment was first seen.",
     delivered_at: "When the item was handed over.",
-    closed_at: "When the order finished or expired. Orders are deleted some days after this.",
+    closed_at: "When the order finished or expired. Orders are deleted 7 days after this.",
   },
   stock: {
     id: "A number for the code.",

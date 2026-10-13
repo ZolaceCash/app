@@ -326,7 +326,7 @@ export const DOCS: Doc[] = [
         heading: "What is kept",
         blocks: [
           {
-            p: "After delivery the server keeps a sealed copy only: ciphertext it cannot read. The order is deleted some days after it is done.",
+            p: "After delivery the server keeps a sealed copy only: ciphertext it cannot read. The order is deleted 7 days after it is done.",
           },
           { open: "The number of days is not fixed yet." },
         ],
@@ -336,7 +336,7 @@ export const DOCS: Doc[] = [
         heading: "Saving the item",
         blocks: [
           {
-            p: "The order's link works only while the server still has the order, and a finished order is deleted some days after it is done. The link then opens nothing: not for you, and not for someone you sent it to as a gift. So the page with the open item has a button that saves it as a file, and it says from which day the server may delete the order.",
+            p: "The order's link works only while the server still has the order, and a finished order is deleted 7 days after it is done. The link then opens nothing: not for you, and not for someone you sent it to as a gift. So the page with the open item has a button that saves it as a file, and it says from which day the server may delete the order.",
           },
           {
             list: [
@@ -485,7 +485,7 @@ export const DOCS: Doc[] = [
               "No third-party analytics or trackers on any page.",
               "The app does not write IP addresses to its logs. The host it runs on, and the network in front of it, may keep access logs of their own.",
               "A network in front of the server (Cloudflare, in the planned setup) sees each request before the server does: your address and which pages you open. It never sees the part of a link after #.",
-              "Orders are deleted some days after they are done.",
+              "Orders are deleted 7 days after they are done. One that is still owed a refund, or has a report nobody answered, is kept until that is dealt with.",
               "When something waits for the owner (a paid order, a report, a refund), the server may send the owner's phone a line through a notification service. The line says that something waits. It names no order, no item and no amount.",
             ],
           },

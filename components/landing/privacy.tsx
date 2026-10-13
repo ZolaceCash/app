@@ -23,7 +23,7 @@ const NOTES = [
     title: "No IP in the logs",
     body: "The app does not write IP addresses to its logs. Your IP still reaches the server, and the host it runs on and the network in front of it may keep access logs of their own.",
   },
-  { title: "A short memory", body: "Orders are deleted some days after they are done." },
+  { title: "A short memory", body: "Orders are deleted 7 days after they are done." },
 ]
 
 // The rule for this section: say what the server knows as plainly as what it does not.

@@ -19,21 +19,22 @@ const name = (stage: Stage) => (stage.code === "P" ? "Preview" : `Stage 0${stage
 // The colour of a stage on the track, by where it stands.
 const BAR: Record<Stage["status"], string> = {
   done: "bg-foreground",
-  next: "bg-primary",
+  now: "bg-primary",
   building: "bg-violet",
   planned: "bg-foreground/15",
   gated: "bg-foreground/15",
 };
 
-// The roadmap is a board, not a list: the stage that is next is the one large tile, what is done
-// sits small above the line, what comes after is below it, and the token keeps its own block. The
-// track across the top keeps the order, which the board gives up.
+// The roadmap is a board, not a list: the stage whose turn it is is the one large tile, with
+// today's state beside it and anything started ahead of its turn under it; what is done sits small
+// below, then what comes after, and the token keeps its own block. The track across the top keeps
+// the order, which the board gives up.
 export default function Roadmap() {
-  const active = STAGES.filter((stage) => stage.status === "next" || stage.status === "building");
+  const now = STAGES.find((stage) => stage.status === "now");
+  const ahead = STAGES.filter((stage) => stage.status === "building");
   const done = STAGES.filter((stage) => stage.status === "done");
   const planned = STAGES.filter((stage) => stage.status === "planned");
   const gated = STAGES.filter((stage) => stage.status === "gated");
-  const next = STAGES.find((stage) => stage.status === "next");
 
   return (
     <PageShell>
@@ -80,40 +81,13 @@ export default function Roadmap() {
 
       {/* What is being worked on: the one large tile, with today's state beside it. */}
       <div className="mt-2.5 grid gap-2.5 lg:grid-cols-12">
-        {active.map((stage) => (
-          <Reveal
-            key={stage.code}
-            id={`stage-${stage.code}`}
-            className={cn(
-              "cut-2 scroll-mt-28 rounded-3xl p-7 text-white md:p-12 lg:col-span-8",
-              stage.status === "next" ? "bg-indigo" : "bg-violet"
-            )}
-          >
-            <div className="flex items-center justify-between gap-4">
-              <p className="label-mono text-white/75">{name(stage)}</p>
-              <p className="label-mono flex items-center gap-2 rounded-md bg-white/15 px-2.5 py-1.5">
-                <span aria-hidden className="live-dot size-1.5 rounded-full bg-white" />
-                {STATUS_LABEL[stage.status]}
-              </p>
-            </div>
-            <h2 className="mt-10 text-5xl leading-[0.95] font-medium tracking-[-0.05em] text-balance md:text-7xl">
-              {stage.title}
-            </h2>
-            <div className="mt-10 grid gap-8 md:grid-cols-2">
-              <Work stage={stage} soft="text-white/75" />
-              <div>
-                <p className="label-mono text-white/75">Done when</p>
-                <p className="mt-3 text-lg leading-snug">{stage.doneWhen}</p>
-              </div>
-            </div>
-          </Reveal>
-        ))}
+        {now ? <Large stage={now} className="bg-indigo lg:col-span-8" /> : null}
 
         <Reveal delay={80} className="flex flex-col justify-between cut rounded-3xl bg-card p-6 md:p-8 lg:col-span-4">
           <div>
             <p className="label-mono text-muted-foreground">Today</p>
             <p className="mt-6 text-2xl leading-tight font-medium tracking-[-0.035em]">
-              {next ? `${name(next)} is next: ${next.title.toLowerCase()}.` : "Every stage is done."}
+              {now ? `Now at ${name(now).toLowerCase()}: ${now.title.toLowerCase()}.` : "No stage is in turn."}
             </p>
             <p className="mt-4 leading-relaxed text-muted-foreground">
               <ShopWord part="today" />
@@ -128,11 +102,15 @@ export default function Roadmap() {
             </PillLink>
           </div>
         </Reveal>
+
+        {ahead.map((stage) => (
+          <Large key={stage.code} stage={stage} className="bg-violet lg:col-span-12" />
+        ))}
       </div>
 
       {/* Behind us: small tiles, one per finished stage. */}
       <Group label="Done" count={done.length} />
-      <ul className="grid gap-2.5 md:grid-cols-3">
+      <ul className="grid gap-2.5 md:grid-cols-2">
         {done.map((stage, index) => (
           <li key={stage.code}>
             <Reveal
@@ -161,7 +139,7 @@ export default function Roadmap() {
       </ul>
 
       {/* Ahead: wider tiles, in the order they come. */}
-      <Group label="After that" count={planned.length} />
+      {planned.length > 0 ? <Group label="After that" count={planned.length} /> : null}
       <ul className="grid gap-2.5 md:grid-cols-2">
         {planned.map((stage, index) => (
           <li key={stage.code}>
@@ -223,6 +201,31 @@ export default function Roadmap() {
         </Reveal>
       ))}
     </PageShell>
+  );
+}
+
+// A stage being worked on: the large tile, in the colour of where it stands.
+function Large({ stage, className }: { stage: Stage; className: string }) {
+  return (
+    <Reveal id={`stage-${stage.code}`} className={cn("cut-2 scroll-mt-28 rounded-3xl p-7 text-white md:p-12", className)}>
+      <div className="flex items-center justify-between gap-4">
+        <p className="label-mono text-white/75">{name(stage)}</p>
+        <p className="label-mono flex items-center gap-2 rounded-md bg-white/15 px-2.5 py-1.5">
+          <span aria-hidden className="live-dot size-1.5 rounded-full bg-white" />
+          {STATUS_LABEL[stage.status]}
+        </p>
+      </div>
+      <h2 className="mt-10 text-5xl leading-[0.95] font-medium tracking-[-0.05em] text-balance md:text-7xl">
+        {stage.title}
+      </h2>
+      <div className="mt-10 grid gap-8 md:grid-cols-2">
+        <Work stage={stage} soft="text-white/75" />
+        <div>
+          <p className="label-mono text-white/75">Done when</p>
+          <p className="mt-3 text-lg leading-snug">{stage.doneWhen}</p>
+        </div>
+      </div>
+    </Reveal>
   );
 }
 

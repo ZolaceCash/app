@@ -5,7 +5,7 @@ import type { Section } from "@/lib/content"
 // total privacy, claim an audit or a legal review, call the token private, or read as an offer of
 // a token.
 export const WHITEPAPER = {
-  version: "Draft 0.8",
+  version: "Draft 0.9",
   date: "12 October 2026",
   abstract:
     "Zolace is a shop for digital goods that asks for no account. A buyer picks an item priced in dollars, pays in shielded Zcash to an address made for that one order, and opens the item in the browser. The server holds a viewing key and nothing that can move funds. The token is on Robinhood Chain and apart from the shop: its holders earn by the hour in NVDA, a stock token on that chain, claimed from a contract. This paper describes the design, what the server can and cannot learn, the order in which it will be built, and what is still open.",
@@ -71,7 +71,7 @@ export const WHITEPAPER_SECTIONS: Section[] = [
         p: "The order link is /o/<id>#<secret>. The part after # is never sent to a server by a browser, so the server knows which order is being opened without ever holding the secret.",
       },
       {
-        p: "The buyer's browser makes a key, and the item is encrypted to it. After delivery the server keeps ciphertext only, and deletes the order some days after it is done.",
+        p: "The buyer's browser makes a key, and the item is encrypted to it. After delivery the server keeps ciphertext only, and deletes the order 7 days after it is done.",
       },
       {
         rows: [
@@ -110,7 +110,7 @@ export const WHITEPAPER_SECTIONS: Section[] = [
           "No third-party analytics.",
           "No IP addresses in the app's own logs. The host it runs on, and the network in front of it, may keep access logs.",
           "A network in front of the server (Cloudflare, in the planned setup) sees each request before the server does. It never sees the part of a link after #.",
-          "Orders deleted some days after they are done.",
+          "Orders deleted 7 days after they are done.",
         ],
       },
       { p: "A shielded payment is written to the Zcash chain without showing its sender, its receiver or its amount. That holds for a payment sent from a shielded balance; one sent from a transparent address shows that address and the amount." },
@@ -205,7 +205,7 @@ export const WHITEPAPER_SECTIONS: Section[] = [
     heading: "Status and open questions",
     blocks: [
       {
-        p: "The order flow, the sealing of the item and the order page are built. So is the shop's side of real payments, and the engine behind it has taken a payment on Zcash's test network.",
+        p: "The order flow, the sealing of the item and the order page are built. So is the shop's side of real payments, and the engine behind it has taken a payment on Zcash's test network and on its main network.",
       },
       { shop: true },
       {
@@ -214,10 +214,6 @@ export const WHITEPAPER_SECTIONS: Section[] = [
       {
         list: [
           "How the payment engine reads the chain without telling a third party which transactions are ours, and how the shop notices an engine that has stopped seeing payments.",
-          "The written rules for expired, underpaid, overpaid and refunded orders.",
-          "How many days a finished order is kept.",
-          "The support channel for refunds, which will need no email.",
-          "The first goods on the shelf.",
           "Whether a share of the shop's orders is added to the holders' reward.",
         ],
       },

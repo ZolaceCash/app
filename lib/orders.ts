@@ -2,7 +2,7 @@ import { and, eq, gt, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-or
 
 import { getDb, schema } from "@/lib/db"
 import type { Order, ShelfSlug } from "@/lib/db/schema"
-import { LOCK_MS, PROBLEM_MAX, PROBLEM_MIN } from "@/lib/order-times"
+import { KEPT_DAYS, LOCK_MS, PROBLEM_MAX, PROBLEM_MIN } from "@/lib/order-times"
 import { CONFIRMATIONS_NEEDED, engine, FEE_ZAT, sellerEngine, type Network, type PaymentEngine, type Seen } from "@/lib/payment"
 import { quoteZec } from "@/lib/price"
 import { sealTo, type PublicKey, type Sealed, type Wrapped } from "@/lib/seal"
@@ -27,9 +27,9 @@ export function handHours() {
 }
 const handWaitMs = () => handHours() * 60 * 60 * 1000
 
-// PLAN.md says orders are deleted "some days" after they are done and leaves the number open.
-// Seven is a placeholder until the owner fixes it; ORDER_RETENTION_DAYS overrides it.
-const RETENTION_MS = Number(process.env.ORDER_RETENTION_DAYS ?? 7) * 24 * 60 * 60 * 1000
+// An order is deleted seven days after it is done (lib/order-times.ts, KEPT_DAYS: the owner fixed
+// it on 13 Oct 2026). ORDER_RETENTION_DAYS overrides it where the server runs.
+const RETENTION_MS = Number(process.env.ORDER_RETENTION_DAYS ?? KEPT_DAYS) * 24 * 60 * 60 * 1000
 
 // How long after its price lock an order is still watched for money: a payment that comes late, or
 // a second one. Whatever arrives in that time is found and owed back. The payment engine has to

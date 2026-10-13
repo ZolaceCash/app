@@ -108,7 +108,7 @@ export function OrderView({ id }: { id: string }) {
   if (loaded && "missing" in loaded) {
     return (
       <Message title="There is no order behind this link.">
-        It may have been deleted: finished orders are removed after some days. Check that the
+        It may have been deleted: finished orders are removed after 7 days. Check that the
         link is complete.
       </Message>
     )

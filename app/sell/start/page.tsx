@@ -83,6 +83,11 @@ async function Start() {
               </li>
             ))}
           </ul>
+          <div className="mt-5">
+            <PillLink href="/terms#selling" variant="secondary" arrow>
+              The shop&apos;s terms
+            </PillLink>
+          </div>
         </section>
       </div>
     </div>

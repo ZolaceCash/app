@@ -1,6 +1,6 @@
 // An item, as a file the buyer keeps.
 //
-// The shop deletes a finished order some days after it is done, and the order's link then opens
+// The shop deletes a finished order 7 days after it is done, and the order's link then opens
 // nothing. Whoever has the item open can save it first: the browser writes it into a plain text
 // file on their own device. Nothing is sent anywhere for it.
 //
@@ -52,7 +52,7 @@ export function itemFile(product: string, text: string, savedAt: number): ItemFi
     "or to anyone else.",
     "It is not sealed: whoever can read this file has the item. Keep it where you keep other",
     "things that are worth money.",
-    "The shop deletes a finished order from its server some days after it is done. This file",
+    "The shop deletes a finished order from its server 7 days after it is done. This file",
     "does not depend on the order still being there.",
     ""
   )

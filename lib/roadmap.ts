@@ -4,15 +4,15 @@ export type Stage = {
   // "P" for the preview, then 0 to 5 as in PLAN.md.
   code: string
   title: string
-  // "building": started ahead of its turn, and not finished.
-  status: "done" | "next" | "building" | "planned" | "gated"
+  // "now": the stage whose turn it is. "building": started ahead of its turn, and not finished.
+  status: "done" | "now" | "building" | "planned" | "gated"
   work: string[]
   doneWhen: string
 }
 
 export const STATUS_LABEL: Record<Stage["status"], string> = {
   done: "Done",
-  next: "Next",
+  now: "Now",
   building: "Building",
   planned: "Planned",
   gated: "Gated",
@@ -52,33 +52,39 @@ export const STAGES: Stage[] = [
       "Screens for the owner: orders, the refund queue, items and stock upload",
     ],
     doneWhen:
-      "One test order runs from checkout to the item opening in the browser. It does: try it in the shop.",
+      "One test order ran from checkout to the item opening in the browser.",
   },
   {
     code: "2",
     title: "Real payments",
-    status: "next",
+    status: "done",
     work: [
-      "Testnet first, then mainnet with small amounts",
-      "Every state an order can be in, and the refund screen",
+      "One paid order on Zcash's test network, then one on the main network: seen, confirmed, handed over at three blocks, the item opened",
+      "Every state an order can be in, the refund screen, and a form for the address a refund goes to",
     ],
-    doneWhen: "The tests for an order paid too little, too much, too late and twice all pass.",
+    doneWhen:
+      "The tests for an order paid too little, too much, too late and twice all pass. They run against a played engine; on the chain, an order paid in full has run on both networks.",
   },
   {
     code: "3",
     title: "Open the shop",
-    status: "planned",
-    work: ["Final docs, the privacy page and the terms", "The first real goods on the shelf"],
-    doneWhen: "The shop sells items from the stock of codes, for real payments.",
+    status: "done",
+    work: [
+      "The first real goods on the shelf, and an item from stock sold for a real payment",
+      "The docs give the rules as they run: every way an order can go, refunds, a report for an item that does not work",
+      "The shop's terms are written, and a finished order is kept 7 days",
+    ],
+    doneWhen: "The shop sold an item from the stock of codes, for a real payment.",
   },
   {
     code: "4",
     title: "More goods",
-    status: "planned",
+    status: "now",
     work: [
-      "Goods a supplier makes when the order is paid: AI credit keys, eSIM",
-      "Paying from other coins",
-      "Gift links",
+      "Built: items bought to order, by hand, once the order is paid, and a gift's link for handing an order on",
+      "Built, and run against a played supplier only: an eSIM a supplier makes when the order is paid",
+      "Built, and run with a paid order on the test network: other sellers, paid straight to their own wallets, each with a desk, a page of their own and notices",
+      "Not built: AI credit keys, paying from other coins",
     ],
     doneWhen: "Decided per item: each one is added on its own.",
   },

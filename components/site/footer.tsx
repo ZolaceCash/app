@@ -18,6 +18,7 @@ const LINKS = [
 
 const READ = [
   { href: "/proof", label: "What is stored" },
+  { href: "/terms", label: "Terms" },
   { href: "/roadmap", label: "Roadmap" },
   { href: "/docs", label: "Docs" },
   { href: "/whitepaper", label: "Whitepaper" },

@@ -8,6 +8,7 @@ import { CopyButton } from "@/components/site/copy-button"
 import { DotLabel } from "@/components/site/primitives"
 import { Button } from "@/components/ui/button"
 import { SHELVES } from "@/lib/catalog"
+import { KEPT_DAYS } from "@/lib/order-times"
 import { formatZec } from "@/lib/price"
 import { NOT_SOLD, TAKEN_DOWN } from "@/lib/sell"
 import type { Desk, DeskItem, DeskOrder } from "@/lib/sellers"
@@ -602,7 +603,8 @@ function Orders({ orders }: { orders: DeskOrder[] }) {
       )}
       <p className="mt-5 max-w-2xl text-sm leading-snug text-muted-foreground">
         The newest hundred. An order is named here by a short code of its own, not by the buyer&apos;s link. Orders are deleted
-        some days after they finish.
+        {" "}
+        {KEPT_DAYS} days after they finish.
       </p>
     </section>
   )

@@ -48,7 +48,7 @@ chmod 600 .env
 | `CERTBOT_EMAIL` | Where Let's Encrypt writes when a certificate is about to run out |
 | `CLOUDFLARE_API_TOKEN` | Secret. The token from step 4 above |
 | `OWNER_SECRET` | Secret. Opens `/owner`. 32 characters or more: `openssl rand -base64 48` |
-| `ORDER_RETENTION_DAYS` | Days an order is kept after it closes |
+| `ORDER_RETENTION_DAYS` | Days an order is kept after it closes. 7 is what the terms and the site's texts say: change them too if you change this |
 | `TOKEN_ADDRESS` | The token's contract address (the CA) shown across the site. Empty until there is a token |
 | `TOKEN_CHAIN_ID`, `TOKEN_RPC_URL`, `TOKEN_DEPLOY_BLOCK` | The token's network, where the site reads it, and the block the contract was deployed in |
 | `VAULT_ADDRESS` | The vault's contract address. Empty until it is deployed: the vault stays closed |
