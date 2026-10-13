@@ -1,0 +1,380 @@
+<!doctype html>
+<!--
+  A film for the post about a seller being told. A phone stands in the middle of the screen with
+  a clock on it. To its left, a day at the shop is written out one thing at a time: a buyer pays,
+  the last code is sold, a buyer reports an item, a payment comes late. Each of them sends one
+  block across to the phone; the phone shakes, its clock jumps to that hour, and a line drops in
+  at the top of its screen and pushes the earlier ones down. To the right stand the words, the
+  three services an address may be of, and at the end what a line never names. No other film here
+  has a phone, a clock or anything that shakes.
+  Drawn and encoded one frame at a time (encode.js); opened by compose.mjs with PAGE=told.html.
+  ?still=<seconds> draws one moment and stops.
+  The four lines on the phone are the ones the server sends, word for word (lib/seller-notify.ts),
+  and they are sent for those four things. The hours and the day are a sample. A seller's desk is
+  only there where selling is open, so POST IT ONLY ONCE THE LIVE SITE SAYS "Selling / Open" ON
+  /sell. It does not say that every sale is told: a sale from the minute of a restart may not be.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=Geist+Mono:wght@500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #09090b;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage" width="1920" height="1080"></canvas>
+    <script type="module">
+      const W = 1920
+      const H = 1080
+      const GROUND = "#09090b"
+      const CARD = "#111114"
+      const RAISE = "#1c1c23"
+      const ICE = "#f4f4f6"
+      const QUIET = "rgba(244,244,246,0.58)"
+      const FAINT = "rgba(244,244,246,0.22)"
+      const INDIGO = "#5567ea"
+      const BRAND = "#7b8cff"
+      const SANS = "Geist, system-ui, sans-serif"
+      const MONO = '"Geist Mono", ui-monospace, monospace'
+      const TOTAL = 13.4
+
+      const canvas = document.getElementById("stage")
+      const ctx = canvas.getContext("2d")
+      const clamp = (x, low = 0, high = 1) => Math.min(high, Math.max(low, x))
+      const easeOut = (x) => 1 - Math.pow(1 - clamp(x), 3)
+      const easeBoth = (x) => {
+        const t = clamp(x)
+        return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+      }
+      const mix = (a, b, p) => a + (b - a) * p
+      const rounded = (x, y, w, h, r) => {
+        ctx.beginPath()
+        ctx.roundRect(x, y, w, h, r)
+      }
+      const text = (value, x, y, font, colour, align = "left", spacing = "0px") => {
+        ctx.font = font
+        ctx.fillStyle = colour
+        ctx.textAlign = align
+        ctx.letterSpacing = spacing
+        ctx.fillText(value, x, y)
+      }
+      const widthOf = (value, font, spacing = "0px") => {
+        ctx.font = font
+        ctx.letterSpacing = spacing
+        return ctx.measureText(value).width
+      }
+      // A line of words that comes up from behind its own baseline.
+      const rise = (value, x, y, size, font, colour, p, spacing = "0px") => {
+        if (p <= 0) return
+        ctx.save()
+        const alpha = ctx.globalAlpha
+        ctx.beginPath()
+        ctx.rect(0, y - size * 0.95, W, size * 1.24)
+        ctx.clip()
+        ctx.globalAlpha = alpha * clamp(p * 1.6)
+        text(value, x, y + (1 - easeOut(p)) * size * 0.9, font, colour, "left", spacing)
+        ctx.restore()
+      }
+      // Words broken into lines no wider than `wide`.
+      const wrap = (value, font, wide, spacing = "0px") => {
+        const lines = []
+        let line = ""
+        for (const word of value.split(" ")) {
+          const next = line ? `${line} ${word}` : word
+          if (line && widthOf(next, font, spacing) > wide) {
+            lines.push(line)
+            line = word
+          } else line = next
+        }
+        if (line) lines.push(line)
+        return lines
+      }
+      const MARK = [
+        [8.1, 2, 22, 2, 13.25, 14.5, 10.65, 14.5, 15.9, 7, 4.6, 7],
+        [19.4, 17, 15.9, 22, 2, 22, 10.75, 9.5, 13.35, 9.5, 8.1, 17],
+        [5.5, 2, 7, 2, 3.5, 7, 2, 7],
+        [20.5, 17, 22, 17, 18.5, 22, 17, 22],
+      ]
+      const mark = (x, y, size, colour) => {
+        const k = size / 24
+        ctx.fillStyle = colour
+        for (const points of MARK) {
+          ctx.beginPath()
+          for (let i = 0; i < points.length; i += 2) ctx[i ? "lineTo" : "moveTo"](x + points[i] * k, y + points[i + 1] * k)
+          ctx.closePath()
+          ctx.fill()
+        }
+      }
+      const logo = (x, y, size, colour) => {
+        mark(x, y, size, colour)
+        text("zolace", x + size * 1.28, y + size * 0.86, `700 ${size * 0.95}px ${SANS}`, colour, "left", `${-size * 0.05}px`)
+      }
+      // The site's ground: a faint grid of dots.
+      const dots = (() => {
+        const tile = document.createElement("canvas")
+        tile.width = tile.height = 34
+        const pen = tile.getContext("2d")
+        pen.fillStyle = "rgba(255,255,255,0.06)"
+        pen.fillRect(16, 16, 2, 2)
+        return ctx.createPattern(tile, "repeat")
+      })()
+
+      // ------------------------------------------------------------ the day, and the lines it sends
+      // What happened at the shop, and the line the server sends for it (lib/seller-notify.ts).
+      const DAY = [
+        { hour: "09:41", shop: "A buyer pays. The item opens.", line: "An order of one of your items was paid and handed over." },
+        { hour: "13:07", shop: "Your last code is sold.", line: "One of your items has no codes left. It reads as sold out until you add more." },
+        { hour: "18:22", shop: "A buyer reports an item.", line: "A buyer reported one of your items. It waits on your desk." },
+        { hour: "23:50", shop: "A payment comes late.", line: "You owe a buyer a refund. It waits on your desk." },
+      ]
+      const AT = [2.5, 4.7, 6.9, 9.1] // when each thing happens at the shop
+      const CROSS = 0.5 // how long its block takes to reach the phone
+      const SERVICES = ["NTFY", "TELEGRAM", "DISCORD"]
+      const UNNAMED = ["NO ORDER", "NO ITEM", "NO AMOUNT", "NO BUYER"]
+      const NAMES_AT = 10.9
+      const LAST = 11.8
+
+      // ------------------------------------------------------------ the phone
+      const PHONE = { x: 712, y: 168, w: 492, h: 1010 }
+      const BANNER = { w: PHONE.w - 44, gap: 12 }
+      const bannerFont = `500 26px ${SANS}`
+      const lineHeight = 33
+      const heightOf = (entry) => 66 + wrap(entry.line, bannerFont, BANNER.w - 44, "-0.3px").length * lineHeight + 20
+      // How many lines have arrived, and for the newest how far it has dropped in.
+      const arrived = (time) => DAY.map((_, index) => easeOut((time - AT[index] - CROSS) / 0.45))
+
+      function phone(time) {
+        const up = easeOut((time - 0.2) / 0.8)
+        if (up <= 0) return
+        // It shakes when a line arrives.
+        let shake = 0
+        for (const at of AT) {
+          const since = time - at - CROSS
+          if (since > 0 && since < 0.6) shake += Math.sin(since * 78) * 9 * Math.exp(-since * 8)
+        }
+        ctx.save()
+        ctx.translate(shake, (1 - up) * 260)
+        ctx.globalAlpha = up
+        ctx.fillStyle = "#26262f"
+        rounded(PHONE.x - 10, PHONE.y - 10, PHONE.w + 20, PHONE.h + 20, 66)
+        ctx.fill()
+        ctx.fillStyle = CARD
+        rounded(PHONE.x, PHONE.y, PHONE.w, PHONE.h, 56)
+        ctx.fill()
+        ctx.globalAlpha = 1
+        ctx.beginPath()
+        ctx.roundRect(PHONE.x, PHONE.y, PHONE.w, PHONE.h, 56)
+        ctx.clip()
+
+        // The clock: the hour of the newest thing, the one before it sliding away.
+        const drops = arrived(time)
+        let newest = -1
+        drops.forEach((p, index) => {
+          if (p > 0) newest = index
+        })
+        const hourFont = `500 104px ${MONO}`
+        const centre = PHONE.x + PHONE.w / 2
+        const swap = newest >= 0 ? drops[newest] : 1
+        const before = newest > 0 ? DAY[newest - 1].hour : "07:00"
+        ctx.globalAlpha = up * (1 - swap)
+        text(newest >= 0 ? before : "07:00", centre, PHONE.y + 176 - swap * 30, hourFont, ICE, "center", "-4px")
+        if (newest >= 0) {
+          ctx.globalAlpha = up * swap
+          text(DAY[newest].hour, centre, PHONE.y + 176 + (1 - swap) * 30, hourFont, ICE, "center", "-4px")
+        }
+        ctx.globalAlpha = up
+        text("A SAMPLE DAY", centre, PHONE.y + 70, `500 16px ${MONO}`, QUIET, "center", "1.6px")
+        ctx.globalAlpha = 1
+
+        // The lines, newest on top: each new one pushes the others down. A line comes out from
+        // under the clock, not across it.
+        ctx.beginPath()
+        ctx.rect(PHONE.x, PHONE.y + 214, PHONE.w, PHONE.h)
+        ctx.clip()
+        let y = PHONE.y + 226
+        for (let index = DAY.length - 1; index >= 0; index--) {
+          const p = drops[index]
+          if (p <= 0) continue
+          const entry = DAY[index]
+          const tall = heightOf(entry)
+          const top = y - (1 - p) * (tall + 40)
+          const x = PHONE.x + 22
+          ctx.globalAlpha = clamp(p * 1.5)
+          ctx.fillStyle = index === newest ? "#262630" : RAISE
+          rounded(x, top, BANNER.w, tall, 22)
+          ctx.fill()
+          ctx.fillStyle = BRAND
+          ctx.fillRect(x + 22, top + 24, 10, 10)
+          text("ZOLACE", x + 44, top + 36, `500 17px ${MONO}`, ICE, "left", "1.6px")
+          text(entry.hour, x + BANNER.w - 22, top + 36, `500 17px ${MONO}`, QUIET, "right", "1.2px")
+          wrap(entry.line, bannerFont, BANNER.w - 44, "-0.3px").forEach((line, row) => {
+            text(line, x + 22, top + 80 + row * lineHeight, bannerFont, ICE, "left", "-0.3px")
+          })
+          ctx.globalAlpha = 1
+          y += (tall + BANNER.gap) * p
+        }
+        ctx.restore()
+      }
+
+      // ------------------------------------------------------------ the shop's side, on the left
+      function shop(time) {
+        const noted = easeOut((time - 1.5) / 0.5)
+        ctx.globalAlpha = noted
+        ctx.fillStyle = BRAND
+        ctx.fillRect(96, 250, 10, 10)
+        text("AT THE SHOP", 120, 262, `500 19px ${MONO}`, ICE, "left", "1.7px")
+        ctx.globalAlpha = 1
+        DAY.forEach((entry, index) => {
+          const p = (time - AT[index]) / 0.5
+          if (p <= 0) return
+          const y = 372 + index * 158
+          const old = clamp((time - AT[index] - 1.6) / 0.6) * (index < DAY.length - 1 ? 0.45 : 0)
+          ctx.globalAlpha = (1 - old) * easeOut(p)
+          text(entry.hour, 96, y - 46, `500 22px ${MONO}`, BRAND, "left", "1px")
+          ctx.globalAlpha = 1 - old
+          rise(entry.shop, 94, y, 38, `500 38px ${SANS}`, ICE, p, "-1.4px")
+          ctx.globalAlpha = 1
+
+          // Its block goes across to the phone, and is gone when it gets there.
+          const cross = (time - AT[index] - 0.05) / CROSS
+          if (cross > 0 && cross < 1) {
+            const from = 96 + Math.min(widthOf(entry.shop, `500 38px ${SANS}`, "-1.4px") + 40, 600)
+            const to = PHONE.x - 24
+            const where = (q) => ({ x: mix(from, to, easeBoth(q)), y: mix(y - 12, PHONE.y + 290, easeBoth(q)) })
+            for (let i = 7; i >= 1; i--) {
+              const tail = where(cross - i * 0.03)
+              const size = 20 - i * 2
+              ctx.globalAlpha = (1 - i / 8) * 0.6
+              ctx.fillStyle = BRAND
+              ctx.fillRect(tail.x - size / 2, tail.y - size / 2, size, size)
+            }
+            const head = where(cross)
+            ctx.globalAlpha = 1
+            ctx.fillStyle = ICE
+            ctx.fillRect(head.x - 15, head.y - 15, 30, 30)
+          }
+        })
+      }
+
+      // ------------------------------------------------------------ the words, on the right
+      const SIDE = 1262
+      function words(time) {
+        const font = `500 118px ${SANS}`
+        rise("Be told.", SIDE - 5, 356, 118, font, ICE, (time - 0.5) / 0.6, "-6.6px")
+        rise("Nothing", SIDE - 5, 476, 118, font, BRAND, (time - 0.68) / 0.6, "-6.6px")
+        rise("named.", SIDE - 5, 596, 118, font, BRAND, (time - 0.82) / 0.6, "-6.6px")
+
+        // Where a seller is told: one address of theirs, of one of three services.
+        let at = SIDE
+        SERVICES.forEach((name, index) => {
+          const p = easeOut((time - 1.5 - index * 0.14) / 0.4)
+          if (p <= 0) return
+          const label = `500 18px ${MONO}`
+          const wide = widthOf(name, label, "1.6px") + 36
+          ctx.globalAlpha = p
+          ctx.fillStyle = RAISE
+          rounded(at, 668 + (1 - p) * 14, wide, 46, 9)
+          ctx.fill()
+          text(name, at + 18, 698 + (1 - p) * 14, label, ICE, "left", "1.6px")
+          ctx.globalAlpha = 1
+          at += wide + 10
+        })
+        const set = easeOut((time - 2.0) / 0.5)
+        ctx.globalAlpha = set
+        text("ONE ADDRESS OF YOURS, SET AT YOUR DESK", SIDE, 752, `500 16px ${MONO}`, QUIET, "left", "1.5px")
+        ctx.globalAlpha = 1
+
+        // What a line never names.
+        const naming = easeOut((time - NAMES_AT) / 0.5)
+        ctx.globalAlpha = naming
+        text("A LINE NAMES", SIDE, 826, `500 16px ${MONO}`, QUIET, "left", "1.5px")
+        ctx.globalAlpha = 1
+        UNNAMED.forEach((name, index) => {
+          const p = easeOut((time - NAMES_AT - 0.15 - index * 0.13) / 0.4)
+          if (p <= 0) return
+          const label = `500 18px ${MONO}`
+          const x = SIDE + (index % 2) * 206
+          const y = 846 + Math.floor(index / 2) * 56
+          ctx.globalAlpha = p
+          ctx.fillStyle = INDIGO
+          rounded(x, y + (1 - p) * 14, 196, 46, 9)
+          ctx.fill()
+          text(name, x + 18, y + 30 + (1 - p) * 14, label, "#ffffff", "left", "1.6px")
+          ctx.globalAlpha = 1
+        })
+        const last = easeOut((time - LAST) / 0.6)
+        ctx.globalAlpha = last
+        text("zolace.cash/sell", SIDE - 2, 1012 + (1 - last) * 12, `500 44px ${SANS}`, ICE, "left", "-1.7px")
+        ctx.globalAlpha = 1
+      }
+
+      // ------------------------------------------------------------ the film
+      function draw(time) {
+        ctx.globalAlpha = 1
+        ctx.fillStyle = GROUND
+        ctx.fillRect(0, 0, W, H)
+        ctx.fillStyle = dots
+        ctx.fillRect(0, 0, W, H)
+
+        phone(time)
+        shop(time)
+        words(time)
+
+        // The corner: the logo and what the film is about, from the first frame to the last.
+        ctx.globalAlpha = easeOut(time / 0.4)
+        logo(96, 66, 46, ICE)
+        const state = "SELLERS · BE TOLD"
+        const stateFont = `500 19px ${MONO}`
+        const stateWide = widthOf(state, stateFont, "1.6px") + 62
+        ctx.fillStyle = RAISE
+        rounded(W - 96 - stateWide, 58, stateWide, 46, 12)
+        ctx.fill()
+        ctx.fillStyle = BRAND
+        ctx.fillRect(W - 96 - stateWide + 18, 77, 9, 9)
+        text(state, W - 96 - stateWide + 40, 88, stateFont, ICE, "left", "1.6px")
+        ctx.globalAlpha = 1
+
+        const remaining = TOTAL - time
+        if (remaining < 0.3) {
+          ctx.globalAlpha = 1 - clamp(remaining / 0.3)
+          ctx.fillStyle = "#050507"
+          ctx.fillRect(0, 0, W, H)
+          ctx.globalAlpha = 1
+        }
+      }
+
+      await Promise.all([
+        document.fonts.load(`500 118px ${SANS}`),
+        document.fonts.load(`400 38px ${SANS}`),
+        document.fonts.load(`700 46px ${SANS}`),
+        document.fonts.load(`500 104px ${MONO}`),
+      ])
+      const asked = new URLSearchParams(location.search)
+      window.film = { total: TOTAL }
+      if (asked.has("still")) {
+        draw(Number(asked.get("still")))
+        window.done = true
+      } else {
+        const { encodeFilm } = await import("./encode.js")
+        const { blob, frames } = await encodeFilm({ canvas, total: TOTAL, bitrate: 9_000_000, ready: async () => {}, draw })
+        window.film.frames = frames
+        await fetch("out", { method: "POST", body: blob })
+        window.done = true
+      }
+    </script>
+  </body>
+</html>
