@@ -3,6 +3,7 @@ import { and, gt, isNull } from "drizzle-orm"
 import { listProblems } from "@/lib/admin"
 import { getDb, schema } from "@/lib/db"
 import { handHours, listToBuy } from "@/lib/orders"
+import { engineFitNow } from "@/lib/payment"
 import { sendLine } from "@/lib/notify-send"
 import { listSellers } from "@/lib/sellers"
 
@@ -15,10 +16,10 @@ import { listSellers } from "@/lib/sellers"
 // Nothing is kept in the database about a notice. What was already said is remembered while the
 // server runs; after a restart, whatever still waits is said once more.
 
-type Said = { toBuy: Set<string>; reminded: Set<string>; problems: Set<string>; refunds: Set<string>; sellers: Set<string> }
+type Said = { toBuy: Set<string>; reminded: Set<string>; problems: Set<string>; refunds: Set<string>; sellers: Set<string>; engine: Set<string> }
 const store = globalThis as unknown as { zolaceSaid?: Said }
 const said = (): Said =>
-  (store.zolaceSaid ??= { toBuy: new Set(), reminded: new Set(), problems: new Set(), refunds: new Set(), sellers: new Set() })
+  (store.zolaceSaid ??= { toBuy: new Set(), reminded: new Set(), problems: new Set(), refunds: new Set(), sellers: new Set(), engine: new Set() })
 
 // For the tests: forget what was said.
 export function forgetNotices() {
@@ -63,6 +64,14 @@ export async function ownerTick(now = Date.now()): Promise<number> {
       set.add(id)
       sent += 1
     }
+  }
+
+  // The engine and the chain: said once per upgrade, when it is scheduled and again when it is there.
+  const fit = await engineFitNow(now)
+  if (fit?.state === "unread") {
+    await say(memory.engine, `unread:${fit.upgrade}`, "Zolace: the Zcash network is on an upgrade the payment engine cannot read. No order is started until the engine is updated.")
+  } else if (fit?.state === "ahead") {
+    await say(memory.engine, `ahead:${fit.next}`, "Zolace: a Zcash network upgrade is scheduled that the payment engine cannot read. Update the engine before it takes effect.")
   }
 
   for (const order of waiting) {

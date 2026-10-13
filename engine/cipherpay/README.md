@@ -1,7 +1,7 @@
 # CipherPay, as the shop's payment engine
 
 CipherPay itself is not in this repository: it is `atmospherelabs-dev/cipherpay-api` on GitHub (MIT), used
-at commit `f6f022d` with the two patches kept here. The shop talks to it through `lib/cipherpay.ts`.
+at commit `f6f022d` with the three patches kept here. The shop talks to it through `lib/cipherpay.ts`.
 
 - `nu7.patch`: moves CipherPay to the Zcash libraries that know the NU7 upgrade, and reads each transaction
   with the consensus branch the transaction names instead of assuming NU6.3. Without it CipherPay drops
@@ -11,6 +11,10 @@ at commit `f6f022d` with the two patches kept here. The shop talks to it through
   the invoice is watched down to ten minutes. With the patch a payment to a paid invoice is added to what
   the invoice received (once per transaction), a confirmed invoice is watched for `PAID_WATCH_HOURS` (seven
   days unless set), and a payment never shortens an invoice's life.
+- `cancel.patch`: lets a merchant's own key cancel that merchant's pending invoice. Unpatched, the cancel
+  route wants a dashboard session, so the shop's key was answered with 401 and the invoice the shop
+  refused (a price that disagrees, an address of the wrong network) stayed open with no order behind it.
+  The key cancels only invoices of its own merchant; another's is refused.
 - `Dockerfile`: builds the engine from this folder alone. It fetches CipherPay at that commit, applies the
   two patches and compiles with `Cargo.lock`, the dependency versions of the build that was run against
   the chain. The first build takes ten minutes or more and a few gigabytes of memory; later ones come
@@ -50,6 +54,9 @@ shop, and every open order page is a question every few seconds.
   `9663f5c9...1b915a84`, block 4,492,410): 12,500,000 zatoshi against 77,633 asked. Seen in under a
   minute, confirmed, handed over at three blocks. The engine lists that invoice under the seller's key
   and not under the shop's.
+- 13 Oct 2026, built from this folder with `cancel.patch` and run on testnet: the shop's key cancelled its
+  own pending invoice (the invoice then reads expired), another merchant's key and no key were refused,
+  and an order the shop refused for its price left no open invoice behind.
 - Not run: a second payment to a paid invoice against the real engine (the faucet pays once a day; the
   shop's side of it is tested against a played engine in `tests/payment.test.ts`), a payment after the
   price lock, a paid order through the compose stack, and anything on mainnet.
@@ -64,5 +71,11 @@ shop, and every open order page is a question every few seconds.
   to follow the setting, as the pages about the token follow theirs.
 - It reads the chain through CipherScan, a block explorer run by others. CipherScan learns which
   transactions pay this shop, though not the amounts or the addresses.
-- An engine that falls behind a network upgrade drops payments in silence. Its health does not show that.
-  A known payment sent on a schedule would; it is not built.
+- An engine that falls behind a network upgrade drops payments in silence, and its health does not show
+  that. The shop watches for it from outside (`lib/engine-fit.ts`): the explorer says which upgrade the
+  chain is on, and the shop holds that against `ENGINE_READS`, the upgrades this build can read (NU6.3
+  and, by `nu7.patch`, NU7). On an upgrade that is not in the list the shop starts no order and the
+  owner's screen says so; while one is only scheduled, the owner is told ahead. WHEN THE ENGINE IS
+  REBUILT FOR A LATER UPGRADE, ADD THAT UPGRADE'S BRANCH TO `ENGINE_READS`, or the shop stays shut.
+  This catches that one failure. A payment the engine misses for another reason is still noticed by
+  nothing: a known payment sent on a schedule would catch it, and is not built.

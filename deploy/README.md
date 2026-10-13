@@ -236,6 +236,24 @@ it. Nothing tops that balance up but you. `node preflight.mjs` shows what is lef
 The key can spend the balance and nothing else, so keep the balance small. Run so far against a played
 supplier only (`tests/supplier.test.ts`): no eSIM has been bought through the shop yet.
 
+## When Zcash upgrades its network
+
+The payment engine reads a transaction by the rules of the upgrade it was made under, and drops one of an
+upgrade it does not know without an error. The shop watches for that: it asks the chain explorer which
+upgrade the chain is on, and compares it with the upgrades the engine was built for.
+
+- While an upgrade the engine cannot read is scheduled, `/owner` says so, with the block it takes effect
+  at and roughly how far off that is, and your phone gets a line if `OWNER_NOTIFY_URL` is set.
+- From the block it takes effect at, the shop starts no order. Buyers are told that payments cannot be
+  watched right now; nothing is charged. `/owner` says what to do.
+- To open again: rebuild the engine for the new upgrade (`engine/cipherpay/`), add the upgrade's branch
+  to `ENGINE_READS` in `lib/engine-fit.ts`, deploy. Orders start again by themselves.
+- Orders that were open when an upgrade took effect may have been paid without the shop seeing it.
+  Check them in your own wallet.
+
+The engine's image is built from `engine/cipherpay/`. A change there (a new patch) makes the next deploy
+build it again: ten minutes or more, and a few gigabytes of memory.
+
 ## Other sellers
 
 `SELLING=open` lets anyone sign up as a seller at `/sell/start` with the viewing key of their own wallet,

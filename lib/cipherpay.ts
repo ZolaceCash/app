@@ -1,3 +1,4 @@
+import { engineFit, forgetFit } from "@/lib/engine-fit"
 import type { Invoice, Opened, PaymentEngine, Registered, Seen } from "@/lib/payment"
 import { MAX_GAP } from "@/lib/price"
 
@@ -14,7 +15,10 @@ import { MAX_GAP } from "@/lib/price"
 //   so the depth is asked of the chain explorer the engine itself reads from.
 // - It stops watching an invoice when the invoice expires, and it never looks at one again once it
 //   is confirmed. A payment after that, or a second one, is not seen by anything here: only the
-//   owner's wallet shows it.
+//   owner's wallet shows it. (engine/cipherpay/watch.patch changes both for the engine this shop runs.)
+// - It drops a transaction of a network upgrade its build does not know, without an error, and
+//   still calls itself healthy. So its health is not enough: the chain's own upgrade is held
+//   against what the engine can read (lib/engine-fit.ts), and no order is started when they differ.
 
 type Config = { url: string; key: string; network: "testnet" | "mainnet"; scanUrl: string }
 
@@ -36,6 +40,7 @@ const looked = new Map<string, { at: number; seen: Seen }>()
 export const forgetHealth = () => {
   health = null
   looked.clear()
+  forgetFit()
 }
 
 async function ask(url: string, init?: RequestInit): Promise<{ status: number; body: Record<string, unknown> | null } | null> {
@@ -147,7 +152,10 @@ export function cipherpay(config: Config): PaymentEngine {
       const answer = await ask(`${config.url}/api/health`)
       // "degraded" is the engine catching up by a few blocks: it still sees payments. "unhealthy"
       // is a scanner that fell behind or a database it cannot read, answered with an error.
-      const ok = answer?.status === 200 && answer.body?.status !== "unhealthy"
+      let ok = answer?.status === 200 && answer.body?.status !== "unhealthy"
+      // Healthy by its own word, and the chain is on an upgrade it cannot read: a payment would
+      // not be seen. An explorer that does not answer decides nothing here.
+      if (ok && config.scanUrl && (await engineFit(config.scanUrl, now)).state === "unread") ok = false
       health = { at: now, url: config.url, ok }
       return ok
     },

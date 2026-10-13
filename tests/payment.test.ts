@@ -220,7 +220,9 @@ test("the depth of a payment is asked of the network's own explorer when none is
     pay(ref, PRICE, "tx-depth")
     invoices.get(ref)!.status = "confirmed"
     assert.equal((await orders.readOrder(id, now + 5 * MINUTE))?.state, "delivered")
-    assert.deepEqual(seen, ["https://api.mainnet.cipherscan.app/api/tx/tx-depth"])
+    // Two things are asked of it and nothing else: which upgrade the chain is on, before an order
+    // is started (lib/engine-fit.ts), and how deep the payment is.
+    assert.deepEqual([...new Set(seen)].sort(), ["https://api.mainnet.cipherscan.app/api/blockchain-info", "https://api.mainnet.cipherscan.app/api/tx/tx-depth"])
   } finally {
     globalThis.fetch = played
   }

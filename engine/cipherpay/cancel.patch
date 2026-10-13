@@ -1,0 +1,13 @@
+diff --git a/src/api/invoice_routes.rs b/src/api/invoice_routes.rs
+index b6296a5..1653214 100644
+--- a/src/api/invoice_routes.rs
++++ b/src/api/invoice_routes.rs
+@@ -260,7 +260,7 @@ pub async fn cancel_invoice(
+     pool: web::Data<SqlitePool>,
+     path: web::Path<String>,
+ ) -> actix_web::HttpResponse {
+-    let merchant = match auth::require_full_session(&req, pool.get_ref()).await {
++    let merchant = match auth::require_full_or_session(&req, pool.get_ref()).await {
+         Ok(merchant) => merchant,
+         Err(response) => return response,
+     };

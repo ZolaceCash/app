@@ -11,10 +11,10 @@ RUN apt-get update && apt-get install -y pkg-config libssl-dev git ca-certificat
 # CipherPay, at the commit the patches were written against.
 RUN git clone https://github.com/atmospherelabs-dev/cipherpay-api.git . && git checkout --quiet f6f022d
 
-COPY nu7.patch watch.patch ./
+COPY nu7.patch watch.patch cancel.patch ./
 # The first patch moves to newer Zcash libraries, so upstream's lock file no longer fits. The one
 # beside this file is from the build that was run against the chain: the same versions every time.
-RUN git apply nu7.patch && git apply watch.patch
+RUN git apply nu7.patch && git apply watch.patch && git apply cancel.patch
 COPY Cargo.lock ./Cargo.lock
 
 RUN cargo build --release --locked

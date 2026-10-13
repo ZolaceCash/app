@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs"
 
 import { cipherpay, register } from "@/lib/cipherpay"
+import { engineFit, type Fit } from "@/lib/engine-fit"
 import { toZat } from "@/lib/price"
 
 // The payment engine sits behind this interface so it can be replaced (PLAN.md, "Architecture").
@@ -119,6 +120,13 @@ export function engine(): PaymentEngine {
 export function sellerEngine(key: string): PaymentEngine | null {
   const set = settings()
   return set && key ? cipherpay({ ...set, key }) : null
+}
+
+// Whether the engine can read the chain it watches (lib/engine-fit.ts). Null on the stand-in,
+// which watches no chain.
+export async function engineFitNow(now = Date.now()): Promise<Fit | null> {
+  const set = settings()
+  return set ? engineFit(set.scanUrl, now) : null
 }
 
 export type Registered =

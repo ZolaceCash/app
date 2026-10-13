@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { cannotBuyItem, handOverItem } from "@/app/owner/actions";
 import { testNotice } from "@/app/owner/notice-actions";
 import { ActionForm } from "@/components/owner/action-form";
+import { EngineAlarm } from "@/components/owner/engine-alarm";
 import { dollars, OwnerFrame, Panel, when } from "@/components/owner/frame";
 import { ZecIcon } from "@/components/site/chain-icons";
 import { countOrders, listOrders, listProblems, listRefundsDue } from "@/lib/admin";
@@ -52,6 +53,7 @@ export default async function OwnerOrders() {
 
   return (
     <OwnerFrame at="/owner" title="Orders" due={due.length + problems.length} toBuy={toBuy.length}>
+      <EngineAlarm />
       {toBuy.length > 0 ? (
         <div className="mb-2.5 grid items-start gap-2.5 lg:grid-cols-[minmax(0,1fr)_21rem]">
           <div className="space-y-2.5">
