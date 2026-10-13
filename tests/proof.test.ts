@@ -1,6 +1,8 @@
 import assert from "node:assert/strict"
 import { test } from "node:test"
 
+import { findShelf, SHELVES } from "../lib/catalog"
+import { SHELF_SLUGS } from "../lib/db/schema"
 import { KEPT_DAYS } from "../lib/order-times"
 import { STORED } from "../lib/proof"
 import { TERMS, TERMS_CHANGED } from "../lib/terms"
@@ -34,4 +36,10 @@ test("the terms say first that no lawyer reviewed them, name every part once and
   // Nothing in them claims what no text of the site may claim.
   const all = TERMS.flatMap((term) => term.lines).join(" ")
   assert.ok(!/audited and|guarantee|fully private|anonymous|legal advice/i.test(all))
+})
+
+test("every shelf an item can stand on has a page, and nothing else does", () => {
+  assert.deepEqual(SHELVES.map((shelf) => shelf.slug).sort(), [...SHELF_SLUGS].sort())
+  for (const slug of SHELF_SLUGS) assert.equal(findShelf(slug)?.slug, slug)
+  for (const not of ["", "weapons", "Gift-Cards", "gift-cards/", "../owner"]) assert.equal(findShelf(not), null, not)
 })

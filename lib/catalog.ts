@@ -59,6 +59,9 @@ export const SHELVES: Shelf[] = [
   },
 ]
 
+// A shelf by the name in its link (/shop/shelf/<slug>). Null for a name that is no shelf's.
+export const findShelf = (slug: string) => SHELVES.find((shelf) => shelf.slug === slug) ?? null
+
 export const HANDOVER_LABEL: Record<Shelf["handover"], string> = {
   stock: "First shelf",
   supplier: "Planned",

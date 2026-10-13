@@ -8,6 +8,7 @@ import { ZecNow } from "@/components/shop/zec-now";
 import { shopWords } from "@/lib/shop-mode";
 import { PageShell } from "@/components/site/page-shell";
 import { DotLabel, PillLink } from "@/components/site/primitives";
+import { findShelf } from "@/lib/catalog";
 import { getItem, handHours, type ShelfItem } from "@/lib/orders";
 
 const FALLBACK: Metadata = {
@@ -133,6 +134,11 @@ function Item({ item }: { item: ShelfItem }) {
           <PillLink href="/shop" variant="secondary">
             All items
           </PillLink>
+          {item.shelf ? (
+            <PillLink href={`/shop/shelf/${item.shelf}`} variant="outline">
+              {findShelf(item.shelf)?.name ?? "Its shelf"}
+            </PillLink>
+          ) : null}
         </div>
 
         <p className="mt-8 max-w-xl rounded-xl bg-secondary p-5 text-sm leading-relaxed text-muted-foreground">

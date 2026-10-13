@@ -23,7 +23,7 @@ export type OnSale = Partial<Record<ShelfSlug, { items: number; fromCents: numbe
 const dollars = (cents: number) => `$${(cents / 100).toFixed(2)}`
 
 // Without `onSale` every shelf is drawn as the plan has it. A shelf named there is marked on
-// sale, says what it starts at, and leads to the list of items.
+// sale, says what it starts at, and leads to its own page (/shop/shelf/<slug>).
 export function ShelfGrid({ className, onSale = {} }: { className?: string; onSale?: OnSale }) {
   return (
     <ul className={cn("grid gap-2.5 sm:grid-cols-2 lg:auto-rows-[13rem] lg:grid-cols-4", className)}>
@@ -67,7 +67,7 @@ export function ShelfGrid({ className, onSale = {} }: { className?: string; onSa
                 {now ? (
                   // The link covers the tile, so the whole shelf can be clicked.
                   <Link
-                    href="/shop#on-sale"
+                    href={`/shop/shelf/${shelf.slug}`}
                     className="outline-none after:absolute after:inset-0 focus-visible:underline focus-visible:underline-offset-4"
                   >
                     {shelf.name}
