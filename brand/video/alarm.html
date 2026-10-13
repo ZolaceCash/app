@@ -1,0 +1,375 @@
+<!doctype html>
+<!--
+  A film for the post about the shop stopping when the chain moves to an upgrade its payment
+  engine cannot read. The chain comes down the middle of the screen as a column of blocks, one
+  after another, through a bar that is the engine: a block the engine reads leaves the bar light,
+  one it cannot read leaves it dark. On the left stands the shop, open or not; on the right what
+  the owner is told. An upgrade is scheduled, the owner is told ahead and a countdown runs; the
+  upgrade's blocks reach the bar and are not read; the shop stops taking orders at once; the
+  engine is taught the upgrade and the shop opens again. No other film here has a column of things
+  coming down through a bar.
+  Drawn and encoded one frame at a time (encode.js); opened by compose.mjs with PAGE=alarm.html.
+  ?still=<seconds> draws one moment and stops.
+  What it says is what is built (lib/engine-fit.ts, PLAN.md "The engine's alarm"): an upgrade the
+  engine cannot read is seen while it is only scheduled and the owner is told; once it is there no
+  order is started and nothing is charged; with the engine updated, orders start again by
+  themselves. The two lines on the right are the ones the server sends, word for word. The upgrade
+  in the film ("NU8") is made up, and the film says so throughout: none was scheduled on
+  13 Oct 2026. It does not say that no payment can ever be missed: this catches one way of it.
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;700&family=Geist+Mono:wght@500&display=block"
+      rel="stylesheet"
+    />
+    <style>
+      html,
+      body {
+        margin: 0;
+        background: #09090b;
+        overflow: hidden;
+      }
+      canvas {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <canvas id="stage" width="1920" height="1080"></canvas>
+    <script type="module">
+      const W = 1920
+      const H = 1080
+      const GROUND = "#09090b"
+      const CARD = "#111114"
+      const RAISE = "#1c1c23"
+      const ICE = "#f4f4f6"
+      const INK = "#0b0b10"
+      const QUIET = "rgba(244,244,246,0.58)"
+      const FAINT = "rgba(244,244,246,0.22)"
+      const INDIGO = "#5567ea"
+      const BRAND = "#7b8cff"
+      const SANS = "Geist, system-ui, sans-serif"
+      const MONO = '"Geist Mono", ui-monospace, monospace'
+      const TOTAL = 14.4
+
+      const canvas = document.getElementById("stage")
+      const ctx = canvas.getContext("2d")
+      const clamp = (x, low = 0, high = 1) => Math.min(high, Math.max(low, x))
+      const easeOut = (x) => 1 - Math.pow(1 - clamp(x), 3)
+      const mix = (a, b, p) => a + (b - a) * p
+      const rounded = (x, y, w, h, r) => {
+        ctx.beginPath()
+        ctx.roundRect(x, y, w, h, r)
+      }
+      const text = (value, x, y, font, colour, align = "left", spacing = "0px") => {
+        ctx.font = font
+        ctx.fillStyle = colour
+        ctx.textAlign = align
+        ctx.letterSpacing = spacing
+        ctx.fillText(value, x, y)
+      }
+      const widthOf = (value, font, spacing = "0px") => {
+        ctx.font = font
+        ctx.letterSpacing = spacing
+        return ctx.measureText(value).width
+      }
+      // A line of words that comes up from behind its own baseline.
+      const rise = (value, x, y, size, font, colour, p, spacing = "0px") => {
+        if (p <= 0) return
+        ctx.save()
+        const alpha = ctx.globalAlpha
+        ctx.beginPath()
+        ctx.rect(0, y - size * 0.95, W, size * 1.24)
+        ctx.clip()
+        ctx.globalAlpha = alpha * clamp(p * 1.6)
+        text(value, x, y + (1 - easeOut(p)) * size * 0.9, font, colour, "left", spacing)
+        ctx.restore()
+      }
+      const wrap = (value, font, wide, spacing = "0px") => {
+        const lines = []
+        let line = ""
+        for (const word of value.split(" ")) {
+          const next = line ? `${line} ${word}` : word
+          if (line && widthOf(next, font, spacing) > wide) {
+            lines.push(line)
+            line = word
+          } else line = next
+        }
+        if (line) lines.push(line)
+        return lines
+      }
+      const MARK = [
+        [8.1, 2, 22, 2, 13.25, 14.5, 10.65, 14.5, 15.9, 7, 4.6, 7],
+        [19.4, 17, 15.9, 22, 2, 22, 10.75, 9.5, 13.35, 9.5, 8.1, 17],
+        [5.5, 2, 7, 2, 3.5, 7, 2, 7],
+        [20.5, 17, 22, 17, 18.5, 22, 17, 22],
+      ]
+      const mark = (x, y, size, colour) => {
+        const k = size / 24
+        ctx.fillStyle = colour
+        for (const points of MARK) {
+          ctx.beginPath()
+          for (let i = 0; i < points.length; i += 2) ctx[i ? "lineTo" : "moveTo"](x + points[i] * k, y + points[i + 1] * k)
+          ctx.closePath()
+          ctx.fill()
+        }
+      }
+      const logo = (x, y, size, colour) => {
+        mark(x, y, size, colour)
+        text("zolace", x + size * 1.28, y + size * 0.86, `700 ${size * 0.95}px ${SANS}`, colour, "left", `${-size * 0.05}px`)
+      }
+      // The site's ground: a faint grid of dots.
+      const dots = (() => {
+        const tile = document.createElement("canvas")
+        tile.width = tile.height = 34
+        const pen = tile.getContext("2d")
+        pen.fillStyle = "rgba(255,255,255,0.06)"
+        pen.fillRect(16, 16, 2, 2)
+        return ctx.createPattern(tile, "repeat")
+      })()
+
+      // ------------------------------------------------------------ the chain, coming down
+      const COL = { x: 740, w: 440 }
+      const BLOCK = { h: 84, every: 0.46, speed: 300 }
+      const BAR = 560 // where the engine reads
+      const FIRST = 0.5
+      const born = (index) => FIRST + index * BLOCK.every
+      const topOf = (index, time) => -BLOCK.h - 10 + (time - born(index)) * BLOCK.speed
+      // The moment a block's middle is at the bar.
+      const readAt = (index) => born(index) + (BAR + BLOCK.h + 10 - BLOCK.h / 2) / BLOCK.speed
+      // From this block on, the chain is on the upgrade that was scheduled.
+      const NEW_FROM = 12
+      const SCHEDULED = 3.2 // the upgrade is scheduled, and the owner is told ahead
+      const THERE = readAt(NEW_FROM) // its first block reaches the engine
+      const UPDATED = 11.0 // the engine is taught the upgrade
+      const reads = (index) => index < NEW_FROM || readAt(index) >= UPDATED
+      // The first block read after the update: the shop opens again.
+      let again = NEW_FROM
+      while (readAt(again) < UPDATED) again += 1
+      const OPEN_AGAIN = readAt(again)
+      const WORDS = OPEN_AGAIN + 0.7
+      const LAST = WORDS + 0.7
+
+      function chain(time) {
+        ctx.save()
+        ctx.beginPath()
+        ctx.rect(COL.x - 20, 236, COL.w + 40, H)
+        ctx.clip()
+        for (let index = 0; index < 40; index++) {
+          const y = topOf(index, time)
+          if (y < 236 - BLOCK.h || y > H) continue
+          const fresh = index >= NEW_FROM
+          const passed = time >= readAt(index)
+          const read = passed && reads(index)
+          const lost = passed && !reads(index)
+          const since = time - readAt(index)
+          ctx.fillStyle = read ? ICE : lost ? "#16161c" : RAISE
+          rounded(COL.x, y, COL.w, BLOCK.h - 10, 16)
+          ctx.fill()
+          if (read && since < 0.35) {
+            ctx.globalAlpha = 1 - since / 0.35
+            ctx.fillStyle = BRAND
+            rounded(COL.x, y, COL.w, BLOCK.h - 10, 16)
+            ctx.fill()
+            ctx.globalAlpha = 1
+          }
+          const ink = read ? INK : lost ? FAINT : QUIET
+          text(`BLOCK ${(3_519_988 + index).toLocaleString("en-US")}`, COL.x + 26, y + 46, `500 19px ${MONO}`, ink, "left", "1.4px")
+          text(fresh ? "NU8" : "NU6.3", COL.x + COL.w - 26, y + 46, `500 19px ${MONO}`, read ? INK : fresh ? (lost ? QUIET : BRAND) : QUIET, "right", "1.4px")
+          if (lost) {
+            // Not read: it goes on down as it came, and nothing in it was seen.
+            ctx.fillStyle = FAINT
+            for (let i = 0; i < 7; i++) ctx.fillRect(COL.x + 262 + i * 14, y + 34, 7, 7)
+          }
+        }
+        ctx.restore()
+      }
+
+      // The engine: a bar across the column, and beside it what it can read.
+      function engine(time) {
+        const shown = easeOut((time - 0.3) / 0.6)
+        const cannot = time >= THERE && time < OPEN_AGAIN
+        const taught = easeOut((time - UPDATED) / 0.5)
+        ctx.globalAlpha = shown
+        ctx.fillStyle = cannot ? "rgba(244,244,246,0.3)" : INDIGO
+        ctx.fillRect(COL.x - 60, BAR - 7, COL.w + 120, 14)
+        // A pulse when it is taught the upgrade.
+        if (time > UPDATED && time < UPDATED + 0.6) {
+          ctx.globalAlpha = (1 - (time - UPDATED) / 0.6) * 0.9
+          ctx.fillStyle = ICE
+          ctx.fillRect(COL.x - 60, BAR - 7, COL.w + 120, 14)
+          ctx.globalAlpha = shown
+        }
+        text("THE PAYMENT ENGINE READS", 96, BAR + 6, `500 17px ${MONO}`, QUIET, "left", "1.5px")
+        let at = 96
+        for (const [name, p] of [["NU6.3", 1], ["NU7", 1], ["NU8", taught]]) {
+          if (p <= 0) continue
+          const font = `500 20px ${MONO}`
+          const wide = widthOf(name, font, "1.4px") + 34
+          ctx.globalAlpha = shown * p
+          ctx.fillStyle = name === "NU8" ? INDIGO : RAISE
+          rounded(at, BAR + 28 + (1 - p) * 14, wide, 46, 9)
+          ctx.fill()
+          text(name, at + 17, BAR + 59 + (1 - p) * 14, font, ICE, "left", "1.4px")
+          at += wide + 10
+        }
+        if (cannot) {
+          ctx.globalAlpha = easeOut((time - THERE) / 0.4)
+          text("NOT NU8: ITS BLOCKS ARE NOT READ", 96, BAR + 116, `500 17px ${MONO}`, ICE, "left", "1.5px")
+        }
+        ctx.globalAlpha = 1
+      }
+
+      // ------------------------------------------------------------ the shop, on the left
+      function shop(time) {
+        const shown = easeOut((time - 0.5) / 0.6)
+        if (shown <= 0) return
+        const shut = time >= THERE && time < OPEN_AGAIN
+        const turned = shut ? easeOut((time - THERE) / 0.4) : time >= OPEN_AGAIN ? 1 - easeOut((time - OPEN_AGAIN) / 0.4) : 0
+        ctx.globalAlpha = shown
+        ctx.fillStyle = BRAND
+        ctx.fillRect(96, 196, 10, 10)
+        text("THE SHOP", 120, 208, `500 19px ${MONO}`, ICE, "left", "1.7px")
+        ctx.fillStyle = INDIGO
+        rounded(96, 236, 540, 250, 26)
+        ctx.fill()
+        if (turned > 0) {
+          ctx.globalAlpha = shown * turned
+          ctx.fillStyle = RAISE
+          rounded(96, 236, 540, 250, 26)
+          ctx.fill()
+          ctx.globalAlpha = shown
+        }
+        const label = `500 17px ${MONO}`
+        text("AN ORDER", 130, 290, label, shut ? QUIET : "rgba(255,255,255,0.76)", "left", "1.5px")
+        const big = `500 62px ${SANS}`
+        if (shut) {
+          text("Not started.", 126, 372, big, ICE, "left", "-3px")
+          text("The buyer is told. Nothing is charged.", 130, 434, `500 25px ${SANS}`, QUIET, "left", "-0.5px")
+        } else {
+          text(time >= OPEN_AGAIN ? "Starts again." : "Starts.", 126, 372, big, "#ffffff", "left", "-3px")
+          text(time >= OPEN_AGAIN ? "By itself: nobody switches it on." : "Its payment is seen at once.", 130, 434, `500 25px ${SANS}`, "rgba(255,255,255,0.82)", "left", "-0.5px")
+        }
+        ctx.globalAlpha = 1
+      }
+
+      // ------------------------------------------------------------ what the owner is told, on the right
+      const TOLD = [
+        { at: SCHEDULED, when: "DAYS AHEAD", line: "A Zcash network upgrade is scheduled that the payment engine cannot read. Update the engine before it takes effect." },
+        { at: THERE + 0.35, when: "THE BLOCK IT TAKES EFFECT", line: "The Zcash network is on an upgrade the payment engine cannot read. No order is started until the engine is updated." },
+      ]
+      function owner(time) {
+        const shown = easeOut((time - 0.7) / 0.6)
+        ctx.globalAlpha = shown
+        ctx.fillStyle = BRAND
+        ctx.fillRect(1284, 196, 10, 10)
+        text("THE OWNER IS TOLD", 1308, 208, `500 19px ${MONO}`, ICE, "left", "1.7px")
+        ctx.globalAlpha = 1
+        TOLD.forEach((entry, index) => {
+          const p = easeOut((time - entry.at) / 0.5)
+          if (p <= 0) return
+          const y = 236 + index * 270 + (1 - p) * 30
+          const font = `500 25px ${SANS}`
+          const lines = wrap(entry.line, font, 480, "-0.4px")
+          ctx.globalAlpha = p
+          ctx.fillStyle = RAISE
+          rounded(1284, y, 540, 86 + lines.length * 33, 22)
+          ctx.fill()
+          ctx.fillStyle = BRAND
+          ctx.fillRect(1312, y + 30, 10, 10)
+          text("ZOLACE", 1334, y + 42, `500 16px ${MONO}`, ICE, "left", "1.5px")
+          text(entry.when, 1796, y + 42, `500 16px ${MONO}`, QUIET, "right", "1.3px")
+          lines.forEach((line, row) => text(line, 1312, y + 86 + row * 33, font, ICE, "left", "-0.4px"))
+          ctx.globalAlpha = 1
+        })
+
+        // How far off the upgrade is: it runs down while the old blocks are still coming.
+        if (time >= SCHEDULED && time < THERE) {
+          const left = clamp((THERE - time) / (THERE - SCHEDULED))
+          const hours = Math.max(1, Math.round(left * 72))
+          const says = hours >= 48 ? `IN ABOUT ${Math.round(hours / 24)} DAYS` : hours > 1 ? `IN ABOUT ${hours} HOURS` : "IN UNDER AN HOUR"
+          const p = easeOut((time - SCHEDULED - 0.3) / 0.4)
+          ctx.globalAlpha = p
+          text("NU8 TAKES EFFECT", COL.x + COL.w / 2, 186, `500 17px ${MONO}`, QUIET, "center", "1.5px")
+          text(says, COL.x + COL.w / 2, 216, `500 21px ${MONO}`, ICE, "center", "1.5px")
+          ctx.globalAlpha = 1
+        }
+      }
+
+      // ------------------------------------------------------------ the film
+      function draw(time) {
+        ctx.globalAlpha = 1
+        ctx.fillStyle = GROUND
+        ctx.fillRect(0, 0, W, H)
+        ctx.fillStyle = dots
+        ctx.fillRect(0, 0, W, H)
+
+        chain(time)
+        // The corner and the labels stand on bare ground above the column.
+        ctx.fillStyle = GROUND
+        ctx.fillRect(COL.x - 20, 0, COL.w + 40, 236)
+        engine(time)
+        shop(time)
+        owner(time)
+
+        // The words, once the shop is open again.
+        const font = `500 64px ${SANS}`
+        rise("Can't read the chain?", 92, 890, 64, font, ICE, (time - WORDS) / 0.6, "-3.2px")
+        rise("No order is started.", 92, 966, 64, font, BRAND, (time - WORDS - 0.16) / 0.6, "-3.2px")
+        const last = easeOut((time - LAST) / 0.6)
+        ctx.globalAlpha = last
+        text("zolace.cash", W - 96, 966 + (1 - last) * 12, `500 46px ${SANS}`, ICE, "right", "-1.8px")
+        ctx.globalAlpha = 1
+        const noted = easeOut((time - 1.0) / 0.5)
+        ctx.globalAlpha = noted
+        text("A WALK-THROUGH · THE UPGRADE IN IT IS MADE UP", W - 96, 1030, `500 17px ${MONO}`, QUIET, "right", "1.5px")
+        ctx.globalAlpha = 1
+
+        // The corner: the logo and what the film is about, from the first frame to the last.
+        ctx.globalAlpha = easeOut(time / 0.4)
+        logo(96, 66, 46, ICE)
+        const state = "THE SHOP · WHEN ZCASH UPGRADES"
+        const stateFont = `500 19px ${MONO}`
+        const stateWide = widthOf(state, stateFont, "1.6px") + 62
+        ctx.fillStyle = RAISE
+        rounded(W - 96 - stateWide, 58, stateWide, 46, 12)
+        ctx.fill()
+        ctx.fillStyle = BRAND
+        ctx.fillRect(W - 96 - stateWide + 18, 77, 9, 9)
+        text(state, W - 96 - stateWide + 40, 88, stateFont, ICE, "left", "1.6px")
+        ctx.globalAlpha = 1
+
+        const remaining = TOTAL - time
+        if (remaining < 0.3) {
+          ctx.globalAlpha = 1 - clamp(remaining / 0.3)
+          ctx.fillStyle = "#050507"
+          ctx.fillRect(0, 0, W, H)
+          ctx.globalAlpha = 1
+        }
+      }
+
+      await Promise.all([
+        document.fonts.load(`500 70px ${SANS}`),
+        document.fonts.load(`400 38px ${SANS}`),
+        document.fonts.load(`700 46px ${SANS}`),
+        document.fonts.load(`500 21px ${MONO}`),
+      ])
+      const asked = new URLSearchParams(location.search)
+      window.film = { total: TOTAL, there: THERE, openAgain: OPEN_AGAIN, words: WORDS }
+      if (asked.has("still")) {
+        draw(Number(asked.get("still")))
+        window.done = true
+      } else {
+        const { encodeFilm } = await import("./encode.js")
+        const { blob, frames } = await encodeFilm({ canvas, total: TOTAL, bitrate: 9_000_000, ready: async () => {}, draw })
+        window.film.frames = frames
+        await fetch("out", { method: "POST", body: blob })
+        window.done = true
+      }
+    </script>
+  </body>
+</html>
